@@ -1,0 +1,10 @@
+{
+  "description": "VEE POWER ELECTRICALS is an ecommerce platform for purchasing genuine electrical products, offering a user-friendly experience for customers and efficient management tools for admins.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
