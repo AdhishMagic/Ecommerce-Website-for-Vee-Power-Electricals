@@ -1,0 +1,57 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: veepower_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DATABASE_PASSWORD:-root}
+      MYSQL_DATABASE: ${DATABASE_NAME:-veepower_db}
+      MYSQL_USER: ${DATABASE_USER:-veepower}
+      MYSQL_PASSWORD: ${DATABASE_PASSWORD:-root}
+    ports:
+      - "${DATABASE_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ../
+      dockerfile: docker/backend/Dockerfile
+    container_name: veepower_backend
+    restart: always
+    environment:
+      DATABASE_ENGINE: django.db.backends.mysql
+      DATABASE_NAME: ${DATABASE_NAME:-veepower_db}
+      DATABASE_USER: ${DATABASE_USER:-veepower}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-root}
+      DATABASE_HOST: mysql
+      DATABASE_PORT: 3306
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-django-secret-key-change-in-prod}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-False}
+    ports:
+      - "8000:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile
+    container_name: veepower_frontend
+    restart: always
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000/api/v1}
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:

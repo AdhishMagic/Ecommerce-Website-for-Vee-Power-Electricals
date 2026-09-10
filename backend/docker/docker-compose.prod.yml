@@ -1,0 +1,10 @@
+services:
+  backend:
+    command: gunicorn --bind 0.0.0.0:8000 --workers 3 config.wsgi:application
+    environment:
+      DJANGO_DEBUG: "False"
+      USE_SQLITE: "False"
+
+  frontend:
+    ports:
+      - "80:80"

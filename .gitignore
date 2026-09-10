@@ -1,20 +1,30 @@
+# Dependencies
 node_modules/
+.pnpm-store/
+
+# Build & Dist
 dist/
 build/
-.cache/
-.env*
-.vite/
-vite.config.*.timestamp-*
-*.tsbuildinfo
-*-debug.log*
-logs/
-*.log
-.claude-replay.*
-.tmp-*
+*.egg-info/
+.venv/
+env/
+venv/
 
-# Platform-managed agentplat state, not project source. In the
-# client-initiated single-repo workspace layout (make's `Path: "."` spec) the
-# repo root IS the workspace root, so these land inside this repo rather than
-# beside it.
-/.plugins/
-/.opencode-skills/
+# Environment variables & secrets
+.env
+.env.local
+.env.*.local
+
+# Database & Cache
+*.sqlite3
+*.db
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+
+# IDE & OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

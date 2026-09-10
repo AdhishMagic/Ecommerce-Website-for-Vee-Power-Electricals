@@ -1,0 +1,16 @@
+services:
+  backend:
+    command: python manage.py runserver 0.0.0.0:8000
+    environment:
+      DJANGO_DEBUG: "True"
+      USE_SQLITE: "True"
+    volumes:
+      - ../:/app
+
+  frontend:
+    command: npm run dev -- --host 0.0.0.0
+    ports:
+      - "5173:5173"
+    volumes:
+      - ../../frontend:/app
+      - /app/node_modules
