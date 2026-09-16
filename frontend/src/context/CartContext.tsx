@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
 import type { Product } from "../types/product";
+import { useAuth } from "./AuthContext";
 
 interface CartItem {
   product: Product;
@@ -20,16 +21,19 @@ const CartContext = createContext<CartContextType | null>(null);
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
+  const { requireAuth } = useAuth();
 
   const addToCart = useCallback((product: Product, qty = 1) => {
-    setItems(prev => {
-      const existing = prev.find(i => i.product.id === product.id);
-      if (existing) {
-        return prev.map(i => i.product.id === product.id ? { ...i, quantity: i.quantity + qty } : i);
-      }
-      return [...prev, { product, quantity: qty }];
+    requireAuth(() => {
+      setItems(prev => {
+        const existing = prev.find(i => i.product.id === product.id);
+        if (existing) {
+          return prev.map(i => i.product.id === product.id ? { ...i, quantity: i.quantity + qty } : i);
+        }
+        return [...prev, { product, quantity: qty }];
+      });
     });
-  }, []);
+  }, [requireAuth]);
 
   const removeFromCart = useCallback((productId: string) => {
     setItems(prev => prev.filter(i => i.product.id !== productId));

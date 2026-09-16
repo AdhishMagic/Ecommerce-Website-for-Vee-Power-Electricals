@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { products, categories, brands } from "../../data/mock/products";
 import ProductCard from "../../components/common/ProductCard";
@@ -11,24 +11,38 @@ const sortOptions = [
 ];
 
 export default function Shop() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [filterOpen, setFilterOpen] = useState(false);
   const [sort, setSort] = useState("featured");
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 50000]);
+
+  const slugifyBrand = (value: string) => value.trim().toLowerCase();
+  const findBrandLabel = (value: string) => brands.find(brand => slugifyBrand(brand) === slugifyBrand(value)) || value;
 
   const selectedCategory = searchParams.get("category") || "";
   const selectedBrand = searchParams.get("brand") || "";
   const searchQuery = searchParams.get("q") || "";
   const view = searchParams.get("view") || "";
 
-  const [localBrands, setLocalBrands] = useState<string[]>(selectedBrand ? [selectedBrand] : []);
+  const [localBrands, setLocalBrands] = useState<string[]>(selectedBrand ? [findBrandLabel(selectedBrand)] : []);
   const [localCategory, setLocalCategory] = useState(selectedCategory);
   const [stockFilter, setStockFilter] = useState(false);
+
+  useEffect(() => {
+    setLocalCategory(selectedCategory);
+  }, [selectedCategory]);
+
+  useEffect(() => {
+    setLocalBrands(selectedBrand ? [findBrandLabel(selectedBrand)] : []);
+  }, [selectedBrand]);
 
   const filtered = useMemo(() => {
     let list = [...products];
     if (localCategory) list = list.filter(p => p.category === localCategory);
-    if (localBrands.length) list = list.filter(p => localBrands.includes(p.brand));
+    if (localBrands.length) {
+      const activeBrandSlugs = localBrands.map(slugifyBrand);
+      list = list.filter(p => activeBrandSlugs.includes(slugifyBrand(p.brand)));
+    }
     if (stockFilter) list = list.filter(p => p.stock > 0);
     if (searchQuery) list = list.filter(p =>
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -98,14 +112,14 @@ export default function Shop() {
           {brands.map(brand => (
             <Link
               key={brand}
-              to={`/shop?brand=${brand}`}
-              className="bg-white border border-[#D9E1E8] rounded-xl p-5 text-center hover:border-[#1769AA] hover:shadow-md transition-all group"
+              to={`/shop?brand=${encodeURIComponent(brand.toLowerCase())}`}
+              className="bg-white border border-[#D9E1E8] rounded-xl p-5 text-center transition-all duration-300 ease-in-out group hover:-translate-y-2 hover:scale-105 hover:shadow-2xl hover:bg-[#0B3A63] hover:border-[#0B3A63]"
             >
-              <div className="w-12 h-12 bg-[#0B3A63] rounded-full flex items-center justify-center mx-auto mb-3">
-                <span className="text-white font-bold text-lg" style={{ fontFamily: "Outfit" }}>{brand[0]}</span>
+              <div className="w-12 h-12 bg-[#0B3A63] rounded-full flex items-center justify-center mx-auto mb-3 transition-colors duration-300 group-hover:bg-white/15">
+                <span className="text-white font-bold text-lg transition-colors duration-300 group-hover:text-white" style={{ fontFamily: "Outfit" }}>{brand[0]}</span>
               </div>
-              <div className="font-semibold text-[#17212B] group-hover:text-[#1769AA]">{brand}</div>
-              <div className="text-xs text-[#667085] mt-1">
+              <div className="font-semibold text-[#17212B] transition-colors duration-300 group-hover:text-white">{brand}</div>
+              <div className="text-xs text-[#667085] mt-1 transition-colors duration-300 group-hover:text-white/80">
                 {products.filter(p => p.brand === brand).length} products
               </div>
             </Link>
@@ -117,7 +131,6 @@ export default function Shop() {
 
   const FilterPanel = () => (
     <div className="space-y-6">
-      {/* Category */}
       <div>
         <h4 className="text-sm font-semibold text-[#0B3A63] mb-3 uppercase tracking-wider">Category</h4>
         <div className="space-y-1.5">
@@ -134,7 +147,6 @@ export default function Shop() {
         </div>
       </div>
 
-      {/* Brand */}
       <div>
         <h4 className="text-sm font-semibold text-[#0B3A63] mb-3 uppercase tracking-wider">Brand</h4>
         <div className="space-y-1.5">
@@ -148,7 +160,6 @@ export default function Shop() {
         </div>
       </div>
 
-      {/* Price */}
       <div>
         <h4 className="text-sm font-semibold text-[#0B3A63] mb-3 uppercase tracking-wider">Price Range</h4>
         <div className="space-y-2">
@@ -173,7 +184,6 @@ export default function Shop() {
         </div>
       </div>
 
-      {/* Availability */}
       <div>
         <h4 className="text-sm font-semibold text-[#0B3A63] mb-3 uppercase tracking-wider">Availability</h4>
         <label className="flex items-center gap-2 cursor-pointer">

@@ -7,20 +7,26 @@ export default function Footer() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* Brand */}
           <div>
-            <div className="flex items-center gap-2.5 mb-4">
-              <div className="w-9 h-9 bg-[#F2A900] rounded-md flex items-center justify-center">
-                <span className="text-[#0B3A63] font-bold text-lg" style={{ fontFamily: "Outfit" }}>V</span>
+            <Link 
+              to="/" 
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              className="hover:opacity-80 transition-opacity cursor-pointer inline-block"
+            >
+              <div className="flex items-center gap-2.5 mb-4">
+                <div className="w-9 h-9 bg-[#F2A900] rounded-md flex items-center justify-center">
+                  <span className="text-[#0B3A63] font-bold text-lg" style={{ fontFamily: "Outfit" }}>V</span>
+                </div>
+                <div>
+                  <div className="font-bold text-white text-sm" style={{ fontFamily: "Outfit" }}>VEE POWER ELECTRICALS</div>
+                  <div className="text-[10px] text-white/60 tracking-wider uppercase">Trusted Since 2010</div>
+                </div>
               </div>
-              <div>
-                <div className="font-bold text-white text-sm" style={{ fontFamily: "Outfit" }}>VEE POWER ELECTRICALS</div>
-                <div className="text-[10px] text-white/60 tracking-wider uppercase">Trusted Since 2010</div>
-              </div>
-            </div>
+            </Link>
             <p className="text-white/70 text-sm leading-relaxed mb-4">
               Your trusted electrical products partner in Coimbatore. Genuine products from established brands at competitive prices.
             </p>
             <div className="text-sm text-white/60">
-              <p>GST No: 33AABFV1234A1ZX</p>
+              <p>GST No: 33CKXPK4525R1Z9</p>
             </div>
           </div>
 
@@ -28,10 +34,10 @@ export default function Footer() {
           <div>
             <h4 className="text-white font-semibold mb-4" style={{ fontFamily: "Outfit" }}>Contact Us</h4>
             <div className="space-y-2 text-sm text-white/70">
-              <p>📍 No. 45, Industrial Estate,<br />Peelamedu, Coimbatore - 641 004<br />Tamil Nadu, India</p>
-              <p>📞 <a href="tel:+914224567890" className="hover:text-[#F2A900]">0422-456 7890</a></p>
-              <p>📞 <a href="tel:+919876543210" className="hover:text-[#F2A900]">+91 98765 43210</a></p>
-              <p>✉️ <a href="mailto:info@veepowerelectricals.com" className="hover:text-[#F2A900]">info@veepowerelectricals.com</a></p>
+              <p>📍 No 28/1, 2nd floor, MTP Road,<br />Muthu nagar, NSN palayam,<br />Coimbatore - 641031</p>
+              <p>📞 <a href="tel:+918610359797" className="hover:text-[#F2A900]">+91 8610359797</a></p>
+              <p>📞 <a href="tel:+919443441058" className="hover:text-[#F2A900]">+91 9443441058</a></p>
+              <p>✉️ <a href="mailto:veepower.cbe@gmail.com" className="hover:text-[#F2A900]">veepower.cbe@gmail.com</a></p>
               <p className="text-white/50 text-xs">Mon–Sat: 9:00 AM – 7:00 PM</p>
             </div>
           </div>

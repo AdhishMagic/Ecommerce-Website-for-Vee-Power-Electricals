@@ -1,6 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;800&display=swap');
 
 @import 'tailwindcss';
 
@@ -26,6 +27,7 @@
 
   --font-heading: 'Outfit', sans-serif;
   --font-body: 'Inter', sans-serif;
+  --font-serif: 'Playfair Display', serif;
   --font-mono: 'JetBrains Mono', monospace;
 
   --radius-sm: 4px;
@@ -66,3 +68,23 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Transitions */
 a, button { transition: all 0.15s ease; }
+
+/* Marquee Animation */
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  animation: marquee 30s linear infinite;
+}
+
+.hover-pause:hover .animate-marquee {
+  animation-play-state: paused;
+}
+
+/* Hide native browser password reveal icon (Edge/IE) */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}

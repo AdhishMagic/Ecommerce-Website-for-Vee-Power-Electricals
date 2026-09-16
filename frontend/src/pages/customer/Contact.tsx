@@ -18,9 +18,9 @@ export default function Contact() {
         {/* Info */}
         <div className="space-y-4">
           {[
-            { icon: "📍", title: "Visit Us", lines: ["No. 45, Industrial Estate,", "Peelamedu, Coimbatore - 641 004", "Tamil Nadu, India"] },
-            { icon: "📞", title: "Call Us", lines: ["0422-456 7890", "+91 98765 43210", "Mon–Sat: 9AM – 7PM"] },
-            { icon: "✉️", title: "Email Us", lines: ["info@veepowerelectricals.com", "sales@veepowerelectricals.com"] },
+            { icon: "📍", title: "Visit Us", lines: ["No 28/1, 2nd floor, MTP Road,", "Muthu nagar, NSN palayam,", "Coimbatore, Tamil Nadu - 641031"] },
+            { icon: "📞", title: "Call Us", lines: ["+91 8610359797", "+91 9443441058", "Mon–Sat: 9AM – 7PM"] },
+            { icon: "✉️", title: "Email Us", lines: ["veepower.cbe@gmail.com"] },
           ].map(item => (
             <div key={item.title} className="bg-white border border-[#D9E1E8] rounded-xl p-5">
               <div className="flex items-start gap-3">

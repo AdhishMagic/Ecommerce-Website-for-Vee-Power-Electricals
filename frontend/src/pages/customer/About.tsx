@@ -38,11 +38,11 @@ export default function About() {
             <div className="grid sm:grid-cols-2 gap-3 text-sm">
               {[
                 ["Business Name", "Vee Power Electricals"],
-                ["GST Number", "33AABFV1234A1ZX"],
-                ["Address", "No. 45, Industrial Estate, Peelamedu, Coimbatore - 641 004"],
-                ["State", "Tamil Nadu, India"],
-                ["Phone", "0422-456 7890 / +91 98765 43210"],
-                ["Email", "info@veepowerelectricals.com"],
+                ["GST Number", "33CKXPK4525R1Z9"],
+                ["Address", "No 28/1, 2nd floor, MTP Road, Muthu nagar, NSN palayam, Coimbatore - 641031"],
+                ["State", "Tamil Nadu"],
+                ["Phone", "+91 8610359797 / +91 9443441058"],
+                ["Email", "veepower.cbe@gmail.com"],
               ].map(([label, value]) => (
                 <div key={label} className="flex gap-3">
                   <span className="text-[#667085] min-w-[120px]">{label}:</span>

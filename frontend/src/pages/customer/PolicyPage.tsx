@@ -7,7 +7,7 @@ const policies: Record<string, { title: string; sections: { heading: string; con
       { heading: "Information We Collect", content: "We collect information you provide when placing orders, creating an account, or contacting us. This includes your name, address, phone number, email address, and payment information." },
       { heading: "How We Use Your Information", content: "We use your information to process and fulfill orders, send order confirmations and updates, respond to your inquiries, and improve our services. We do not sell your personal information to third parties." },
       { heading: "Data Security", content: "We implement appropriate security measures to protect your personal information. Payment transactions are encrypted using SSL technology." },
-      { heading: "Contact Us", content: "If you have questions about this Privacy Policy, contact us at info@veepowerelectricals.com or call 0422-456 7890." },
+      { heading: "Contact Us", content: "If you have questions about this Privacy Policy, contact us at veepower.cbe@gmail.com or call +91 8610359797." },
     ],
   },
   terms: {
@@ -64,7 +64,7 @@ export default function PolicyPage() {
             </div>
           ))}
           <div className="mt-8 pt-6 border-t border-[#D9E1E8] text-sm text-[#667085]">
-            <p>For any questions, contact us at <a href="mailto:info@veepowerelectricals.com" className="text-[#1769AA]">info@veepowerelectricals.com</a> or call <a href="tel:+914224567890" className="text-[#1769AA]">0422-456 7890</a>.</p>
+            <p>For any questions, contact us at <a href="mailto:veepower.cbe@gmail.com" className="text-[#1769AA]">veepower.cbe@gmail.com</a> or call <a href="tel:+918610359797" className="text-[#1769AA]">+91 8610359797</a>.</p>
           </div>
         </div>
       </div>
