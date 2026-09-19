@@ -410,6 +410,7 @@ export default function HeroSection() {
                               alt={item.name}
                               className="w-full h-full object-cover transform group-hover:scale-[1.06] transition-transform duration-200"
                               loading="lazy"
+                              decoding="async"
                             />
                           </div>
                           <div className="flex flex-col min-w-0 flex-1">
@@ -462,6 +463,7 @@ export default function HeroSection() {
                       muted
                       loop
                       playsInline
+                      preload="metadata"
                       aria-label="Electrical technician installing lighting fixture"
                       className="w-full h-full object-contain object-center scale-[1.04]"
                     />
@@ -512,6 +514,7 @@ export default function HeroSection() {
                               alt={item.name}
                               className="w-full h-full object-cover transform group-hover:scale-[1.06] transition-transform duration-200"
                               loading="lazy"
+                              decoding="async"
                             />
                           </div>
                           <div className="flex flex-col min-w-0 flex-1">
@@ -561,6 +564,8 @@ export default function HeroSection() {
                       muted
                       loop
                       playsInline
+                      preload="metadata"
+                      aria-label="Electrical technician installing lighting fixture"
                       className="w-full h-full object-contain"
                     />
                   </div>
@@ -593,6 +598,7 @@ export default function HeroSection() {
                             alt={item.name}
                             className="w-full h-full object-cover"
                             loading="lazy"
+                            decoding="async"
                           />
                         </div>
                         <div className="flex flex-col min-w-0 flex-1">

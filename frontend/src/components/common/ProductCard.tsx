@@ -20,6 +20,10 @@ export default function ProductCard({ product, compact }: Props) {
         <img
           src={product.images?.[0] || "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=600&fit=crop&auto=format"}
           alt={product.name}
+          loading="lazy"
+          decoding="async"
+          width={compact ? 240 : 320}
+          height={compact ? 144 : 192}
           className={`w-full object-cover group-hover:scale-105 transition-transform duration-300 ${compact ? "h-36" : "h-48"}`}
           onError={(e) => {
             (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=600&fit=crop&auto=format";
