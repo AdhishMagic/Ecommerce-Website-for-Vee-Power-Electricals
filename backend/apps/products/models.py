@@ -5,10 +5,25 @@ class Category(TimeStampedModel):
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=100, unique=True)
     icon = models.CharField(max_length=50, default='⚡')
+    image = models.URLField(max_length=500, blank=True, default='')
+    subtitle = models.CharField(max_length=100, blank=True, default='')
+    is_active = models.BooleanField(default=True)
+    show_in_hero = models.BooleanField(default=False)
+    hero_order = models.IntegerField(default=0)
+    hero_badge = models.CharField(max_length=50, blank=True, default='')
+    discount_enabled = models.BooleanField(default=False)
+    discount_type = models.CharField(
+        max_length=20,
+        default='percentage',
+        choices=[('percentage', 'Percentage'), ('fixed', 'Fixed')]
+    )
+    discount_value = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    discount_label = models.CharField(max_length=50, blank=True, default='')
     subcategories = models.JSONField(default=list)
 
     class Meta:
         verbose_name_plural = 'Categories'
+        ordering = ['hero_order', 'name']
 
     def __str__(self):
         return self.name

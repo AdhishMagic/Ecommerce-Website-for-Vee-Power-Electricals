@@ -3,7 +3,7 @@ export default function About() {
     <div className="max-w-4xl mx-auto px-4 py-10">
       <div className="bg-white border border-[#D9E1E8] rounded-2xl overflow-hidden">
         <div className="bg-gradient-to-r from-[#0B3A63] to-[#1769AA] px-8 py-10 text-white">
-          <h1 className="text-3xl font-bold mb-2" style={{ fontFamily: "Outfit" }}>About Vee Power Electricals</h1>
+          <h1 className="text-3xl font-bold mb-2" style={{ fontFamily: "Outfit" }}>About Vee Electricals</h1>
           <p className="text-white/80">Your Trusted Electrical Partner in Coimbatore</p>
         </div>
         <div className="p-8">

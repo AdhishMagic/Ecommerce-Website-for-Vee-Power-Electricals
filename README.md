@@ -129,32 +129,39 @@ Follow these simple step-by-step instructions to run the application locally wit
 
 ---
 
-## 🐳 Option B: Docker Setup (Containerized)
+## 🐳 Option B: Docker Setup (Containerized with Live Code Reload)
 
-If you prefer using **Docker Compose** to run the complete environment (Frontend + Backend + MySQL database in containers):
+Docker is configured with **live volume mounting** for both frontend and backend. Any changes you make to the source code on your computer are reflected immediately inside the containers!
 
 1. **Ensure Docker Desktop is running**.
 
-2. **Run Docker Compose from the project root directory**:
+2. **Start all services from the project root directory**:
    ```bash
-   docker compose -f backend/docker/docker-compose.yml up -d --build
+   docker compose up -d --build
    ```
+   *(On first run, database migrations and initial demo data are automatically applied!)*
 
 3. **Verify running services**:
    ```bash
-   docker compose -f backend/docker/docker-compose.yml ps
+   docker compose ps
    ```
 
 4. **Access the application URLs**:
-   - 🌐 **Frontend**: `http://localhost`
+   - 🌐 **Frontend (Live Hot-Reload)**: `http://localhost:5173`
    - ⚡ **Backend API**: `http://localhost:8000/api/v1/`
    - 🛠️ **Django Admin**: `http://localhost:8000/admin/`
    - 🗄️ **MySQL DB**: `localhost:3306`
 
 5. **Stop Docker containers**:
    ```bash
-   docker compose -f backend/docker/docker-compose.yml down
+   docker compose down
    ```
+
+> 💡 **Tip for Production**: To run in production mode (Gunicorn + Nginx static serving):
+> ```bash
+> docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+> ```
+
 
 ---
 

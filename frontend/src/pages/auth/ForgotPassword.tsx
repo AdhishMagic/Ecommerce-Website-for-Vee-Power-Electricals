@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import VeeElectricalsLogo from "../../components/brand/VeeElectricalsLogo";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -40,9 +41,9 @@ export default function ForgotPassword() {
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 sm:p-10 border border-[#D9E1E8]">
         
         <div className="flex justify-center mb-6">
-          <div className="w-12 h-12 bg-[#0B3A63] rounded-xl flex items-center justify-center shadow-md">
-            <span className="text-[#F2A900] font-bold text-2xl" style={{ fontFamily: "Outfit" }}>V</span>
-          </div>
+          <Link to="/">
+            <VeeElectricalsLogo variant="full" size="md" id="forgot-password-logo" />
+          </Link>
         </div>
 
         {!isSubmitted ? (

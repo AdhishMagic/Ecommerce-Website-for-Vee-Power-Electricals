@@ -1,26 +1,19 @@
 import { Link } from "react-router-dom";
+import VeeElectricalsLogo from "../brand/VeeElectricalsLogo";
 
 export default function Footer() {
   return (
     <footer className="bg-[#0B3A63] text-white mt-auto">
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+      <div className="site-container py-10 sm:py-12 lg:py-16">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12">
           {/* Brand */}
           <div>
             <Link 
               to="/" 
               onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-              className="hover:opacity-80 transition-opacity cursor-pointer inline-block"
+              className="hover:opacity-90 transition-opacity cursor-pointer inline-block mb-4"
             >
-              <div className="flex items-center gap-2.5 mb-4">
-                <div className="w-9 h-9 bg-[#F2A900] rounded-md flex items-center justify-center">
-                  <span className="text-[#0B3A63] font-bold text-lg" style={{ fontFamily: "Outfit" }}>V</span>
-                </div>
-                <div>
-                  <div className="font-bold text-white text-sm" style={{ fontFamily: "Outfit" }}>VEE POWER ELECTRICALS</div>
-                  <div className="text-[10px] text-white/60 tracking-wider uppercase">Trusted Since 2010</div>
-                </div>
-              </div>
+              <VeeElectricalsLogo variant="full" size="md" theme="white" id="footer-logo" />
             </Link>
             <p className="text-white/70 text-sm leading-relaxed mb-4">
               Your trusted electrical products partner in Coimbatore. Genuine products from established brands at competitive prices.
@@ -93,7 +86,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-8 pt-6 border-t border-white/10 flex flex-col sm:flex-row justify-between items-center gap-3 text-white/50 text-xs">
-          <p>© 2024 Vee Power Electricals. All rights reserved.</p>
+          <p>© 2024 Vee Electricals. All rights reserved.</p>
           <p>Designed with ❤️ for Coimbatore</p>
         </div>
       </div>

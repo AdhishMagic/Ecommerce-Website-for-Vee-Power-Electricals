@@ -12,7 +12,7 @@ export default function OrderSuccess() {
           </svg>
         </div>
         <h1 className="text-3xl font-bold text-[#0B3A63] mb-2" style={{ fontFamily: "Outfit" }}>Order Placed!</h1>
-        <p className="text-[#667085] mb-2">Thank you for shopping with Vee Power Electricals.</p>
+        <p className="text-[#667085] mb-2">Thank you for shopping with Vee Electricals.</p>
         <p className="text-sm text-[#667085] mb-6">Your order confirmation has been sent to your email.</p>
 
         <div className="bg-[#F6F8FA] rounded-xl p-5 mb-6 text-left">

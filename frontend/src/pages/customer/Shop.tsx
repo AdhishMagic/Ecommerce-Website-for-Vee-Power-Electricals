@@ -65,7 +65,7 @@ export default function Shop() {
 
   if (view === "categories") {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="site-container py-8">
         <h1 className="text-2xl font-bold text-[#0B3A63] mb-2">All Categories</h1>
         <p className="text-[#667085] text-sm mb-8">Browse our complete electrical product range by category</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -105,7 +105,7 @@ export default function Shop() {
 
   if (view === "brands") {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="site-container py-8">
         <h1 className="text-2xl font-bold text-[#0B3A63] mb-2">Shop by Brand</h1>
         <p className="text-[#667085] text-sm mb-8">Authorised dealer for India's leading electrical brands</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -204,7 +204,7 @@ export default function Shop() {
   );
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6">
+    <div className="site-container py-6">
       {/* Breadcrumb */}
       <nav className="text-xs text-[#667085] mb-4 flex items-center gap-1.5">
         <Link to="/" className="hover:text-[#1769AA]">Home</Link>

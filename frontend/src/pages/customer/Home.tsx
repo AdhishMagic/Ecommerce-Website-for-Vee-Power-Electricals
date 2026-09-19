@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { products, categories, brands } from "../../data/mock/products";
 import ProductCard from "../../components/common/ProductCard";
+import HeroSection from "../../components/common/HeroSection";
 
 const whyChoose = [
   { icon: "✅", title: "Genuine Products", desc: "100% authentic products from authorized brand distributors. No counterfeits." },
@@ -11,104 +13,61 @@ const whyChoose = [
 
 export default function Home() {
   const featuredProducts = products.filter(p => p.featured);
+  const [isPaused, setIsPaused] = useState(false);
+  const [speed, setSpeed] = useState<"normal" | "slow" | "fast">("normal");
+
+  // Duplicate categories 3 times per track to ensure wide screens (>2560px) never see blank space
+  const loopedTrack = [...categories, ...categories, ...categories];
+
+  const durationMap = {
+    slow: "60s",
+    normal: "40s",
+    fast: "24s",
+  };
 
   return (
-    <div>
+    <div className="w-full">
       {/* Hero Section */}
-      <section className="relative bg-white pb-0">
-        {/* Background Banner */}
-        <div className="absolute top-0 left-0 w-full h-[80%] bg-gradient-to-br from-[#0B3A63] via-[#0D4579] to-[#1769AA] z-0"></div>
-        
-        <div className="relative z-10 max-w-7xl mx-auto px-4 pt-12 sm:pt-16">
-          {/* Main Hero Container - Div on Div effect */}
-          <div className="bg-white rounded-3xl shadow-2xl shadow-[#0B3A63]/20 overflow-hidden border border-white/40 flex flex-col md:flex-row">
-            {/* Text Content */}
-            <div className="p-8 sm:p-12 md:w-1/2 flex flex-col justify-center relative">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-[#F2A900]/5 rounded-full blur-3xl -z-10 transform translate-x-1/2 -translate-y-1/2"></div>
-              
-              <div className="inline-flex items-center gap-2 bg-[#F6F8FA] text-[#0B3A63] text-xs font-semibold px-4 py-1.5 rounded-full mb-6 tracking-wider uppercase border border-[#D9E1E8] w-max">
-                <span className="w-2 h-2 rounded-full bg-[#12773D] animate-pulse"></span>
-                Coimbatore's Trusted Store
-              </div>
-              
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[#17212B] leading-[1.1] mb-6" style={{ fontFamily: "Outfit" }}>
-                Quality Products,<br />
-                <span className="text-[#1769AA]">Delivered Fast</span>
-              </h1>
-              
-              <p className="text-[#667085] text-lg mb-8 leading-relaxed max-w-md">
-                Genuine electrical supplies from Havells, Polycab, Finolex, Crompton, and more. Trusted by professionals across Tamil Nadu.
-              </p>
-              
-              <div className="flex flex-wrap gap-4">
-                <Link to="/shop" className="bg-[#1769AA] hover:bg-[#0B3A63] text-white font-bold px-8 py-3.5 rounded-xl transition-all shadow-lg shadow-[#1769AA]/20">
-                  Shop Products
-                </Link>
-                <Link to="/shop?view=categories" className="bg-[#F6F8FA] hover:bg-[#D9E1E8] text-[#17212B] font-semibold px-8 py-3.5 rounded-xl transition-all border border-[#D9E1E8]">
-                  Explore Categories
-                </Link>
-              </div>
-              
-              <div className="mt-10 flex flex-wrap gap-6 text-sm font-medium text-[#667085]">
-                <span className="flex items-center gap-1.5"><span className="text-[#F2A900]">⚡</span> 10,000+ Products</span>
-                <span className="flex items-center gap-1.5"><span className="text-[#12773D]">🚚</span> Fast Shipping</span>
-              </div>
-            </div>
-            
-            {/* Image Content */}
-            <div className="md:w-1/2 bg-[#F6F8FA] relative min-h-[300px] md:min-h-full">
-              <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 gap-2 p-2">
-                {[
-                  { src: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=500&h=400&fit=crop", alt: "Ceiling Fan" },
-                  { src: "https://images.unsplash.com/photo-1550985616-10810253b84d?w=500&h=400&fit=crop", alt: "LED Lighting" },
-                  { src: "https://images.unsplash.com/photo-1621905251918-48416bd8575a?w=500&h=400&fit=crop", alt: "Electrical Cables" },
-                  { src: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=500&h=400&fit=crop", alt: "LED Panels" },
-                ].map((img, i) => (
-                  <div key={i} className="rounded-2xl overflow-hidden shadow-sm relative group">
-                    <div className="absolute inset-0 bg-[#0B3A63]/10 group-hover:bg-transparent transition-colors z-10"></div>
-                    <img
-                      src={img.src}
-                      alt={img.alt}
-                      className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          
-        </div>
-      </section>
+      <HeroSection />
 
       {/* Quote Section */}
-      <section className="bg-white py-16 sm:py-20 lg:py-24">
-        <div className="max-w-5xl mx-auto px-4">
-          <div className="flex flex-col items-center text-center gap-3 sm:gap-4 text-[#3b2f2a]">
+      <section className="bg-white py-12 sm:py-16 lg:py-20">
+        <div className="site-container mx-auto">
+          <div className="flex flex-col items-center text-center gap-3 sm:gap-4 text-[#3b2f2a] max-w-4xl mx-auto">
             <p
-              className="text-xs sm:text-sm uppercase tracking-[0.55em] text-[#6b5b52]"
+              className="text-xs sm:text-sm uppercase tracking-[0.35em] sm:tracking-[0.55em] text-[#6b5b52]"
               style={{ fontFamily: "Inter" }}
             >
               Our Promise
             </p>
             <div
-              className="group flex flex-col items-center gap-2 sm:gap-3 uppercase tracking-widest"
+              className="group flex flex-col items-center gap-1.5 sm:gap-2 lg:gap-3 uppercase tracking-wider sm:tracking-widest"
               style={{ fontFamily: "Playfair Display, serif" }}
             >
               <p
-                className="text-[1.55rem] sm:text-[2.15rem] lg:text-[2.75rem] leading-[1.08] font-semibold transform-gpu transition-all duration-300 ease-in-out cursor-default group-hover:-translate-y-1 group-hover:scale-105 group-hover:drop-shadow-lg"
-                style={{ color: "#3b2f2a" }}
+                className="leading-[1.12] font-semibold transform-gpu transition-all duration-300 ease-in-out cursor-default group-hover:-translate-y-1 group-hover:scale-105 group-hover:drop-shadow-lg"
+                style={{
+                  color: "#3b2f2a",
+                  fontSize: "clamp(1.15rem, 2.8vw, 2.75rem)"
+                }}
               >
                 Empowering Your World With
               </p>
               <p
-                className="text-[1.55rem] sm:text-[2.15rem] lg:text-[2.75rem] leading-[1.08] font-semibold transform-gpu transition-all duration-300 ease-in-out cursor-default group-hover:-translate-y-1 group-hover:scale-105 group-hover:drop-shadow-lg"
-                style={{ color: "#3b2f2a" }}
+                className="leading-[1.12] font-semibold transform-gpu transition-all duration-300 ease-in-out cursor-default group-hover:-translate-y-1 group-hover:scale-105 group-hover:drop-shadow-lg"
+                style={{
+                  color: "#3b2f2a",
+                  fontSize: "clamp(1.15rem, 2.8vw, 2.75rem)"
+                }}
               >
                 Safe, Reliable, And Timeless
               </p>
               <p
-                className="text-[1.55rem] sm:text-[2.15rem] lg:text-[2.75rem] leading-[1.08] font-semibold transform-gpu transition-all duration-300 ease-in-out cursor-default group-hover:-translate-y-1 group-hover:scale-105 group-hover:drop-shadow-lg"
-                style={{ color: "#3b2f2a" }}
+                className="leading-[1.12] font-semibold transform-gpu transition-all duration-300 ease-in-out cursor-default group-hover:-translate-y-1 group-hover:scale-105 group-hover:drop-shadow-lg"
+                style={{
+                  color: "#3b2f2a",
+                  fontSize: "clamp(1.15rem, 2.8vw, 2.75rem)"
+                }}
               >
                 Electrical Solutions
               </p>
@@ -118,58 +77,107 @@ export default function Home() {
       </section>
 
       {/* Categories Carousel */}
-      <section className="bg-white py-12 overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="rounded-3xl border border-gray-200 bg-white shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-xl overflow-hidden">
-            <div className="px-6 py-6 sm:px-8 sm:py-8 border-b border-gray-200/80">
-              <div className="flex justify-between items-end gap-4">
+      <section className="bg-white py-8 sm:py-12 overflow-hidden">
+        <div className="site-container mx-auto">
+          <div className="rounded-2xl sm:rounded-3xl border border-gray-200 bg-white shadow-sm transition-all duration-300 ease-in-out hover:shadow-lg overflow-hidden">
+            <div className="px-5 py-5 sm:px-8 sm:py-6 border-b border-gray-200/80">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 sm:gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold text-[#0B3A63]">Shop by Category</h2>
-                  <p className="text-[#667085] text-sm mt-1">Browse our complete electrical product range</p>
+                  <h2 className="text-xl sm:text-2xl font-bold text-[#0B3A63]" style={{ fontFamily: "Outfit" }}>Shop by Category</h2>
+                  <p className="text-[#667085] text-xs sm:text-sm mt-0.5">Browse our complete electrical product range</p>
                 </div>
-                <Link to="/shop?view=categories" className="text-sm text-[#1769AA] hover:text-[#0B3A63] font-medium hidden sm:block">
-                  View all categories →
-                </Link>
+
+                {/* Optimized Animation Controls & View All Link */}
+                <div className="flex items-center gap-2 sm:gap-3 self-end sm:self-auto">
+                  {/* Play / Pause Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => setIsPaused(prev => !prev)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border border-gray-200 bg-[#F8FAFC] text-[#0B3A63] hover:bg-[#EEF2F6] hover:border-[#1769AA]/40 transition-all cursor-pointer shadow-2xs select-none"
+                    title={isPaused ? "Resume continuous scroll" : "Pause continuous scroll"}
+                    aria-label={isPaused ? "Resume continuous scroll" : "Pause continuous scroll"}
+                  >
+                    <span>{isPaused ? "▶" : "⏸"}</span>
+                    <span>{isPaused ? "Play" : "Pause"}</span>
+                  </button>
+
+                  {/* Speed Selector */}
+                  <div className="hidden md:inline-flex items-center rounded-xl border border-gray-200 bg-[#F8FAFC] p-0.5 text-xs font-semibold text-[#0B3A63] shadow-2xs">
+                    {(["slow", "normal", "fast"] as const).map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setSpeed(s)}
+                        className={`px-2 py-1 rounded-lg capitalize transition-all cursor-pointer text-[11px] ${
+                          speed === s
+                            ? "bg-white text-[#1769AA] font-bold shadow-2xs"
+                            : "text-[#667085] hover:text-[#0B3A63]"
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+
+                  <Link to="/shop?view=categories" className="text-xs sm:text-sm text-[#1769AA] hover:text-[#0B3A63] font-semibold transition-colors whitespace-nowrap pl-1">
+                    View all categories →
+                  </Link>
+                </div>
               </div>
             </div>
 
-            <div className="relative w-full flex overflow-hidden group hover-pause py-4 bg-white">
-              <div className="absolute left-0 top-0 bottom-0 w-16 bg-linear-to-r from-white to-transparent z-10"></div>
-              <div className="absolute right-0 top-0 bottom-0 w-16 bg-linear-to-l from-white to-transparent z-10"></div>
+            {/* Seamless Infinite Marquee Track with Hardware Acceleration */}
+            <div className="relative w-full flex overflow-hidden group hover-pause py-5 bg-white">
+              {/* Left & Right Soft Fade Gradients */}
+              <div className="absolute left-0 top-0 bottom-0 w-12 sm:w-20 bg-gradient-to-r from-white via-white/80 to-transparent z-10 pointer-events-none" />
+              <div className="absolute right-0 top-0 bottom-0 w-12 sm:w-20 bg-gradient-to-l from-white via-white/80 to-transparent z-10 pointer-events-none" />
 
-              <div className="flex animate-marquee whitespace-nowrap min-w-max">
-                <div className="flex gap-8 px-4">
-                  {categories.map(cat => (
+              <div
+                className="flex animate-marquee whitespace-nowrap will-change-transform select-none"
+                style={{
+                  animationPlayState: isPaused ? "paused" : "running",
+                  animationDuration: durationMap[speed],
+                }}
+              >
+                {/* Track Group 1: 18 items wide (>2800px) */}
+                <div className="flex gap-6 sm:gap-8 px-3 sm:px-4 shrink-0">
+                  {loopedTrack.map((cat, idx) => (
                     <Link
-                      key={`first-${cat.id}`}
+                      key={`t1-${cat.id}-${idx}`}
                       to={`/shop?category=${cat.id}`}
-                      className="flex flex-col items-center group/cat w-32 shrink-0"
+                      className="flex flex-col items-center group/cat w-28 sm:w-32 shrink-0"
                     >
-                      <div className="w-24 h-24 rounded-full bg-[#F6F8FA] border border-[#D9E1E8] flex items-center justify-center text-4xl shadow-sm group-hover/cat:shadow-md group-hover/cat:-translate-y-2 group-hover/cat:bg-[#0B3A63] group-hover/cat:border-[#0B3A63] transition-all duration-300">
+                      <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-[#F6F8FA] border border-[#D9E1E8] flex items-center justify-center text-3xl sm:text-4xl shadow-2xs group-hover/cat:shadow-md group-hover/cat:-translate-y-1.5 group-hover/cat:bg-[#0B3A63] group-hover/cat:border-[#0B3A63] transition-all duration-300">
                         <span className="group-hover/cat:scale-110 transition-transform">{cat.icon}</span>
                       </div>
-                      <div className="mt-4 text-sm font-semibold text-[#17212B] group-hover/cat:text-[#1769AA] transition-colors truncate w-full text-center">
+                      <div className="mt-3 text-xs sm:text-sm font-semibold text-[#17212B] group-hover/cat:text-[#1769AA] transition-colors truncate w-full text-center">
                         {cat.name}
                       </div>
-                      <div className="text-[10px] text-[#667085] uppercase tracking-wider mt-1">{cat.subcategories.length} types</div>
+                      <div className="text-[10px] text-[#667085] uppercase tracking-wider mt-0.5">
+                        {cat.subcategories.length} types
+                      </div>
                     </Link>
                   ))}
                 </div>
 
-                <div className="flex gap-8 px-4">
-                  {categories.map(cat => (
+                {/* Track Group 2: Exact Twin (18 items wide, >2800px) for 100% Seamless Loop */}
+                <div className="flex gap-6 sm:gap-8 px-3 sm:px-4 shrink-0" aria-hidden="true">
+                  {loopedTrack.map((cat, idx) => (
                     <Link
-                      key={`second-${cat.id}`}
+                      key={`t2-${cat.id}-${idx}`}
                       to={`/shop?category=${cat.id}`}
-                      className="flex flex-col items-center group/cat w-32 shrink-0"
+                      tabIndex={-1}
+                      className="flex flex-col items-center group/cat w-28 sm:w-32 shrink-0"
                     >
-                      <div className="w-24 h-24 rounded-full bg-[#F6F8FA] border border-[#D9E1E8] flex items-center justify-center text-4xl shadow-sm group-hover/cat:shadow-md group-hover/cat:-translate-y-2 group-hover/cat:bg-[#0B3A63] group-hover/cat:border-[#0B3A63] transition-all duration-300">
+                      <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-[#F6F8FA] border border-[#D9E1E8] flex items-center justify-center text-3xl sm:text-4xl shadow-2xs group-hover/cat:shadow-md group-hover/cat:-translate-y-1.5 group-hover/cat:bg-[#0B3A63] group-hover/cat:border-[#0B3A63] transition-all duration-300">
                         <span className="group-hover/cat:scale-110 transition-transform">{cat.icon}</span>
                       </div>
-                      <div className="mt-4 text-sm font-semibold text-[#17212B] group-hover/cat:text-[#1769AA] transition-colors truncate w-full text-center">
+                      <div className="mt-3 text-xs sm:text-sm font-semibold text-[#17212B] group-hover/cat:text-[#1769AA] transition-colors truncate w-full text-center">
                         {cat.name}
                       </div>
-                      <div className="text-[10px] text-[#667085] uppercase tracking-wider mt-1">{cat.subcategories.length} types</div>
+                      <div className="text-[10px] text-[#667085] uppercase tracking-wider mt-0.5">
+                        {cat.subcategories.length} types
+                      </div>
                     </Link>
                   ))}
                 </div>
@@ -180,18 +188,18 @@ export default function Home() {
       </section>
 
       {/* Featured Products */}
-      <section className="bg-white py-10 sm:py-14">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="rounded-3xl border border-gray-200 bg-white shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-xl overflow-hidden">
-            <div className="px-6 py-6 sm:px-8 sm:py-8 border-b border-gray-200/80 flex justify-between items-end gap-4">
+      <section className="bg-white py-8 sm:py-12">
+        <div className="site-container mx-auto">
+          <div className="rounded-2xl sm:rounded-3xl border border-gray-200 bg-white shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-xl overflow-hidden">
+            <div className="px-5 py-5 sm:px-8 sm:py-7 border-b border-gray-200/80 flex justify-between items-end gap-4">
               <div>
-                <h2 className="text-2xl font-bold text-[#0B3A63]">Featured Products</h2>
-                <p className="text-[#667085] text-sm mt-1">Popular picks across our top categories</p>
+                <h2 className="text-xl sm:text-2xl font-bold text-[#0B3A63]" style={{ fontFamily: "Outfit" }}>Featured Products</h2>
+                <p className="text-[#667085] text-xs sm:text-sm mt-1">Popular picks across our top categories</p>
               </div>
-              <Link to="/shop" className="text-sm text-[#1769AA] hover:text-[#0B3A63] font-medium">View all →</Link>
+              <Link to="/shop" className="text-xs sm:text-sm text-[#1769AA] hover:text-[#0B3A63] font-medium">View all →</Link>
             </div>
-            <div className="px-6 py-6 sm:px-8 sm:py-8">
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="px-4 py-5 sm:px-8 sm:py-8">
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
                 {featuredProducts.map(p => <ProductCard key={p.id} product={p} />)}
               </div>
             </div>
@@ -200,22 +208,22 @@ export default function Home() {
       </section>
 
       {/* Brands */}
-      <section className="bg-white py-10 sm:py-14">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="rounded-3xl border border-gray-200 bg-white shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-xl overflow-hidden">
-            <div className="px-6 py-6 sm:px-8 sm:py-8 border-b border-gray-200/80 text-center">
-              <h2 className="text-2xl font-bold text-[#0B3A63]">Brands We Carry</h2>
-              <p className="text-[#667085] text-sm mt-1">Authorised dealer for India's leading electrical brands</p>
+      <section className="bg-white py-8 sm:py-12">
+        <div className="site-container mx-auto">
+          <div className="rounded-2xl sm:rounded-3xl border border-gray-200 bg-white shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-xl overflow-hidden">
+            <div className="px-5 py-5 sm:px-8 sm:py-7 border-b border-gray-200/80 text-center">
+              <h2 className="text-xl sm:text-2xl font-bold text-[#0B3A63]" style={{ fontFamily: "Outfit" }}>Brands We Carry</h2>
+              <p className="text-[#667085] text-xs sm:text-sm mt-1">Authorised dealer for India's leading electrical brands</p>
             </div>
-            <div className="px-6 py-6 sm:px-8 sm:py-8">
-              <div className="flex flex-wrap justify-center gap-3">
+            <div className="px-4 py-6 sm:px-8 sm:py-8">
+              <div className="flex flex-wrap justify-center gap-2.5 sm:gap-3 lg:gap-4">
                 {brands.map(brand => (
                   <Link
                     key={brand}
                     to={`/shop?brand=${encodeURIComponent(brand.toLowerCase())}`}
-                    className="flex items-center gap-2 bg-[#F6F8FA] hover:bg-[#0B3A63] border border-[#D9E1E8] hover:border-[#0B3A63] rounded-lg px-5 py-3 transition-all duration-300 ease-in-out group hover:-translate-y-1 hover:shadow-lg"
+                    className="flex items-center gap-2 bg-[#F6F8FA] hover:bg-[#0B3A63] border border-[#D9E1E8] hover:border-[#0B3A63] rounded-lg px-4 py-2.5 sm:px-5 sm:py-3 transition-all duration-300 ease-in-out group hover:-translate-y-1 hover:shadow-lg"
                   >
-                    <span className="text-sm font-semibold text-[#17212B] group-hover:text-white">{brand}</span>
+                    <span className="text-xs sm:text-sm font-semibold text-[#17212B] group-hover:text-white">{brand}</span>
                   </Link>
                 ))}
               </div>
@@ -225,29 +233,29 @@ export default function Home() {
       </section>
 
       {/* Why Choose */}
-      <section className="bg-white py-10 sm:py-14">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="rounded-3xl border border-gray-200 bg-white shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-xl overflow-hidden">
-            <div className="px-6 py-6 sm:px-8 sm:py-8 border-b border-gray-200/80 text-center">
-              <h2 className="text-2xl font-bold text-[#0B3A63]">Why Choose Vee Power?</h2>
-              <p className="text-[#667085] text-sm mt-1">Trusted by contractors, builders & homes across Tamil Nadu</p>
+      <section className="bg-white py-8 sm:py-12">
+        <div className="site-container mx-auto">
+          <div className="rounded-2xl sm:rounded-3xl border border-gray-200 bg-white shadow-sm transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-xl overflow-hidden">
+            <div className="px-5 py-5 sm:px-8 sm:py-7 border-b border-gray-200/80 text-center">
+              <h2 className="text-xl sm:text-2xl font-bold text-[#0B3A63]" style={{ fontFamily: "Outfit" }}>Why Choose Vee Power?</h2>
+              <p className="text-[#667085] text-xs sm:text-sm mt-1">Trusted by contractors, builders & homes across Tamil Nadu</p>
             </div>
-            <div className="px-6 py-6 sm:px-8 sm:py-8">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="px-4 py-6 sm:px-8 sm:py-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
                 {whyChoose.map(item => (
                   <div
                     key={item.title}
-                    className="group bg-white border border-[#D9E1E8] rounded-xl p-5 transition-all duration-300 ease-out transform-gpu hover:-translate-y-3 hover:scale-105 hover:shadow-2xl hover:bg-[#0B3A63]"
+                    className="group bg-white border border-[#D9E1E8] rounded-xl p-5 transition-all duration-300 ease-out transform-gpu hover:-translate-y-2 hover:shadow-xl hover:bg-[#0B3A63]"
                   >
-                    <div className="text-3xl mb-3 transition-all duration-300 ease-out group-hover:drop-shadow-sm group-hover:scale-110">
+                    <div className="text-2xl sm:text-3xl mb-3 transition-all duration-300 ease-out group-hover:scale-110">
                       <span className="transition-colors duration-300 group-hover:text-white" aria-hidden="true">
                         {item.icon}
                       </span>
                     </div>
-                    <h3 className="font-bold text-[#0B3A63] mb-1.5 transition-colors duration-300 group-hover:text-white">
+                    <h3 className="font-bold text-[#0B3A63] text-sm sm:text-base mb-1.5 transition-colors duration-300 group-hover:text-white" style={{ fontFamily: "Outfit" }}>
                       {item.title}
                     </h3>
-                    <p className="text-sm text-[#667085] leading-relaxed transition-colors duration-300 group-hover:text-white">
+                    <p className="text-xs sm:text-sm text-[#667085] leading-relaxed transition-colors duration-300 group-hover:text-white">
                       {item.desc}
                     </p>
                   </div>
@@ -259,14 +267,14 @@ export default function Home() {
       </section>
 
       {/* CTA Banner */}
-      <section className="bg-[#0B3A63] py-10">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2" style={{ fontFamily: "Outfit" }}>
+      <section className="bg-[#0B3A63] py-10 sm:py-14">
+        <div className="site-container mx-auto text-center">
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-white mb-2" style={{ fontFamily: "Outfit" }}>
             Need Bulk Electrical Supplies?
           </h2>
-          <p className="text-white/70 mb-6">Special pricing for contractors, builders and project purchases. Contact us for a custom quote.</p>
+          <p className="text-white/70 text-xs sm:text-sm md:text-base mb-6 max-w-2xl mx-auto">Special pricing for contractors, builders and project purchases. Contact us for a custom quote.</p>
           <div className="flex justify-center">
-            <Link to="/contact" className="bg-[#F2A900] hover:bg-[#D4920A] text-[#0B3A63] font-bold px-6 py-3 rounded-lg">
+            <Link to="/contact" className="bg-[#F2A900] hover:bg-[#D4920A] text-[#0B3A63] font-bold px-6 py-3 rounded-lg text-sm sm:text-base shadow-md">
               Get Bulk Quote
             </Link>
           </div>

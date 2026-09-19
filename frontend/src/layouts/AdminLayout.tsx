@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Link, useLocation, Outlet } from "react-router-dom";
+import VeeElectricalsLogo from "../components/brand/VeeElectricalsLogo";
 
 const navItems = [
   { path: "/admin", label: "Dashboard", icon: "📊", exact: true },
   { path: "/admin/products", label: "Products", icon: "📦" },
+  { path: "/admin/categories", label: "Hero Categories", icon: "🏷️" },
   { path: "/admin/inventory", label: "Inventory", icon: "🏭" },
   { path: "/admin/orders", label: "Orders", icon: "🛒" },
   { path: "/admin/customers", label: "Customers", icon: "👥" },
@@ -24,14 +26,9 @@ export default function AdminLayout() {
       <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-56 bg-[#0B3A63] flex flex-col transition-transform ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
         {/* Logo */}
         <div className="px-4 py-4 border-b border-white/10">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-[#F2A900] rounded-md flex items-center justify-center">
-              <span className="text-[#0B3A63] font-bold text-base" style={{ fontFamily: "Outfit" }}>V</span>
-            </div>
-            <div>
-              <p className="text-white font-bold text-xs leading-tight" style={{ fontFamily: "Outfit" }}>VEE POWER</p>
-              <p className="text-white/50 text-[9px] uppercase tracking-wider">Admin Panel</p>
-            </div>
+          <Link to="/" className="flex flex-col gap-1 hover:opacity-90 transition-opacity">
+            <VeeElectricalsLogo variant="compact" size="sm" theme="white" id="admin-logo" />
+            <p className="text-white/50 text-[9px] uppercase tracking-wider pl-9">Admin Panel</p>
           </Link>
         </div>
 

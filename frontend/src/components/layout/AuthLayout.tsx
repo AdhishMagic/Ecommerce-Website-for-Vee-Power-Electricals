@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import type { ReactNode } from "react";
+import VeeElectricalsLogo from "../brand/VeeElectricalsLogo";
 
 type AuthLayoutProps = {
   headline: string;
@@ -17,18 +18,8 @@ export default function AuthLayout({ headline, headlineAccent, description, chil
       <div className="grid w-full max-w-275 overflow-hidden rounded-2xl bg-white/10 shadow-2xl relative z-10 backdrop-blur-lg border border-white/20 md:grid-cols-2 md:min-h-190 lg:h-190">
         <div className="hidden md:flex bg-navy/80 p-12 flex-col justify-between text-white relative">
           <div>
-            <Link to="/" className="inline-flex items-center gap-3 mb-16 hover:opacity-80 transition-opacity">
-              <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                <span className="text-amber font-bold text-2xl" style={{ fontFamily: "Outfit" }}>V</span>
-              </div>
-              <div>
-                <div className="font-bold text-white text-xl leading-none tracking-tight" style={{ fontFamily: "Outfit" }}>
-                  VEE POWER
-                </div>
-                <div className="text-xs text-white/70 font-medium leading-tight tracking-[0.2em] uppercase mt-1">
-                  Electricals
-                </div>
-              </div>
+            <Link to="/" className="inline-block mb-16 hover:opacity-90 transition-opacity">
+              <VeeElectricalsLogo variant="full" size="lg" theme="white" id="auth-desktop-logo" />
             </Link>
 
             <h1 className="text-4xl lg:text-5xl font-bold mb-6 leading-tight" style={{ fontFamily: "Outfit" }}>
@@ -54,13 +45,10 @@ export default function AuthLayout({ headline, headlineAccent, description, chil
 
         <div className="bg-white p-8 sm:p-10 lg:p-12 flex flex-col justify-center overflow-y-auto">
           <div className="mx-auto w-full max-w-105">
-            <div className="md:hidden flex items-center gap-3 mb-8">
-              <div className="w-10 h-10 bg-navy rounded-xl flex items-center justify-center shadow-lg">
-                <span className="text-amber font-bold text-xl" style={{ fontFamily: "Outfit" }}>V</span>
-              </div>
-              <div className="font-bold text-navy text-lg" style={{ fontFamily: "Outfit" }}>
-                VEE POWER
-              </div>
+            <div className="md:hidden mb-8">
+              <Link to="/" className="inline-block">
+                <VeeElectricalsLogo variant="full" size="md" theme="color" id="auth-mobile-logo" />
+              </Link>
             </div>
 
             {children}

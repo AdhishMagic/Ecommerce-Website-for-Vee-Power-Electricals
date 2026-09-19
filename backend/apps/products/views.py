@@ -1,5 +1,5 @@
 from rest_framework import viewsets, status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from .models import Category, Brand, Product
@@ -26,6 +26,12 @@ class ProductViewSet(viewsets.ModelViewSet):
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
+
+    @action(detail=False, methods=['get'])
+    def hero(self, request):
+        categories = Category.objects.filter(is_active=True, show_in_hero=True).order_by('hero_order')
+        serializer = self.get_serializer(categories, many=True)
+        return Response({'categories': serializer.data})
 
 class BrandViewSet(viewsets.ModelViewSet):
     queryset = Brand.objects.all()

@@ -12,7 +12,7 @@ services:
       - "${DATABASE_PORT:-3306}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./backend/docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -21,7 +21,7 @@ services:
 
   backend:
     build:
-      context: ../
+      context: ./backend
       dockerfile: docker/backend/Dockerfile
     container_name: veepower_backend
     restart: always
@@ -34,11 +34,11 @@ services:
       DATABASE_HOST: mysql
       DATABASE_PORT: 3306
       USE_SQLITE: "False"
-      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-django-secret-key-change-in-prod}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-django-dev-secret-key-veepower-change-in-prod}
       DJANGO_DEBUG: ${DJANGO_DEBUG:-True}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,backend,*}
     volumes:
-      - ../:/app
+      - ./backend:/app
     ports:
       - "8000:8000"
     depends_on:
@@ -47,7 +47,7 @@ services:
 
   frontend:
     build:
-      context: ../../frontend
+      context: ./frontend
       dockerfile: Dockerfile
       target: development
     container_name: veepower_frontend
@@ -58,7 +58,7 @@ services:
       CHOKIDAR_USEPOLLING: "true"
       WATCHPACK_POLLING: "true"
     volumes:
-      - ../../frontend:/app
+      - ./frontend:/app
       - /app/node_modules
     ports:
       - "${FRONTEND_PORT:-5173}:5173"

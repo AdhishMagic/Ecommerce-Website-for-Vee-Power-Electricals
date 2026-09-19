@@ -14,7 +14,7 @@ export default function ProductDetail() {
 
   const product = products.find(p => p.id === id);
   if (!product) return (
-    <div className="max-w-7xl mx-auto px-4 py-20 text-center">
+    <div className="site-container py-20 text-center">
       <div className="text-6xl mb-4">😕</div>
       <h2 className="text-2xl font-bold text-[#0B3A63] mb-2">Product Not Found</h2>
       <Link to="/shop" className="text-[#1769AA] underline">Back to Shop</Link>
@@ -38,7 +38,7 @@ export default function ProductDetail() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6">
+    <div className="site-container py-6">
       {/* Breadcrumb */}
       <nav className="text-xs text-[#667085] mb-6 flex items-center gap-1.5 flex-wrap">
         <Link to="/" className="hover:text-[#1769AA]">Home</Link>

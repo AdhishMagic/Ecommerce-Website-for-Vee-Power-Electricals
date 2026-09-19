@@ -23,6 +23,7 @@ import ProductForm from "./pages/admin/ProductForm";
 import AdminInventory from "./pages/admin/Inventory";
 import AdminOrders from "./pages/admin/Orders";
 import ImportProducts from "./pages/admin/ImportProducts";
+import AdminCategories from "./pages/admin/Categories";
 
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
@@ -62,6 +63,7 @@ export default function App() {
               <Route path="products/edit/:id" element={<ProductForm />} />
               <Route path="inventory" element={<AdminInventory />} />
               <Route path="orders" element={<AdminOrders />} />
+              <Route path="categories" element={<AdminCategories />} />
               <Route path="import" element={<ImportProducts />} />
               <Route path="customers" element={<div className="bg-white rounded-xl border border-[#D9E1E8] p-8 text-center text-[#667085]"><p className="text-4xl mb-3">👥</p><p className="font-semibold text-[#0B3A63]">Customer Management</p><p className="text-sm mt-1">Coming soon</p></div>} />
               <Route path="settings" element={<div className="bg-white rounded-xl border border-[#D9E1E8] p-8 text-center text-[#667085]"><p className="text-4xl mb-3">⚙️</p><p className="font-semibold text-[#0B3A63]">Settings</p><p className="text-sm mt-1">Coming soon</p></div>} />

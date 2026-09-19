@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="fav-amber" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#F59E0B" />
+      <stop offset="100%" stopColor="#D97706" />
+    </linearGradient>
+    <linearGradient id="fav-navy" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#1769AA" />
+      <stop offset="100%" stopColor="#0B3A63" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Subtle circular boundary backdrop for crisp visibility on both dark & light browser chrome -->
+  <rect width="64" height="64" rx="16" fill="#0B3A63" />
+  
+  <!-- Bee angled 36deg (head top-right, wings top-left, stinger bottom-left) -->
+  <g transform="translate(32, 33) rotate(36)">
+    <!-- Wings -->
+    <path d="M -6,-1 C -15,-4 -22,-12 -20,-15 C -18,-18 -14,-17 -9,-12 C -5,-8 -4,-3 -6,-1 Z" fill="rgba(255, 255, 255, 0.4)" stroke="#FFFFFF" stroke-width="1.5" />
+    <path d="M -5,-6 C -12,-16 -22,-25 -27,-21 C -31,-17 -26,-6 -16,-1 C -11,2 -7,-1 -5,-6 Z" fill="rgba(242, 169, 0, 0.45)" stroke="#FFFFFF" stroke-width="1.8" />
+    <circle cx="-23" cy="-18" r="1.6" fill="#F2A900" />
+    
+    <!-- Body power stripes -->
+    <!-- Thorax -->
+    <path d="M -10,-6 L 10,-6 C 11,-3 11,0 10.8,2 L -10.8,2 C -11,0 -11,-3 -10,-6 Z" fill="url(#fav-amber)" stroke="#0B3A63" stroke-width="1.2" />
+    <!-- Navy Band -->
+    <path d="M -10.8,2 L 10.8,2 C 10.5,5 9.8,8 8.8,10 L -8.8,10 C -9.8,8 -10.5,5 -10.8,2 Z" fill="#0B3A63" stroke="#0B3A63" stroke-width="1.2" />
+    <!-- Amber Band -->
+    <path d="M -8.8,10 L 8.8,10 C 7.6,13 6,16 4.5,17 L -4.5,17 C -6,16 -7.6,13 -8.8,10 Z" fill="url(#fav-amber)" stroke="#0B3A63" stroke-width="1.2" />
+    <!-- Stinger / Base -->
+    <path d="M -4.5,17 L 4.5,17 L 0,24 Z" fill="#F2A900" stroke="#0B3A63" stroke-width="1" />
+    
+    <!-- Head -->
+    <path d="M -10,-6 C -10,-14 10,-14 10,-6 Z" fill="url(#fav-navy)" stroke="#0B3A63" stroke-width="1.2" />
+    <!-- Eye visor -->
+    <ellipse cx="3.5" cy="-9" rx="2" ry="3" fill="#60A5FA" />
+    <circle cx="4" cy="-10" r="0.8" fill="#FFFFFF" />
+    
+    <!-- Antennae with V flare -->
+    <path d="M -3,-13 C -5,-19 -8,-23 -6,-26" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" fill="none" />
+    <circle cx="-6" cy="-26" r="1.8" fill="#F2A900" />
+    <path d="M 3,-13 C 6,-19 10,-21 13,-24" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" fill="none" />
+    <circle cx="13" cy="-24" r="1.8" fill="#F2A900" />
+  </g>
+</svg>

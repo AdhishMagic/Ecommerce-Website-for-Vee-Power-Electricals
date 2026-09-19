@@ -3,7 +3,7 @@ services:
     command: python manage.py runserver 0.0.0.0:8000
     environment:
       DJANGO_DEBUG: "True"
-      USE_SQLITE: "True"
+      USE_SQLITE: "False"
     volumes:
       - ../:/app
 

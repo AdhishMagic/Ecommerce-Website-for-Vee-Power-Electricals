@@ -17,6 +17,13 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: parseInt(process.env.PORT || '5173'),
+    watch: {
+      usePolling: true,
+      interval: 100,
+    },
+    hmr: {
+      clientPort: 5173,
+    },
   },
   preview: {
     host: '0.0.0.0',
