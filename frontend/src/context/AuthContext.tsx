@@ -20,31 +20,31 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [user, setUser] = useState<User | null>(() => {
+    const storedUser = sessionStorage.getItem("vp_user");
+    return storedUser ? JSON.parse(storedUser) : null;
+  });
+  
+  const [token, setToken] = useState<string | null>(() => {
+    return sessionStorage.getItem("vp_token");
+  });
+  
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return !!sessionStorage.getItem("vp_token") && !!sessionStorage.getItem("vp_user");
+  });
+  
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
-    // Check for existing token on mount
-    const storedToken = localStorage.getItem("vp_token");
-    const storedUser = localStorage.getItem("vp_user");
-    if (storedToken && storedUser) {
-      try {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-        setIsAuthenticated(true);
-      } catch (e) {
-        console.error("Failed to parse stored user", e);
-        logout();
-      }
-    }
+    // If the token or user becomes invalid, we could add logic here
+    // but the initial state is already set synchronously above.
   }, []);
 
   const login = (newToken: string, newUser: User, redirectPath?: string) => {
-    localStorage.setItem("vp_token", newToken);
-    localStorage.setItem("vp_user", JSON.stringify(newUser));
+    sessionStorage.setItem("vp_token", newToken);
+    sessionStorage.setItem("vp_user", JSON.stringify(newUser));
+    sessionStorage.setItem("vp_role", newUser.role);
     setToken(newToken);
     setUser(newUser);
     setIsAuthenticated(true);
@@ -57,8 +57,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    localStorage.removeItem("vp_token");
-    localStorage.removeItem("vp_user");
+    sessionStorage.removeItem("vp_token");
+    sessionStorage.removeItem("vp_user");
+    sessionStorage.removeItem("vp_role");
     setToken(null);
     setUser(null);
     setIsAuthenticated(false);

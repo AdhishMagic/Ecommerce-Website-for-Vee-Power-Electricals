@@ -1,98 +1,277 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation, Outlet } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { 
+  LayoutDashboard, 
+  ShoppingCart, 
+  BarChart2, 
+  Wallet, 
+  LogOut, 
+  Menu, 
+  X, 
+  ChevronDown,
+  RefreshCw,
+  Package,
+  ClipboardList
+} from "lucide-react";
 
-const navItems = [
-  { path: "/admin", label: "Dashboard", icon: "📊", exact: true },
-  { path: "/admin/products", label: "Products", icon: "📦" },
-  { path: "/admin/inventory", label: "Inventory", icon: "🏭" },
-  { path: "/admin/orders", label: "Orders", icon: "🛒" },
-  { path: "/admin/customers", label: "Customers", icon: "👥" },
-  { path: "/admin/import", label: "Import Products", icon: "📤" },
-  { path: "/admin/settings", label: "Settings", icon: "⚙️" },
+type SubItem = {
+  path: string;
+  label: string;
+};
+
+type NavItem = {
+  label: string;
+  icon: React.ReactNode;
+  path?: string;
+  exact?: boolean;
+  subItems?: SubItem[];
+};
+
+const navItems: NavItem[] = [
+  { path: "/admin", label: "Dashboard", icon: <LayoutDashboard className="w-5 h-5" />, exact: true },
+  { path: "/admin/products", label: "Products", icon: <Package className="w-5 h-5" /> },
+  { path: "/admin/inventory", label: "Inventory", icon: <ClipboardList className="w-5 h-5" /> },
+  {
+    label: "Orders",
+    icon: <ShoppingCart className="w-5 h-5" />,
+    subItems: [
+      { path: "/admin/orders", label: "All Orders" },
+      { path: "/admin/orders/transactions", label: "Transactions" },
+      { path: "/admin/orders/shipping", label: "Shipping" },
+    ]
+  },
+  {
+    label: "Analytics",
+    icon: <BarChart2 className="w-5 h-5" />,
+    subItems: [
+      { path: "/admin/analytics/products", label: "Products" },
+      { path: "/admin/analytics/traffic", label: "Traffic" },
+    ]
+  },
+  {
+    label: "Finance",
+    icon: <Wallet className="w-5 h-5" />,
+    subItems: [
+      { path: "/admin/finance/expenses", label: "Expenses" },
+      { path: "/admin/finance/quotations", label: "Quotations" },
+      { path: "/admin/finance/clients", label: "Clients" },
+      { path: "/admin/finance/invoices", label: "Invoices" },
+      { path: "/admin/finance/summary", label: "Summary" },
+    ]
+  }
 ];
 
 export default function AdminLayout() {
   const location = useLocation();
+  const { logout, user } = useAuth();
+  
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
+  const [currentTime, setCurrentTime] = useState(new Date());
 
-  const isActive = (path: string, exact?: boolean) =>
-    exact ? location.pathname === path : location.pathname.startsWith(path);
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const toggleSubmenu = (label: string) => {
+    setOpenMenus(prev => ({ ...prev, [label]: !prev[label] }));
+  };
+
+  const isActive = (path?: string, exact?: boolean) => {
+    if (!path) return false;
+    return exact ? location.pathname === path : location.pathname.startsWith(path);
+  };
+
+  const isSubmenuActive = (subItems?: SubItem[]) => {
+    if (!subItems) return false;
+    return subItems.some(item => location.pathname === item.path || location.pathname.startsWith(item.path));
+  };
+
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+
+  // Get current page title based on path
+  const getPageTitle = () => {
+    if (location.pathname === "/admin") return "Dashboard";
+    for (const item of navItems) {
+      if (item.subItems) {
+        const sub = item.subItems.find(sub => location.pathname === sub.path || location.pathname.startsWith(sub.path));
+        if (sub) return sub.label;
+      }
+    }
+    return "Admin Panel";
+  };
 
   return (
-    <div className="flex h-screen bg-[#F0F4F8] overflow-hidden">
+    <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
+      {/* Sidebar Overlay for Mobile */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden" 
+          onClick={() => setSidebarOpen(false)} 
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-56 bg-[#0B3A63] flex flex-col transition-transform ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
-        {/* Logo */}
-        <div className="px-4 py-4 border-b border-white/10">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-[#F2A900] rounded-md flex items-center justify-center">
-              <span className="text-[#0B3A63] font-bold text-base" style={{ fontFamily: "Outfit" }}>V</span>
+      <aside 
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 ease-in-out ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        }`}
+      >
+        {/* Logo Area */}
+        <div className="h-16 flex items-center justify-between px-6 border-b border-slate-200 shrink-0">
+          <Link to="/admin" className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-[#0B3A63] rounded flex items-center justify-center shadow-sm">
+              <span className="text-[#F2A900] font-bold text-lg leading-none tracking-tighter">VP</span>
             </div>
             <div>
-              <p className="text-white font-bold text-xs leading-tight" style={{ fontFamily: "Outfit" }}>VEE POWER</p>
-              <p className="text-white/50 text-[9px] uppercase tracking-wider">Admin Panel</p>
+              <h1 className="text-[#0B3A63] font-bold text-sm tracking-wide">VEE POWER</h1>
+              <p className="text-slate-500 text-[10px] uppercase font-medium tracking-wider">Admin Panel</p>
             </div>
           </Link>
+          <button className="lg:hidden text-slate-500 hover:text-[#0B3A63]" onClick={() => setSidebarOpen(false)}>
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-3">
-          {navItems.map(item => (
-            <Link
-              key={item.path}
-              to={item.path}
-              onClick={() => setSidebarOpen(false)}
-              className={`flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors ${isActive(item.path, item.exact) ? "bg-white/15 text-white font-medium border-r-2 border-[#F2A900]" : "text-white/70 hover:text-white hover:bg-white/10"}`}
-            >
-              <span className="text-base">{item.icon}</span>
-              {item.label}
-            </Link>
-          ))}
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+          {navItems.map(item => {
+            const hasSubmenu = !!item.subItems;
+            const menuOpen = openMenus[item.label] || isSubmenuActive(item.subItems);
+            const active = isActive(item.path, item.exact) || isSubmenuActive(item.subItems);
+
+            return (
+              <div key={item.label} className="mb-1">
+                {hasSubmenu ? (
+                  <button
+                    onClick={() => toggleSubmenu(item.label)}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors ${
+                      active 
+                        ? "bg-[#0B3A63]/5 text-[#0B3A63] font-semibold" 
+                        : "text-slate-600 hover:bg-slate-100 hover:text-[#0B3A63]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className={active ? "text-[#0B3A63]" : "text-slate-400"}>{item.icon}</span>
+                      <span className="text-sm">{item.label}</span>
+                    </div>
+                    <ChevronDown className={`w-4 h-4 transition-transform ${menuOpen ? "rotate-180" : ""}`} />
+                  </button>
+                ) : (
+                  <Link
+                    to={item.path!}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+                      active 
+                        ? "bg-[#0B3A63]/5 text-[#0B3A63] font-semibold border-l-4 border-[#F2A900]" 
+                        : "text-slate-600 hover:bg-slate-100 hover:text-[#0B3A63] border-l-4 border-transparent"
+                    }`}
+                  >
+                    <span className={active ? "text-[#0B3A63]" : "text-slate-400"}>{item.icon}</span>
+                    <span className="text-sm">{item.label}</span>
+                  </Link>
+                )}
+
+                {/* Submenu */}
+                {hasSubmenu && menuOpen && (
+                  <div className="mt-1 ml-4 pl-4 border-l border-slate-200 space-y-1">
+                    {item.subItems!.map(sub => {
+                      const subActive = isActive(sub.path, true);
+                      return (
+                        <Link
+                          key={sub.path}
+                          to={sub.path}
+                          onClick={() => setSidebarOpen(false)}
+                          className={`block px-3 py-2 text-sm rounded-md transition-colors ${
+                            subActive
+                              ? "text-[#0B3A63] font-medium bg-[#0B3A63]/5"
+                              : "text-slate-500 hover:text-[#0B3A63] hover:bg-slate-50"
+                          }`}
+                        >
+                          {sub.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </nav>
 
-        {/* Bottom */}
-        <div className="p-4 border-t border-white/10">
-          <Link to="/" className="flex items-center gap-2 text-white/60 hover:text-white text-xs transition-colors">
-            <span>←</span> View Store
-          </Link>
+        {/* Footer actions */}
+        <div className="p-4 border-t border-slate-200 shrink-0">
+          <button
+            onClick={logout}
+            className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+          >
+            <LogOut className="w-5 h-5" />
+            <span className="font-medium">Logout</span>
+          </button>
         </div>
       </aside>
 
-      {/* Overlay */}
-      {sidebarOpen && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />}
-
-      {/* Main */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Top Bar */}
-        <header className="bg-white border-b border-[#D9E1E8] px-5 py-3 flex items-center gap-3 z-30">
-          <button className="lg:hidden text-[#667085]" onClick={() => setSidebarOpen(true)}>
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
-          </button>
-          <input
-            type="text"
-            placeholder="Search products, orders..."
-            className="hidden sm:block flex-1 max-w-xs bg-[#F6F8FA] border border-[#D9E1E8] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1769AA] placeholder-[#667085]"
-          />
-          <div className="ml-auto flex items-center gap-3">
-            <button className="relative text-[#667085] hover:text-[#17212B]">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#F2A900] rounded-full text-[8px] font-bold text-[#0B3A63] flex items-center justify-center">3</span>
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Top Header */}
+        <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between z-30 shrink-0">
+          <div className="flex items-center gap-4">
+            <button 
+              className="lg:hidden text-slate-500 hover:text-[#0B3A63] transition-colors" 
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu className="w-6 h-6" />
             </button>
-            <div className="flex items-center gap-2 pl-2 border-l border-[#D9E1E8]">
-              <div className="w-7 h-7 bg-[#0B3A63] rounded-full flex items-center justify-center">
-                <span className="text-white text-xs font-bold">A</span>
+            <h2 className="text-xl font-bold text-[#0B3A63] hidden sm:block">
+              {getPageTitle()}
+            </h2>
+          </div>
+          
+          <div className="flex items-center gap-4 sm:gap-6">
+            <div className="hidden md:flex items-center text-sm text-slate-500 font-medium">
+              {currentTime.toLocaleString('en-US', { 
+                weekday: 'short', 
+                month: 'short', 
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+              })}
+            </div>
+            
+            <button 
+              onClick={handleRefresh}
+              className="p-2 text-slate-400 hover:text-[#0B3A63] hover:bg-slate-100 rounded-full transition-colors flex items-center gap-2"
+              title="Refresh Page"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span className="sr-only">Refresh</span>
+            </button>
+            
+            <div className="h-8 w-px bg-slate-200 hidden sm:block"></div>
+            
+            <div className="flex items-center gap-3">
+              <div className="text-right hidden sm:block">
+                <p className="text-sm font-semibold text-[#0B3A63]">{user?.name || 'Admin User'}</p>
+                <p className="text-xs text-slate-500">Administrator</p>
               </div>
-              <div className="hidden sm:block">
-                <p className="text-xs font-semibold text-[#17212B]">Admin</p>
-                <p className="text-[10px] text-[#667085]">admin@veepower.com</p>
+              <div className="w-9 h-9 bg-[#0B3A63] text-white rounded-full flex items-center justify-center font-bold shadow-sm border-2 border-[#F2A900]">
+                {user?.name ? user.name.charAt(0).toUpperCase() : 'A'}
               </div>
             </div>
           </div>
         </header>
 
-        {/* Content */}
-        <main className="flex-1 overflow-y-auto p-5">
-          <Outlet />
+        {/* Dynamic Content */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <div className="max-w-7xl mx-auto">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

@@ -10,9 +10,12 @@
     "format": "oxfmt"
   },
   "dependencies": {
+    "lucide-react": "^1.47.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.18.3"
+    "react-is": "^19.3.0",
+    "react-router-dom": "^7.18.3",
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
