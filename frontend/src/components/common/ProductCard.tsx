@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useCart } from "../../context/CartContext";
+import { calculateStockStatus } from "../../context/ShopContext";
 import type { Product } from "../../types/product";
 
 interface Props {
@@ -10,8 +11,9 @@ interface Props {
 export default function ProductCard({ product, compact }: Props) {
   const { addToCart } = useCart();
   const discount = Math.round(((product.mrp - product.price) / product.mrp) * 100);
-  const inStock = product.stock > 0;
-  const lowStock = product.stock > 0 && product.stock <= product.lowStockThreshold;
+  const stockStatus = calculateStockStatus(product.stock, product.lowStockThreshold);
+  const inStock = stockStatus !== "OUT OF STOCK";
+  const lowStock = stockStatus === "LOW STOCK";
 
   return (
     <div className={`bg-white rounded-lg border border-[#D9E1E8] hover:shadow-md hover:border-[#1769AA]/30 transition-all group flex flex-col overflow-hidden ${compact ? "" : ""}`}>
@@ -76,7 +78,11 @@ export default function ProductCard({ product, compact }: Props) {
           <button
             disabled={!inStock}
             onClick={(e) => { e.preventDefault(); addToCart(product); }}
-            className="mt-2 w-full py-1.5 text-xs font-semibold rounded border transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-[#0B3A63] text-white hover:bg-[#1769AA] disabled:bg-gray-200 disabled:text-gray-400"
+            className={`mt-2 w-full py-1.5 text-xs font-semibold rounded border transition-colors ${
+              inStock 
+                ? "bg-[#0B3A63] text-white hover:bg-[#1769AA] border-transparent" 
+                : "bg-gray-200 text-gray-500 border-gray-200 cursor-not-allowed"
+            }`}
           >
             {inStock ? "Add to Cart" : "Out of Stock"}
           </button>

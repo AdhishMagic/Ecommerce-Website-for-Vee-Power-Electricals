@@ -2,7 +2,9 @@ import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { CartProvider } from "./context/CartContext";
 import { AuthProvider } from "./context/AuthContext";
+import { ShopProvider } from "./context/ShopContext";
 import ProtectedRoute from "./components/common/ProtectedRoute";
+import ScrollToTop from "./components/common/ScrollToTop";
 
 import CustomerLayout from "./layouts/CustomerLayout";
 import AdminLayout from "./layouts/AdminLayout";
@@ -25,8 +27,17 @@ const AdminProducts = lazy(() => import("./pages/admin/Products"));
 const ProductForm = lazy(() => import("./pages/admin/ProductForm"));
 const AdminInventory = lazy(() => import("./pages/admin/Inventory"));
 const AdminOrders = lazy(() => import("./pages/admin/Orders"));
-const ImportProducts = lazy(() => import("./pages/admin/ImportProducts"));
 const AdminCategories = lazy(() => import("./pages/admin/Categories"));
+const ImportProducts = lazy(() => import("./pages/admin/ImportProducts"));
+const Transactions = lazy(() => import("./pages/admin/Transactions"));
+const ShippingSettings = lazy(() => import("./pages/admin/Shipping"));
+const FinanceSummaryPage = lazy(() => import("./pages/admin/FinanceSummary"));
+const ExpensesPage = lazy(() => import("./pages/admin/Expenses"));
+const QuotationsPage = lazy(() => import("./pages/admin/Quotations"));
+const ClientsPage = lazy(() => import("./pages/admin/Clients"));
+const InvoicesPage = lazy(() => import("./pages/admin/Invoices"));
+const ProductsAnalytics = lazy(() => import("./pages/admin/ProductsAnalytics"));
+const TrafficAnalytics = lazy(() => import("./pages/admin/TrafficAnalytics"));
 
 // Lazy-loaded auth pages
 const Login = lazy(() => import("./pages/auth/Login"));
@@ -47,48 +58,69 @@ function PageLoader() {
 export default function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <AuthProvider>
-        <CartProvider>
-          <Suspense fallback={<PageLoader />}>
-            <Routes>
-              {/* Auth routes */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              
-              {/* Customer routes */}
-              <Route path="/" element={<CustomerLayout><Home /></CustomerLayout>} />
-              <Route path="/shop" element={<CustomerLayout><Shop /></CustomerLayout>} />
-              <Route path="/product/:id" element={<CustomerLayout><ProductDetail /></CustomerLayout>} />
-              <Route path="/cart" element={<CustomerLayout><Cart /></CustomerLayout>} />
-              <Route path="/about" element={<CustomerLayout><About /></CustomerLayout>} />
-              <Route path="/contact" element={<CustomerLayout><Contact /></CustomerLayout>} />
-              <Route path="/:type" element={<CustomerLayout><PolicyPage /></CustomerLayout>} />
-              
-              {/* Protected Customer Routes */}
-              <Route path="/checkout" element={<ProtectedRoute allowedRoles={["customer", "admin"]}><CustomerLayout><Checkout /></CustomerLayout></ProtectedRoute>} />
-              <Route path="/order-success" element={<ProtectedRoute allowedRoles={["customer", "admin"]}><CustomerLayout><OrderSuccess /></CustomerLayout></ProtectedRoute>} />
-              <Route path="/account" element={<ProtectedRoute allowedRoles={["customer", "admin"]}><CustomerLayout><Account /></CustomerLayout></ProtectedRoute>} />
-              <Route path="/account/orders" element={<ProtectedRoute allowedRoles={["customer", "admin"]}><CustomerLayout><Account /></CustomerLayout></ProtectedRoute>} />
+        <ShopProvider>
+          <CartProvider>
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                {/* Auth routes */}
+                <Route path="/login" element={<Login />} />
+                <Route path="/admin/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
 
-              {/* Admin routes */}
-              <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin"]}><AdminLayout /></ProtectedRoute>}>
-                <Route index element={<Dashboard />} />
-                <Route path="products" element={<AdminProducts />} />
-                <Route path="products/add" element={<ProductForm />} />
-                <Route path="products/edit/:id" element={<ProductForm />} />
-                <Route path="inventory" element={<AdminInventory />} />
-                <Route path="orders" element={<AdminOrders />} />
-                <Route path="categories" element={<AdminCategories />} />
-                <Route path="import" element={<ImportProducts />} />
-                <Route path="customers" element={<div className="bg-white rounded-xl border border-[#D9E1E8] p-8 text-center text-[#667085]"><p className="text-4xl mb-3">👥</p><p className="font-semibold text-[#0B3A63]">Customer Management</p><p className="text-sm mt-1">Coming soon</p></div>} />
-                <Route path="settings" element={<div className="bg-white rounded-xl border border-[#D9E1E8] p-8 text-center text-[#667085]"><p className="text-4xl mb-3">⚙️</p><p className="font-semibold text-[#0B3A63]">Settings</p><p className="text-sm mt-1">Coming soon</p></div>} />
-              </Route>
+                {/* Customer routes */}
+                <Route path="/" element={<CustomerLayout><Home /></CustomerLayout>} />
+                <Route path="/shop" element={<CustomerLayout><Shop /></CustomerLayout>} />
+                <Route path="/product/:id" element={<CustomerLayout><ProductDetail /></CustomerLayout>} />
+                <Route path="/cart" element={<CustomerLayout><Cart /></CustomerLayout>} />
+                <Route path="/about" element={<CustomerLayout><About /></CustomerLayout>} />
+                <Route path="/contact" element={<CustomerLayout><Contact /></CustomerLayout>} />
+                <Route path="/:type" element={<CustomerLayout><PolicyPage /></CustomerLayout>} />
 
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Suspense>
-        </CartProvider>
+                {/* Protected Customer Routes */}
+                <Route path="/checkout" element={<ProtectedRoute allowedRoles={["customer", "admin"]}><CustomerLayout><Checkout /></CustomerLayout></ProtectedRoute>} />
+                <Route path="/order-success" element={<ProtectedRoute allowedRoles={["customer", "admin"]}><CustomerLayout><OrderSuccess /></CustomerLayout></ProtectedRoute>} />
+                <Route path="/account" element={<ProtectedRoute allowedRoles={["customer", "admin"]}><CustomerLayout><Account /></CustomerLayout></ProtectedRoute>} />
+                <Route path="/account/orders" element={<ProtectedRoute allowedRoles={["customer", "admin"]}><CustomerLayout><Account /></CustomerLayout></ProtectedRoute>} />
+
+                {/* Admin routes */}
+                <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin"]}><AdminLayout /></ProtectedRoute>}>
+                  <Route index element={<Dashboard />} />
+
+                  {/* Orders */}
+                  <Route path="orders" element={<AdminOrders />} />
+                  <Route path="orders/transactions" element={<Transactions />} />
+                  <Route path="orders/shipping" element={<ShippingSettings />} />
+
+                  {/* Analytics */}
+                  <Route path="analytics/products" element={<ProductsAnalytics />} />
+                  <Route path="analytics/traffic" element={<TrafficAnalytics />} />
+
+                  {/* Finance */}
+                  <Route path="finance/expenses" element={<ExpensesPage />} />
+                  <Route path="finance/quotations" element={<QuotationsPage />} />
+                  <Route path="finance/clients" element={<ClientsPage />} />
+                  <Route path="finance/invoices" element={<InvoicesPage />} />
+                  <Route path="finance/summary" element={<FinanceSummaryPage />} />
+
+                  {/* Other routes */}
+                  <Route path="products" element={<AdminProducts />} />
+                  <Route path="products/add" element={<ProductForm />} />
+                  <Route path="products/edit/:id" element={<ProductForm />} />
+                  <Route path="inventory" element={<AdminInventory />} />
+                  <Route path="categories" element={<AdminCategories />} />
+                  <Route path="import" element={<ImportProducts />} />
+                  <Route path="customers" element={<div className="bg-white rounded-xl border border-[#D9E1E8] p-8 text-center text-[#667085]"><p className="text-4xl mb-3">👥</p><p className="font-semibold text-[#0B3A63]">Customer Management</p><p className="text-sm mt-1">Coming soon</p></div>} />
+                  <Route path="settings" element={<div className="bg-white rounded-xl border border-[#D9E1E8] p-8 text-center text-[#667085]"><p className="text-4xl mb-3">⚙️</p><p className="font-semibold text-[#0B3A63]">Settings</p><p className="text-sm mt-1">Coming soon</p></div>} />
+                </Route>
+
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Suspense>
+          </CartProvider>
+        </ShopProvider>
       </AuthProvider>
     </BrowserRouter>
   );
