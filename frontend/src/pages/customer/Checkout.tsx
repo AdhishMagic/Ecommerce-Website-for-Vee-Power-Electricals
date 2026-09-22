@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useCart } from "../../context/CartContext";
+import { COMPANY_ADDRESS } from "../../constants/companyInfo";
 
 const steps = ["Address", "Review", "Payment", "Confirm"];
 
@@ -65,7 +66,7 @@ export default function Checkout() {
         setBillingAddress({
           company: "Vee Power Electricals Pvt Ltd",
           gstin: gstInput,
-          address: "No 28/1, 2nd floor, MTP Road, Coimbatore - 641031"
+          address: COMPANY_ADDRESS
         });
         setIsFetchingGST(false);
       }, 800);

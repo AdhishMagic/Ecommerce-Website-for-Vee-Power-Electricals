@@ -1,4 +1,5 @@
 import { useParams } from "react-router-dom";
+import { COMPANY_NAME } from "../../constants/companyInfo";
 
 const policies: Record<string, { title: string; sections: { heading: string; content: string }[] }> = {
   privacy: {
@@ -54,7 +55,7 @@ export default function PolicyPage() {
       <div className="bg-white border border-[#D9E1E8] rounded-2xl overflow-hidden">
         <div className="bg-gradient-to-r from-[#0B3A63] to-[#1769AA] px-8 py-8 text-white">
           <h1 className="text-2xl font-bold" style={{ fontFamily: "Outfit" }}>{policy.title}</h1>
-          <p className="text-white/70 text-sm mt-1">Vee Electricals · Last updated: December 2024</p>
+          <p className="text-white/70 text-sm mt-1">{COMPANY_NAME} · Last updated: December 2024</p>
         </div>
         <div className="p-8 space-y-6">
           {policy.sections.map(section => (

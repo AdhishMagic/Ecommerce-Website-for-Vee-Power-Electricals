@@ -1,4 +1,5 @@
 import { X, Printer } from "lucide-react";
+import { COMPANY_ADDRESS } from "../../constants/companyInfo";
 
 interface InvoiceModalProps {
   order: any;
@@ -40,8 +41,7 @@ export default function InvoiceModal({ order, onClose }: InvoiceModalProps) {
           <div className="flex flex-col sm:flex-row justify-between items-start border-b-2 border-[#0B3A63] pb-6 mb-6">
             <div>
               <h1 className="text-3xl font-black text-[#0B3A63] tracking-tight">VEE POWER ELECTRICALS</h1>
-              <p className="text-sm mt-2 text-slate-600">No 28/1, 2nd floor, MTP Road</p>
-              <p className="text-sm text-slate-600">NSN Palayam, Coimbatore - 641031</p>
+              <p className="text-sm mt-2 text-slate-600 max-w-xs">{COMPANY_ADDRESS}</p>
               <p className="text-sm font-medium mt-1">GSTIN: <span className="text-slate-800">33CKXPK4525R1Z9</span></p>
               <p className="text-sm font-medium">Phone: <span className="text-slate-800">+91 8610359797</span></p>
             </div>

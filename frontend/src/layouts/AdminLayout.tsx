@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import VeeElectricalsLogo from "../components/brand/VeeElectricalsLogo";
+import { COMPANY_NAME } from "../constants/companyInfo";
 
 type SubItem = {
   path: string;
@@ -394,7 +395,7 @@ export default function AdminLayout() {
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-semibold text-[#0B3A63]">
-                  {user?.name || "Admin User"}
+                  {COMPANY_NAME} Admin
                 </p>
 
                 <p className="text-xs text-slate-500">Administrator</p>

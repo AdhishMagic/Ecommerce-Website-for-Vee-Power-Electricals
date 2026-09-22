@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { COMPANY_ADDRESS } from "../../constants/companyInfo";
 
 export default function Contact() {
   const [sent, setSent] = useState(false);
@@ -18,7 +19,7 @@ export default function Contact() {
         {/* Info */}
         <div className="space-y-4">
           {[
-            { icon: "📍", title: "Visit Us", lines: ["No 28/1, 2nd floor, MTP Road,", "Muthu nagar, NSN palayam,", "Coimbatore, Tamil Nadu - 641031"] },
+            { icon: "📍", title: "Visit Us", lines: [COMPANY_ADDRESS] },
             { icon: "📞", title: "Call Us", lines: ["+91 8610359797", "+91 9443441058", "Mon–Sat: 9AM – 7PM"] },
             { icon: "✉️", title: "Email Us", lines: ["veepower.cbe@gmail.com"] },
           ].map(item => (

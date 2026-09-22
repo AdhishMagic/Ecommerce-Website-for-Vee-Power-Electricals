@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../context/AuthContext";
 import VeeElectricalsLogo from "../brand/VeeElectricalsLogo";
+import { COMPANY_ADDRESS, COMPANY_NAME } from "../../constants/companyInfo";
 
 export default function Header() {
   const { totalItems } = useCart();
@@ -128,7 +129,7 @@ export default function Header() {
       {/* Top Contact Bar */}
       <div className="bg-[#F6F8FA] border-b border-[#D9E1E8] text-[#667085] text-xs py-1.5 hidden sm:block">
         <div className="header-inner flex justify-between items-center">
-          <span>📍 No 28/1, 2nd floor, MTP Road, NSN palayam, Coimbatore - 641031 | GST: 33CKXPK4525R1Z9</span>
+          <span>📍 {COMPANY_ADDRESS} | GST: 33CKXPK4525R1Z9</span>
           <div className="flex gap-4 items-center">
             <a href="tel:+918610359797" className="hover:text-[#1769AA] transition-colors">📞 +91 8610359797</a>
           </div>
@@ -139,7 +140,7 @@ export default function Header() {
       <div className="bg-white">
         <div className="header-inner py-3 sm:py-3.5 flex items-center justify-between gap-3 md:gap-4 lg:gap-6 flex-nowrap">
           {/* 1. Brand / Logo (Left) */}
-          <Link to="/" className="brand logo flex-shrink-0 flex items-center group" aria-label="VEE ELECTRICALS Home">
+          <Link to="/" className="brand logo flex-shrink-0 flex items-center group" aria-label={`${COMPANY_NAME} Home`}>
             <VeeElectricalsLogo variant="full" size="md" id="header-logo" />
           </Link>
 

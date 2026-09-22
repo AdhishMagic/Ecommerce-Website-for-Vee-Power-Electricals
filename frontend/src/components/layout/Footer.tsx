@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import VeeElectricalsLogo from "../brand/VeeElectricalsLogo";
+import { COMPANY_ADDRESS, COMPANY_NAME } from "../../constants/companyInfo";
 
 export default function Footer() {
   return (
@@ -27,7 +28,7 @@ export default function Footer() {
           <div>
             <h4 className="text-white font-semibold mb-4" style={{ fontFamily: "Outfit" }}>Contact Us</h4>
             <div className="space-y-2 text-sm text-white/70">
-              <p>📍 No 28/1, 2nd floor, MTP Road,<br />Muthu nagar, NSN palayam,<br />Coimbatore - 641031</p>
+              <p>📍 {COMPANY_ADDRESS}</p>
               <p>📞 <a href="tel:+918610359797" className="hover:text-[#F2A900]">+91 8610359797</a></p>
               <p>📞 <a href="tel:+919443441058" className="hover:text-[#F2A900]">+91 9443441058</a></p>
               <p>✉️ <a href="mailto:veepower.cbe@gmail.com" className="hover:text-[#F2A900]">veepower.cbe@gmail.com</a></p>
@@ -86,7 +87,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-8 pt-6 border-t border-white/10 flex flex-col sm:flex-row justify-between items-center gap-3 text-white/50 text-xs">
-          <p>© 2024 Vee Electricals. All rights reserved.</p>
+          <p>© 2024 {COMPANY_NAME}. All rights reserved.</p>
           <p>Designed with ❤️ for Coimbatore</p>
         </div>
       </div>

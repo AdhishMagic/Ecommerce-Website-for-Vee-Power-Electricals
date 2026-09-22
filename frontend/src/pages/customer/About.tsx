@@ -1,9 +1,11 @@
+import { COMPANY_ADDRESS, COMPANY_NAME } from "../../constants/companyInfo";
+
 export default function About() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-10">
       <div className="bg-white border border-[#D9E1E8] rounded-2xl overflow-hidden">
         <div className="bg-gradient-to-r from-[#0B3A63] to-[#1769AA] px-8 py-10 text-white">
-          <h1 className="text-3xl font-bold mb-2" style={{ fontFamily: "Outfit" }}>About Vee Electricals</h1>
+          <h1 className="text-3xl font-bold mb-2" style={{ fontFamily: "Outfit" }}>About {COMPANY_NAME}</h1>
           <p className="text-white/80">Your Trusted Electrical Partner in Coimbatore</p>
         </div>
         <div className="p-8">
@@ -39,7 +41,7 @@ export default function About() {
               {[
                 ["Business Name", "Vee Power Electricals"],
                 ["GST Number", "33CKXPK4525R1Z9"],
-                ["Address", "No 28/1, 2nd floor, MTP Road, Muthu nagar, NSN palayam, Coimbatore - 641031"],
+                ["Address", COMPANY_ADDRESS],
                 ["State", "Tamil Nadu"],
                 ["Phone", "+91 8610359797 / +91 9443441058"],
                 ["Email", "veepower.cbe@gmail.com"],

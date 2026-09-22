@@ -56,7 +56,7 @@ export function VeeInsectIcon({
       xmlns="http://www.w3.org/2000/svg"
       className={`vee-insect-svg ${animated ? "is-animated" : ""} ${className}`}
       style={{ overflow: "visible" }}
-      aria-label="Vee Electricals Insect Symbol"
+      aria-label="Vee Power Electricals Insect Symbol"
     >
       <defs>
         {/* Glow filter for electrical sparks & charging animation */}
@@ -336,15 +336,15 @@ export default function VeeElectricalsLogo({
             id={`${id}-compact-icon`}
           />
         </div>
-        <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+        <div className="flex items-baseline gap-1.5 whitespace-nowrap overflow-hidden">
           <span
-            className={`font-extrabold tracking-tight leading-none text-base sm:text-lg ${primaryTextColor} group-hover:text-[#1769AA] transition-colors`}
+            className={`font-extrabold tracking-tight leading-none text-sm sm:text-base truncate ${primaryTextColor} group-hover:text-[#1769AA] transition-colors`}
             style={{ fontFamily: "Outfit" }}
           >
-            VEE
+            VEE POWER
           </span>
           <span
-            className={`font-bold tracking-[0.2em] uppercase text-xs ${subTextColor}`}
+            className={`font-bold tracking-[0.2em] uppercase text-[10px] hidden sm:block truncate ${subTextColor}`}
             style={{ fontFamily: "Outfit" }}
           >
             ELECTRICALS
@@ -376,7 +376,7 @@ export default function VeeElectricalsLogo({
           className={`font-black text-base sm:text-lg leading-none tracking-tight transition-colors duration-200 ${primaryTextColor} group-hover:text-[#1769AA]`}
           style={{ fontFamily: "Outfit" }}
         >
-          VEE
+          VEE POWER
         </div>
         <div
           className={`text-[10px] sm:text-[11px] font-bold leading-tight tracking-[0.22em] uppercase mt-1 transition-colors duration-200 ${subTextColor}`}

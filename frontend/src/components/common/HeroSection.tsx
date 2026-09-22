@@ -102,10 +102,6 @@ export default function HeroSection() {
                   <span className="text-[#D9E1E8]">|</span>
                   <span className="text-[#1769AA] font-medium">Authorized Dealer</span>
                 </div>
-
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#B45309] bg-[#FFFBEB] border border-[#F2A900]/30 px-2.5 py-1 rounded-full">
-                  <span className="text-xs">⚡</span> Pan-TN Dispatch
-                </span>
               </div>
 
               {/* Animated Headline with Outfit typography */}

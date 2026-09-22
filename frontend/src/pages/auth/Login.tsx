@@ -3,6 +3,7 @@ import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import AuthLayout from "../../components/layout/AuthLayout";
 import VeeElectricalsLoader, { AuthLoaderStatus } from "../../components/brand/VeeElectricalsLoader";
+import { COMPANY_NAME } from "../../constants/companyInfo";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -62,7 +63,7 @@ export default function Login() {
           login("mock-jwt-token-admin", {
             id: "admin-1",
             email: "admin@veepower.com",
-            name: "Vee Electricals Admin",
+            name: `${COMPANY_NAME} Admin`,
             role: "admin"
           }, redirect);
         }, 500);
