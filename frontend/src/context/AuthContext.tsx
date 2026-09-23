@@ -1,11 +1,13 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-interface User {
-  id: string;
+export interface User {
+  id: string | number;
   email: string;
   name: string;
-  role: "admin" | "customer";
+  role: "admin" | "customer" | "ADMIN" | "CUSTOMER";
+  phone?: string | null;
+  is_admin?: boolean;
 }
 
 interface AuthContextType {
@@ -26,11 +28,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
   
   const [token, setToken] = useState<string | null>(() => {
-    return sessionStorage.getItem("vp_token");
+    return sessionStorage.getItem("vp_token") || localStorage.getItem("auth_token");
   });
   
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return !!sessionStorage.getItem("vp_token") && !!sessionStorage.getItem("vp_user");
+    return (!!sessionStorage.getItem("vp_token") || !!localStorage.getItem("auth_token")) && !!sessionStorage.getItem("vp_user");
   });
   
   const navigate = useNavigate();
@@ -44,15 +46,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = (newToken: string, newUser: User, redirectPath?: string) => {
     sessionStorage.setItem("vp_token", newToken);
     sessionStorage.setItem("vp_user", JSON.stringify(newUser));
-    sessionStorage.setItem("vp_role", newUser.role);
+    sessionStorage.setItem("vp_role", String(newUser.role));
+    localStorage.setItem("auth_token", newToken);
     setToken(newToken);
     setUser(newUser);
     setIsAuthenticated(true);
     
+    const isAdmin = newUser.role?.toLowerCase() === "admin" || newUser.is_admin === true;
     if (redirectPath) {
-      navigate(redirectPath);
+      if (!isAdmin && redirectPath.startsWith('/admin')) {
+        navigate("/account");
+      } else {
+        navigate(redirectPath);
+      }
     } else {
-      navigate(newUser.role === "admin" ? "/admin" : "/account");
+      navigate(isAdmin ? "/admin" : "/account");
     }
   };
 
@@ -60,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem("vp_token");
     sessionStorage.removeItem("vp_user");
     sessionStorage.removeItem("vp_role");
+    localStorage.removeItem("auth_token");
     setToken(null);
     setUser(null);
     setIsAuthenticated(false);

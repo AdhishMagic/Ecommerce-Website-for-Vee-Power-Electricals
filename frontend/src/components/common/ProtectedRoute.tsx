@@ -4,7 +4,7 @@ import { ReactNode } from "react";
 
 interface ProtectedRouteProps {
   children: ReactNode;
-  allowedRoles?: ("admin" | "customer")[];
+  allowedRoles?: ("admin" | "customer" | "ADMIN" | "CUSTOMER")[];
 }
 
 export default function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
@@ -19,10 +19,14 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
     return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
+  const userRole = user.role?.toLowerCase();
+  const isAllowed =
+    !allowedRoles ||
+    allowedRoles.some((r) => r.toLowerCase() === userRole) ||
+    (user.is_admin && allowedRoles.some((r) => r.toLowerCase() === "admin"));
+
+  if (!isAllowed) {
     // User is authenticated but doesn't have the right role for this route.
-    // Because sessions are tab-isolated via sessionStorage, we redirect them to log in 
-    // for this specific tab without affecting their session in other tabs.
     if (location.pathname.startsWith('/admin')) {
       return <Navigate to={`/admin/login?redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />;
     }

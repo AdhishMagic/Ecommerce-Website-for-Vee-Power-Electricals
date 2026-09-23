@@ -1,9 +1,10 @@
 export interface User {
-  id: string;
+  id: string | number;
   name: string;
   email: string;
-  phone: string;
-  role: 'customer' | 'admin';
+  phone?: string | null;
+  role: 'customer' | 'admin' | 'CUSTOMER' | 'ADMIN';
+  is_admin?: boolean;
   address?: {
     street: string;
     city: string;

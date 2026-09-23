@@ -3,7 +3,7 @@ import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import AuthLayout from "../../components/layout/AuthLayout";
 import VeeElectricalsLoader, { AuthLoaderStatus } from "../../components/brand/VeeElectricalsLoader";
-import { COMPANY_NAME } from "../../constants/companyInfo";
+import { authService } from "../../services/authService";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -26,7 +26,7 @@ export default function Login() {
     return regex.test(emailStr);
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLoading || authStatus === "submitting" || authStatus === "success") return;
 
@@ -54,36 +54,17 @@ export default function Login() {
     setIsLoading(true);
     setAuthStatus("submitting");
 
-    // Real-time authentication request simulation (1.6s authenticating loop)
-    setTimeout(() => {
-      if (email === "admin@veepower.com" && password === "admin456") {
-        // Mock Admin JWT & User
-        setAuthStatus("success");
-        setTimeout(() => {
-          login("mock-jwt-token-admin", {
-            id: "admin-1",
-            email: "admin@veepower.com",
-            name: `${COMPANY_NAME} Admin`,
-            role: "admin"
-          }, redirect);
-        }, 500);
-      } else if (password.length >= 6) {
-        // Mock Common User JWT & User
-        setAuthStatus("success");
-        setTimeout(() => {
-          login("mock-jwt-token-user", {
-            id: "user-1",
-            email: email,
-            name: "John Doe",
-            role: "customer"
-          }, redirect);
-        }, 500);
-      } else {
-        setError("Invalid email or password");
-        setAuthStatus("error");
-        setIsLoading(false);
-      }
-    }, 1600);
+    try {
+      const { user: authUser, token: authToken } = await authService.login(email, password);
+      setAuthStatus("success");
+      setTimeout(() => {
+        login(authToken, authUser, redirect);
+      }, 500);
+    } catch (err: any) {
+      setError(err?.message || "Invalid email or password");
+      setAuthStatus("error");
+      setIsLoading(false);
+    }
   };
 
   const isRegistered = searchParams.get("registered") === "true";

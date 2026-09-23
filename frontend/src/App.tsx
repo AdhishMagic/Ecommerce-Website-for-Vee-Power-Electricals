@@ -44,15 +44,10 @@ const Login = lazy(() => import("./pages/auth/Login"));
 const Register = lazy(() => import("./pages/auth/Register"));
 const ForgotPassword = lazy(() => import("./pages/auth/ForgotPassword"));
 
+import VeeElectricalsLoader from "./components/brand/VeeElectricalsLoader";
+
 function PageLoader() {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[55vh] py-16 gap-3">
-      <div className="w-9 h-9 border-3 border-[#D9E1E8] border-t-[#0B3A63] rounded-full animate-spin" />
-      <span className="text-xs font-semibold text-[#0B3A63] tracking-wider animate-pulse uppercase">
-        Loading...
-      </span>
-    </div>
-  );
+  return <VeeElectricalsLoader status="submitting" />;
 }
 
 export default function App() {

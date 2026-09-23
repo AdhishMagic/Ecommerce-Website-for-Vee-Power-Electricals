@@ -534,290 +534,85 @@ input[type="password"]::-ms-clear {
 }
 
 /* ==========================================================================
-   VEE ELECTRICALS BRAND LOGO & ANIMATED INSECT LOADING SYSTEM
-   Inspired by dynamic insect hover & electrical motion
+   VEE ELECTRICALS OFFICIAL BRAND LOGO & MODERN LOADER SYSTEM
    ========================================================================== */
 
-/* 1. Base SVG & Structural Stability */
-.vee-insect-svg {
-  display: block;
-  transform-origin: 50px 52px;
-  will-change: transform, opacity;
-  transition: transform 0.25s ease, filter 0.25s ease;
-}
-
-/* Wing fluttering physics */
-.vee-wing-front-group {
-  transform-origin: right bottom;
-  transform-box: fill-box;
+/* 1. Base Logo Mark & Typography Stability */
+.vee-logo-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   will-change: transform;
 }
 
-.vee-wing-rear-group {
-  transform-origin: right bottom;
-  transform-box: fill-box;
-  will-change: transform;
+.vee-logo-img {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
-/* Loading Overlay Entrance Animation */
-.vee-loading-overlay {
-  animation: veeOverlayFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+/* Subtle micro-interactions on hover */
+.vee-logo-full:hover .vee-logo-img,
+.vee-logo-compact:hover .vee-logo-img {
+  filter: drop-shadow(0 4px 10px rgba(23, 105, 170, 0.3));
 }
 
-@keyframes veeOverlayFadeIn {
+/* 2. Simple Brand Loading System (Logo Only) */
+.vee-simple-loader-overlay {
+  animation: veeLoaderFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes veeLoaderFadeIn {
   from {
     opacity: 0;
-    transform: scale(0.97);
   }
   to {
+    opacity: 1;
+  }
+}
+
+.vee-simple-loader-logo {
+  animation: veeLogoEntrance 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards,
+             veeLogoSubtlePulse 2.6s ease-in-out 0.45s infinite;
+  will-change: transform, opacity;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+@keyframes veeLogoEntrance {
+  0% {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  100% {
     opacity: 1;
     transform: scale(1);
   }
 }
 
-/* 2. Micro-interactions on Header Hover */
-.group:hover .vee-insect-svg,
-.vee-logo-full:hover .vee-insect-svg,
-.vee-logo-compact:hover .vee-insect-svg {
-  filter: drop-shadow(0 0 6px rgba(23, 105, 170, 0.45));
-}
-
-.group:hover .vee-wing-front-group,
-.vee-logo-full:hover .vee-wing-front-group,
-.vee-logo-compact:hover .vee-wing-front-group {
-  animation: veeWingMicroFlutter 0.35s ease-in-out infinite alternate;
-}
-
-.group:hover .vee-wing-rear-group,
-.vee-logo-full:hover .vee-wing-rear-group,
-.vee-logo-compact:hover .vee-wing-rear-group {
-  animation: veeWingMicroFlutter 0.35s ease-in-out 0.08s infinite alternate;
-}
-
-.group:hover .vee-antenna-node,
-.vee-logo-full:hover .vee-antenna-node,
-.vee-logo-compact:hover .vee-antenna-node {
-  filter: drop-shadow(0 0 4px #F2A900);
-}
-
-.group:hover .vee-insect-aura,
-.vee-logo-full:hover .vee-insect-aura,
-.vee-logo-compact:hover .vee-insect-aura {
-  opacity: 1;
-  stroke: rgba(23, 105, 170, 0.35);
-  stroke-dashoffset: 20;
-  transition: stroke-dashoffset 2s linear;
-}
-
-/* 3. Dedicated Loading Animation System */
-.vee-insect-svg.is-animated .vee-bob-inner,
-.vee-insect-loading-state .vee-bob-inner {
-  animation: veeInsectHoverBob 2.2s ease-in-out infinite;
-}
-
-.vee-insect-svg.is-animated .vee-wing-front-group,
-.vee-insect-loading-state .vee-wing-front-group {
-  animation: veeWingActiveFlutter 0.16s ease-in-out infinite alternate;
-}
-
-.vee-insect-svg.is-animated .vee-wing-rear-group,
-.vee-insect-loading-state .vee-wing-rear-group {
-  animation: veeWingActiveFlutter 0.16s ease-in-out 0.05s infinite alternate;
-}
-
-.vee-insect-svg.is-animated .vee-body-conduit,
-.vee-insect-loading-state .vee-body-conduit {
-  animation: veeEnergyPulse 1.8s ease-in-out infinite;
-}
-
-.vee-insect-svg.is-animated .vee-antenna-node,
-.vee-insect-loading-state .vee-antenna-node {
-  animation: veeNodeSpark 1.8s ease-in-out infinite;
-}
-
-.vee-insect-svg.is-animated .vee-stinger-spark,
-.vee-insect-loading-state .vee-stinger-spark {
-  animation: veeStingerPulse 1.8s ease-in-out infinite;
-}
-
-.vee-insect-svg.is-animated .vee-insect-aura,
-.vee-insect-loading-state .vee-insect-aura {
-  animation: veeAuraRotate 6s linear infinite, veeAuraBreath 2.2s ease-in-out infinite alternate;
-}
-
-/* Success flash state */
-.vee-insect-success-state .vee-bob-inner {
-  animation: veeSuccessPop 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.vee-insect-success-state .vee-wing-front-group,
-.vee-insect-success-state .vee-wing-rear-group {
-  animation: none !important;
-  transform: none !important;
-}
-
-.vee-insect-success-state .vee-antenna-node,
-.vee-insect-success-state .vee-stinger-spark {
-  filter: drop-shadow(0 0 8px #12773D) drop-shadow(0 0 12px #22C55E) !important;
-}
-
-/* Loader Pulse Rings */
-.vee-loader-pulse-ring {
-  animation: veeRingPulse 2s cubic-bezier(0.25, 1, 0.5, 1) infinite;
-}
-
-.vee-loader-pulse-ring-2 {
-  animation: veeRingPulse 2s cubic-bezier(0.25, 1, 0.5, 1) 0.6s infinite;
-}
-
-.vee-loader-progress {
-  background-size: 200% 100%;
-  animation: veeProgressSlide 1.5s ease-in-out infinite;
-}
-
-/* Keyframes */
-@keyframes veeInsectHoverBob {
+@keyframes veeLogoSubtlePulse {
   0%, 100% {
-    transform: translateY(0px);
+    transform: scale(1);
+    opacity: 0.94;
   }
   50% {
-    transform: translateY(-4px);
-  }
-}
-
-@keyframes veeWingActiveFlutter {
-  0% {
-    transform: rotate(0deg) scale(1, 1);
-  }
-  100% {
-    transform: rotate(-16deg) scale(0.92, 1.06);
-  }
-}
-
-@keyframes veeWingMicroFlutter {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(-6deg);
-  }
-}
-
-@keyframes veeEnergyPulse {
-  0%, 100% {
-    opacity: 0.4;
-    stroke: #1769AA;
-    stroke-width: 1.6;
-  }
-  45% {
+    transform: scale(1.025);
     opacity: 1;
-    stroke: #F2A900;
-    stroke-width: 2.2;
-    filter: drop-shadow(0 0 4px #F2A900);
-  }
-  75% {
-    opacity: 0.9;
-    stroke: #60A5FA;
-    stroke-width: 2;
-    filter: drop-shadow(0 0 5px #1769AA);
-  }
-}
-
-@keyframes veeNodeSpark {
-  0%, 100% {
-    r: 2.4;
-    opacity: 0.85;
-  }
-  50% {
-    r: 3.2;
-    opacity: 1;
-    filter: drop-shadow(0 0 6px #F2A900);
-  }
-}
-
-@keyframes veeStingerPulse {
-  0%, 100% {
-    r: 1.4;
-    opacity: 0.7;
-  }
-  60% {
-    r: 2.2;
-    opacity: 1;
-    filter: drop-shadow(0 0 5px #F2A900);
-  }
-}
-
-@keyframes veeAuraBreath {
-  0% {
-    opacity: 0.25;
-    transform: scale(0.96);
-  }
-  100% {
-    opacity: 0.75;
-    transform: scale(1.04);
-  }
-}
-
-@keyframes veeAuraRotate {
-  0% {
-    stroke-dashoffset: 0;
-  }
-  100% {
-    stroke-dashoffset: 40;
-  }
-}
-
-@keyframes veeRingPulse {
-  0% {
-    transform: scale(0.85);
-    opacity: 0.8;
-  }
-  100% {
-    transform: scale(1.35);
-    opacity: 0;
-  }
-}
-
-@keyframes veeProgressSlide {
-  0% {
-    background-position: 100% 0;
-  }
-  100% {
-    background-position: -100% 0;
-  }
-}
-
-@keyframes veeSuccessPop {
-  0% {
-    transform: translate(50px, 48px) rotate(34deg) scale(1);
-  }
-  50% {
-    transform: translate(50px, 51px) rotate(36deg) scale(1.08);
-  }
-  100% {
-    transform: translate(50px, 52px) rotate(36deg) scale(1);
   }
 }
 
 /* Accessibility: Reduced Motion for Logo & Loader */
 @media (prefers-reduced-motion: reduce) {
-  .vee-insect-svg,
-  .vee-insect-creature,
-  .vee-wing-front-group,
-  .vee-wing-rear-group,
-  .vee-body-conduit,
-  .vee-antenna-node,
-  .vee-stinger-spark,
-  .vee-insect-aura,
-  .vee-loader-pulse-ring,
-  .vee-loader-pulse-ring-2,
-  .vee-loader-progress {
+  .vee-simple-loader-overlay,
+  .vee-simple-loader-logo,
+  .vee-logo-img,
+  .vee-logo-mark {
     animation: none !important;
     transition: opacity 0.2s ease !important;
     transform: none !important;
+    opacity: 1 !important;
   }
 }
-
-
-
-
