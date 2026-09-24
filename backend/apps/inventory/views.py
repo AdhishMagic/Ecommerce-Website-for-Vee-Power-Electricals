@@ -56,10 +56,15 @@ class StockTransactionListView(generics.ListAPIView):
         return qs
 
 
+from django.core.exceptions import ValidationError as DjangoValidationError
+from apps.inventory.services import InventoryService
+
+
 class StockRestockView(APIView):
     """
     POST /api/v1/inventory/restock/
     Warehouse restocking: increases product stock and appends immutable RESTOCK transaction.
+    Delegates to InventoryService.
     """
     permission_classes = [IsAdminUser]
 
@@ -72,33 +77,32 @@ class StockRestockView(APIView):
         quantity = serializer.validated_data['quantity']
         notes = serializer.validated_data.get('notes', '')
 
-        product = Product.objects.select_for_update().get(id=product_id)
-        product.stock += quantity
-        product.save()
-
-        tx = StockTransaction.objects.create(
-            product=product,
-            change_amount=quantity,
-            transaction_type=StockTransactionType.RESTOCK,
-            performed_by=request.user,
-            notes=notes or f"Restocked {quantity} units"
-        )
-
-        return Response(
-            {
-                "message": f"Successfully restocked {quantity} units of {product.name}.",
-                "product_id": product.id,
-                "current_stock": product.stock,
-                "transaction": StockTransactionSerializer(tx).data,
-            },
-            status=status.HTTP_201_CREATED,
-        )
+        try:
+            product, tx = InventoryService.restock_product(
+                product_id=product_id,
+                quantity=quantity,
+                performed_by=request.user,
+                notes=notes
+            )
+            return Response(
+                {
+                    "message": f"Successfully restocked {quantity} units of {product.name}.",
+                    "product_id": product.id,
+                    "current_stock": product.stock,
+                    "transaction": StockTransactionSerializer(tx).data,
+                },
+                status=status.HTTP_201_CREATED,
+            )
+        except DjangoValidationError as e:
+            msg = e.message if hasattr(e, 'message') else str(e)
+            return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class StockAdjustmentView(APIView):
     """
     POST /api/v1/inventory/adjust/
     Inventory adjustment: handles damage, write-offs, or audit reconciliations.
+    Delegates to InventoryService.
     """
     permission_classes = [IsAdminUser]
 
@@ -111,30 +115,22 @@ class StockAdjustmentView(APIView):
         change_amount = serializer.validated_data['change_amount']
         notes = serializer.validated_data.get('notes', '')
 
-        product = Product.objects.select_for_update().get(id=product_id)
-        if product.stock + change_amount < 0:
-            return Response(
-                {"detail": f"Insufficient stock. Available: {product.stock}, cannot adjust by {change_amount}."},
-                status=status.HTTP_400_BAD_REQUEST,
+        try:
+            product, tx = InventoryService.adjust_stock(
+                product_id=product_id,
+                change_amount=change_amount,
+                performed_by=request.user,
+                notes=notes
             )
-
-        product.stock += change_amount
-        product.save()
-
-        tx = StockTransaction.objects.create(
-            product=product,
-            change_amount=change_amount,
-            transaction_type=StockTransactionType.ADJUSTMENT,
-            performed_by=request.user,
-            notes=notes or f"Inventory adjustment of {change_amount} units"
-        )
-
-        return Response(
-            {
-                "message": f"Successfully adjusted stock by {change_amount} units for {product.name}.",
-                "product_id": product.id,
-                "current_stock": product.stock,
-                "transaction": StockTransactionSerializer(tx).data,
-            },
-            status=status.HTTP_201_CREATED,
-        )
+            return Response(
+                {
+                    "message": f"Successfully adjusted stock by {change_amount} units for {product.name}.",
+                    "product_id": product.id,
+                    "current_stock": product.stock,
+                    "transaction": StockTransactionSerializer(tx).data,
+                },
+                status=status.HTTP_201_CREATED,
+            )
+        except DjangoValidationError as e:
+            msg = e.message if hasattr(e, 'message') else str(e)
+            return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)

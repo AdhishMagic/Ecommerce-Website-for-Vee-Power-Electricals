@@ -75,6 +75,24 @@ class QuotationViewSet(viewsets.ModelViewSet):
         quotation.save()
         return Response(QuotationSerializer(quotation).data, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=['post'], url_path='convert')
+    def convert_to_invoice(self, request, pk=None):
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from apps.finance.services import QuotationService
+
+        quotation = self.get_object()
+        notes = request.data.get('notes')
+        try:
+            invoice = QuotationService.convert_quotation_to_invoice(
+                quotation_id=quotation.id,
+                converted_by=request.user,
+                notes=notes
+            )
+            return Response(InvoiceSerializer(invoice).data, status=status.HTTP_201_CREATED)
+        except DjangoValidationError as e:
+            msg = e.message if hasattr(e, 'message') else str(e)
+            return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
+
 
 class InvoiceViewSet(viewsets.ModelViewSet):
     """

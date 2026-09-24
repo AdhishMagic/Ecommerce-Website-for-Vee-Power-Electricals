@@ -135,10 +135,14 @@ class OrderDiscountViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminUser]
 
 
+from apps.commercial_config.services import DiscountService
+
+
 class CouponValidationView(APIView):
     """
     POST /api/v1/config/coupons/validate/
     Public/customer coupon pre-validation service. Does not mutate database records.
+    Delegates validation logic to DiscountService.
     """
     permission_classes = [AllowAny]
 
@@ -149,54 +153,26 @@ class CouponValidationView(APIView):
         code = serializer.validated_data['code'].strip().upper()
         order_amount = serializer.validated_data['order_amount']
 
-        now = timezone.now()
-        coupon = OrderDiscount.objects.filter(code__iexact=code).first()
+        disc_res = DiscountService.evaluate_order_discount(
+            code=code,
+            order_amount=order_amount,
+            existing_product_discounts=Decimal('0.00')
+        )
 
-        if not coupon:
+        if not disc_res.is_valid:
             return Response(
-                {"valid": False, "detail": f"Coupon code '{code}' does not exist."},
+                {"valid": False, "detail": disc_res.error_message},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        if not coupon.is_active:
-            return Response(
-                {"valid": False, "detail": f"Coupon code '{code}' is not currently active."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        if coupon.valid_from and coupon.valid_from > now:
-            return Response(
-                {"valid": False, "detail": f"Coupon code '{code}' is not yet valid."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        if coupon.valid_until and coupon.valid_until < now:
-            return Response(
-                {"valid": False, "detail": f"Coupon code '{code}' has expired."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        if order_amount < coupon.min_order_value:
-            return Response(
-                {
-                    "valid": False,
-                    "detail": f"Minimum order amount of ₹{coupon.min_order_value} required to use coupon '{code}'."
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Compute discount
-        if coupon.discount_type == DiscountType.PERCENTAGE:
-            calc = (order_amount * (coupon.discount_value / Decimal('100.00'))).quantize(Decimal('0.01'))
-            if coupon.max_discount_cap and calc > coupon.max_discount_cap:
-                calc = coupon.max_discount_cap
-        else:
-            calc = min(coupon.discount_value, order_amount)
 
         return Response(
             {
                 "valid": True,
-                "code": coupon.code,
-                "discount_type": coupon.discount_type,
-                "discount_value": str(coupon.discount_value),
-                "calculated_discount": str(calc),
-                "description": coupon.description,
+                "code": disc_res.code,
+                "discount_type": disc_res.discount_type,
+                "discount_value": str(disc_res.discount_value),
+                "calculated_discount": str(disc_res.calculated_discount),
+                "description": disc_res.description,
             },
             status=status.HTTP_200_OK
         )
