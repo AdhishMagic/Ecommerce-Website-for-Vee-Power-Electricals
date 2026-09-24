@@ -1,7 +1,14 @@
 from django.urls import path
-from .views import InventoryViewSet, add_transaction_view
+from .views import (
+    InventoryOverviewView,
+    StockTransactionListView,
+    StockRestockView,
+    StockAdjustmentView,
+)
 
 urlpatterns = [
-    path('inventory/', InventoryViewSet.as_view({'get': 'list'}), name='inventory-list'),
-    path('inventory/<int:product_id>/transaction/', add_transaction_view, name='inventory-transaction'),
+    path('', InventoryOverviewView.as_view(), name='inventory-overview'),
+    path('transactions/', StockTransactionListView.as_view(), name='inventory-transactions'),
+    path('restock/', StockRestockView.as_view(), name='inventory-restock'),
+    path('adjust/', StockAdjustmentView.as_view(), name='inventory-adjust'),
 ]
