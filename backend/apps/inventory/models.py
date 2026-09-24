@@ -1,19 +1,60 @@
 from django.db import models
-from apps.common.models import TimeStampedModel
-from apps.products.models import Product
+from django.conf import settings
 
-class StockTransaction(TimeStampedModel):
-    TRANSACTION_TYPES = (
-        ('RESTOCK', 'Restock'),
-        ('SALE', 'Sale'),
-        ('ADJUSTMENT', 'Adjustment'),
-        ('RETURN', 'Return'),
+
+class StockTransactionType(models.TextChoices):
+    RESTOCK = 'RESTOCK', 'Restock (Warehouse receipt)'
+    SALE = 'SALE', 'Sale (Order deduction)'
+    ADJUSTMENT = 'ADJUSTMENT', 'Adjustment (Compensating entry)'
+    RETURN = 'RETURN', 'Return (Restocked return)'
+
+
+class StockTransaction(models.Model):
+    """
+    Immutable ledger recording all physical stock movements.
+    Insert-only table. Deletions and updates are blocked to preserve audit history.
+    """
+    product = models.ForeignKey(
+        'products.Product',
+        on_delete=models.PROTECT,
+        related_name='stock_transactions'
     )
-
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='stock_transactions')
     change_amount = models.IntegerField()
-    transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPES)
-    notes = models.TextField(blank=True)
+    transaction_type = models.CharField(
+        max_length=20,
+        choices=StockTransactionType.choices
+    )
+    order = models.ForeignKey(
+        'orders.Order',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='stock_transactions'
+    )
+    performed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+    notes = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'stock_transactions'
+        verbose_name = 'Stock Transaction'
+        verbose_name_plural = 'Stock Transactions'
+        ordering = ['-created_at']
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(transaction_type__in=['RESTOCK', 'SALE', 'ADJUSTMENT', 'RETURN']),
+                name='chk_stk_type'
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['product', 'created_at'], name='idx_stk_prod_created'),
+        ]
 
     def __str__(self):
-        return f"{self.transaction_type} ({self.change_amount}) for {self.product.name}"
+        sign = '+' if self.change_amount > 0 else ''
+        return f"{self.product.sku}: {sign}{self.change_amount} ({self.transaction_type})"

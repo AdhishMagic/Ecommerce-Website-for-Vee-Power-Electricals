@@ -16,7 +16,9 @@ The following matrix documents every user-facing and administrator-facing screen
 | **Product Detail (`/product/:id`)** | Page load | `GET /api/v1/products/<id>/` | `products`, `product_images`, `product_specifications` | None | Full product details, image gallery, technical specs, live stock count. |
 | | Related products | `GET /api/v1/products/?category=<cat>&exclude=<id>&limit=4` | `products` | `category`, `exclude`, `limit` | 4 related products in same category. |
 | **Checkout (`/checkout`)** | GSTIN auto-lookup | `GET /api/v1/clients/lookup-gstin/?gstin=<val>` | `clients` | `gstin` | Business name and registered address. |
-| | Place Order | `POST /api/v1/orders/` | `orders`, `order_items`, `stock_transactions` | `{ customerName, customerEmail, customerPhone, shippingAddress, items, totalAmount, taxAmount, shippingFee, paymentMethod, isBusinessOrder, gstin }` | Created `Order` object with unique `orderNumber`. |
+| | Calculate Delivery Fee | `POST /api/v1/delivery/calculate/` | `delivery_configurations`, `distance_slabs` | `{ pincode, state, subtotal }` | Computed shipping fee, distance (km), and free delivery qualification. |
+| | Validate Coupon | `POST /api/v1/discounts/validate-coupon/` | `order_discounts` | `{ code, subtotal }` | Valid discount amount and applied coupon metadata. |
+| | Place Order | `POST /api/v1/orders/` | `orders`, `order_items`, `stock_transactions` | `{ customerName, customerEmail, customerPhone, shippingAddress, items, totalAmount, taxAmount, shippingFee, paymentMethod, isBusinessOrder, gstin, couponCode }` | Created `Order` object with unique `orderNumber` and frozen `calculation_snapshot`. |
 | **Account (`/account`)** | View my orders | `GET /api/v1/orders/my-orders/` | `orders`, `order_items` | None (reads auth token) | Array of customer's historical orders with items and fulfillment status. |
 | | View saved addresses | `GET /api/v1/users/addresses/` | `customer_addresses` | None (reads auth token) | Array of saved customer addresses. |
 | | Add new address | `POST /api/v1/users/addresses/` | `customer_addresses` | `{ recipient_name, phone, address_line1, address_line2, city, state, pincode, is_default }` | Created address object. |
@@ -32,7 +34,7 @@ The following matrix documents every user-facing and administrator-facing screen
 | Screen / Feature | User Interaction | HTTP Method & Endpoint | Target Entities | Request Payload / Query Params | Response Data |
 |---|---|---|---|---|---|
 | **Products (`/admin/products`)** | List products table | `GET /api/v1/products/?page=1&limit=20` | `products`, `categories`, `brands` | `search`, `category`, `brand` | Paginated product list. |
-| | Delete product | `DELETE /api/v1/products/<id>/` | `products` | None | `204 No Content`. |
+| | Delete product | `DELETE /api/v1/products/<id>/` | `products` | None | Soft-deletion (`active = false`; `204 No Content`). |
 | **Product Form (`/admin/products/add`, `/edit/:id`)** | Create product | `POST /api/v1/products/` | `products`, `product_images`, `product_specifications` | `{ name, sku, brand_id, category_id, subcategory_id, mrp, price, stock, lowStockThreshold, description, active, images, specifications }` | Created product object. |
 | | Update product | `PUT /api/v1/products/<id>/` | `products`, `product_images`, `product_specifications` | Product update fields | Updated product object. |
 | **Categories (`/admin/categories`)** | List categories | `GET /api/v1/categories/` | `categories` | None | All categories with hero display and discount metadata. |
@@ -40,10 +42,10 @@ The following matrix documents every user-facing and administrator-facing screen
 | **Inventory (`/admin/inventory`)** | Live stock table | `GET /api/v1/inventory/` | `products`, `categories`, `brands` | `search`, `stock_status` | Product stock status, low stock flags, last updated date. |
 | | Stock adjust modal | `POST /api/v1/inventory/<id>/transaction/` | `stock_transactions`, `products` | `{ quantity, type, notes }` | Created transaction record & updated product stock. |
 | **Orders (`/admin/orders`)** | View all orders | `GET /api/v1/orders/` | `orders`, `order_items` | `status`, `search`, `date_from`, `date_to` | Paginated list of all customer orders. |
-| | Update status / AWB | `PATCH /api/v1/orders/<id>/` | `orders`, `order_status_history` | `{ status, tracking_number }` | Updated order record. |
-| **Shipping (`/admin/orders/shipping`)** | Load rules | `GET /api/v1/shipping-rules/` | `shipping_rules` | None | List of state shipping rates and free shipping threshold. |
-| | Add shipping rule | `POST /api/v1/shipping-rules/` | `shipping_rules` | `{ state, cost }` | Created rule object. |
-| | Delete shipping rule | `DELETE /api/v1/shipping-rules/<id>/` | `shipping_rules` | None | `204 No Content`. |
+| | Update status / AWB | `PATCH /api/v1/orders/<id>/` | `orders`, `order_status_history` | `{ status, tracking_number }` | Updated order record adhering to canonical 10-state FSM. |
+| **Shipping (`/admin/orders/shipping`)** | Load rules & slabs | `GET /api/v1/delivery-configurations/` | `delivery_configurations`, `distance_slabs` | None | Active origin coordinates, base charge, distance slabs, and free shipping threshold. |
+| | Update delivery config | `PATCH /api/v1/delivery-configurations/<id>/` | `delivery_configurations` | `{ base_delivery_charge, distance_slab_km, charge_per_slab, free_delivery_threshold }` | Updated delivery configuration. |
+| | Add / Update distance slab | `POST/PUT /api/v1/delivery-configurations/slabs/` | `distance_slabs` | `{ min_distance_km, max_distance_km, rate }` | Created / updated slab row. |
 | **Clients (`/admin/finance/clients`)** | List B2B clients | `GET /api/v1/clients/` | `clients` | `search` | All B2B clients, contact persons, GSTIN, credit limits, total invoiced. |
 | | Add client | `POST /api/v1/clients/` | `clients` | `{ companyName, contactPerson, gstin, email, phone, creditLimit }` | Created client record. |
 | | Edit client | `PUT /api/v1/clients/<id>/` | `clients` | Client updates | Updated client record. |
@@ -85,17 +87,17 @@ Every mock/hardcoded dataset currently residing in the React frontend has been c
 | `INITIAL_INVOICES` | `frontend/src/pages/admin/Invoices.tsx` | **Database-Driven** | `invoices`, `invoice_items` | Migrate to MySQL `invoices` table; fetched via `GET /api/v1/invoices/`. |
 | `INITIAL_QUOTES` | `frontend/src/pages/admin/Quotations.tsx` | **Database-Driven** | `quotations`, `quotation_items` | Migrate to MySQL `quotations` table; fetched via `GET /api/v1/quotations/`. |
 | `INITIAL_EXPENSES` | `frontend/src/pages/admin/Expenses.tsx` | **Database-Driven** | `expenses` | Migrate to MySQL `expenses` table; fetched via `GET /api/v1/expenses/`. |
-| `INITIAL_RULES` (Shipping) | `frontend/src/pages/admin/Shipping.tsx` | **Database-Driven** | `shipping_rules` | Migrate to MySQL `shipping_rules` table. |
+| `INITIAL_RULES` (Shipping) | `frontend/src/pages/admin/Shipping.tsx` | **Database-Driven** | `delivery_configurations`, `distance_slabs`, `shipping_rules` | Migrated to MySQL `delivery_configurations` and `distance_slabs` (Phase 1.5 Reconciliation). |
 | `initialPayouts` | `frontend/src/pages/admin/FinanceSummary.tsx` | **Database-Driven** | `payout_settlements` | Stored in MySQL or fetched from payment gateway integration. |
 | `plTrendData`, `plTableData` | `frontend/src/pages/admin/FinanceSummary.tsx` | **Database-Driven** | Computed API endpoint | Replaced by Django aggregation query on `invoices` & `expenses`. |
 | `revenueTrend`, `transactions` | `frontend/src/pages/admin/Transactions.tsx` | **Database-Driven** | Computed API endpoint | Replaced by Django aggregation query on `orders`. |
 | `topProducts`, `slowMovers` | `frontend/src/pages/admin/ProductsAnalytics.tsx`| **Database-Driven** | Computed API endpoint | Replaced by DRF endpoint calculating order frequency and stock turnover. |
-| Customer `addresses` mock | `frontend/src/pages/customer/Account.tsx` | **Database-Driven** | `customer_addresses` | Replaced by `GET/POST /api/v1/users/addresses/`. |
+| `customer_addresses` mock | `frontend/src/pages/customer/Account.tsx` | **Database-Driven** | `customer_addresses` | Replaced by `GET/POST /api/v1/users/addresses/`. |
 | `mockPreview` (Import) | `frontend/src/pages/admin/ImportProducts.tsx` | **Database-Driven** | Backend CSV/Excel parser | Dynamic upload validation response from `POST /api/v1/products/import-csv/`. |
 | Mock Login fallback users | `frontend/src/services/authService.ts` | **Database-Driven** | `users` (Django Auth) | Delete client-side mock fallbacks once DRF auth is running. |
 | `admin_hero_categories` cache | `localStorage` | **Database-Driven** | `GET /api/v1/categories/hero/` | Remove `localStorage` caching once backend endpoint is live. |
 | `vp_products`, `vp_orders` | `localStorage` (`ShopContext.tsx`) | **Database-Driven** | DRF API endpoints | Replace `localStorage` sync with REST API queries in Phase 4. |
-| `trafficTrend`, `funnelData` | `frontend/src/pages/admin/TrafficAnalytics.tsx` | **Unknown / Requires Confirmation** | Custom Telemetry vs External Analytics | Subject to architectural confirmation (Google Analytics vs custom DB tables). |
+| `trafficTrend`, `funnelData` | `frontend/src/pages/admin/TrafficAnalytics.tsx` | **External Service / Optional** | External Analytics (GA4 / Plausible) | Reconciled in DEC-1.5-21: External telemetry tool recommended over high-volume raw MySQL clickstream tables. |
 | `COMPANY_NAME`, `COMPANY_ADDRESS`| `frontend/src/constants/companyInfo.ts` | **Configuration / Static** | Frontend Constant or Settings API | Retain as frontend constant or expose via `GET /api/v1/settings/`. |
 | `INDIAN_STATES` array | `frontend/src/pages/admin/Shipping.tsx` | **Configuration / Static** | Frontend Constant | Remains in frontend for form dropdown options. |
 | "Why Choose Us", Badges | `frontend/src/pages/customer/Home.tsx`, `ProductDetail.tsx`| **Frontend-Only** | Static JSX Components | Permanent UI presentation elements. |

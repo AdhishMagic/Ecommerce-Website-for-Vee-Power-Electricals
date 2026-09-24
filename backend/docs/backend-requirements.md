@@ -154,43 +154,42 @@ Based on the comprehensive inspection of the existing React codebase (`pages/adm
 
 ---
 
-## 4. Ambiguities & Items Requiring Confirmation
+## 4. Reconciliation of Phase 1 Ambiguities (Resolved in Phase 1.5)
 
-> [!WARNING]
-> The following 7 items are discrepancies, underspecified rules, or missing backend behaviors identified in the existing frontend code. They are marked **UNKNOWN / REQUIRES CONFIRMATION** and must be resolved before finalizing the Phase 2 database schema.
+> [!NOTE]
+> The 7 ambiguities identified during Phase 1 have been formally reconciled in **Phase 1.5 (Business Rule, Configuration & Schema Reconciliation)**. See [phase-1.5-reconciliation.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/phase-1.5-reconciliation.md) and [phase-1.5-decision-log.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/phase-1.5-decision-log.md) for full architectural justifications.
 
 1. **Order Status Value Discrepancies**:
-   * In `types/order.ts`: `status: 'Pending' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled'`.
-   * In `context/ShopContext.tsx`: `status: 'pending' | 'processing' | 'shipped' | 'delivered'`.
-   * In `pages/admin/Orders.tsx`: `status: 'Confirmed' | 'Packed' | 'Shipped' | 'Delivered' | 'Return Approved' | 'Return Completed' | 'Cancelled'`.
-   * In `pages/customer/Account.tsx`: Handles `Delivered`, `Shipped`, `Processing`, `Pending`, `Confirmed`, `Packed`, `Cancelled`.
-   * **STATUS**: *UNKNOWN / REQUIRES CONFIRMATION*. Recommendation: Standardize the state machine on:
-     `PENDING` -> `CONFIRMED` -> `PACKED` -> `SHIPPED` -> `DELIVERED`, with branching for `CANCELLED`, `RETURN_REQUESTED`, `RETURN_APPROVED`, `RETURN_COMPLETED`.
+   * **RECONCILED (DEC-1.5-12)**: Standardized on canonical 10-state FSM: `PENDING` -> `CONFIRMED` -> `PACKED` -> `SHIPPED` -> `DELIVERED`, branching to `CANCELLED`, `RETURN_REQUESTED`, `RETURN_APPROVED`, `RETURN_REJECTED`, and `RETURN_COMPLETED`. See [order-state-machine.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/order-state-machine.md).
 
 2. **Free Shipping Threshold Inconsistency**:
-   * `pages/customer/Checkout.tsx` hardcodes: `checkoutSubtotal >= 999 ? 0 : 99`.
-   * `pages/admin/Shipping.tsx` defaults to: `freeShippingThreshold: 3999` with per-state rules (e.g., Maharashtra ₹50, Delhi ₹100, Karnataka ₹80).
-   * **STATUS**: *UNKNOWN / REQUIRES CONFIRMATION*. Should the threshold be a global database setting with per-state fallback rates, or a hardcoded business constant?
+   * **RECONCILED (DEC-1.5-06)**: Decoupled from application code into `DeliveryConfiguration.free_delivery_threshold`. Seeded at `₹999.00` for development and customizable by administrators via `/admin/orders/shipping`.
 
 3. **Tax Handling (MRP vs Selling Price vs Subtotal)**:
-   * `pages/customer/ProductDetail.tsx` displays: *"Price inclusive of all taxes"*.
-   * `pages/customer/Checkout.tsx` calculates: `tax = Math.round(checkoutSubtotal * 0.18)` and adds tax on top of the subtotal (`total = checkoutSubtotal + shipping + tax`).
-   * `components/admin/GenerateInvoiceModal.tsx` specifies: `taxPercent: 18` per item.
-   * **STATUS**: *UNKNOWN / REQUIRES CONFIRMATION*. Indian GST e-commerce laws require clarifying whether customer catalog prices are tax-inclusive (tax extracted for invoicing) or tax-exclusive (tax added at checkout).
+   * **RECONCILED (DEC-1.5-01, DEC-1.5-02)**: Governed by `TaxConfiguration` with configurable `tax_calculation_mode` (`TAX_EXCLUSIVE` vs `TAX_INCLUSIVE`). Defaulted to `TAX_EXCLUSIVE` for development checkout compatibility, pending final executive sign-off. See [billing-pricing-rules.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/billing-pricing-rules.md).
 
 4. **Quotation to Invoice Workflow**:
-   * In `pages/admin/Quotations.tsx`, clicking "Convert to Invoice" displays an alert and sets quotation status to `"Converted"`. It currently does not specify whether converting a quotation automatically deducts inventory or creates an `Order` record.
-   * **STATUS**: *UNKNOWN / REQUIRES CONFIRMATION*.
+   * **RECONCILED (DEC-1.5-15)**: One-way conversion from `Approved` status creating a linked `Invoice`. Physical inventory is NOT locked during quote conversion; stock is deducted only upon confirmed order payment or dispatch.
 
 5. **Analytics Data Source**:
-   * `ProductsAnalytics.tsx` and `TrafficAnalytics.tsx` currently render rich mock graphs (e.g., funnel steps, sessions by channel, traffic source, new vs returning visitors).
-   * **STATUS**: *UNKNOWN / REQUIRES CONFIRMATION*. Should traffic/session analytics be tracked via custom backend event tables, or should the backend only serve sales/product aggregations, leaving web traffic to Google Analytics / Plausible?
+   * **RECONCILED (DEC-1.5-21)**: Sales and merchandise analytics (`topProducts`, `revenueTrend`) are computed dynamically by DRF from transactional tables. Web traffic and clickstream analytics are recommended for external telemetry (Google Analytics 4 / Plausible) to prevent MySQL bloat.
 
 6. **Payment Gateway Integration**:
-   * UI displays "Razorpay (UPI)", "Credit Card", "NetBanking", "Cash on Delivery", and mentions Razorpay settlement IDs (`setl_94829`).
-   * **STATUS**: *UNKNOWN / REQUIRES CONFIRMATION*. Confirmation required on whether Razorpay webhooks and auto-signature verification are in scope for Phase 2/3.
+   * **RECONCILED (DEC-1.5-17)**: Phase 2 implements a simulated payment adapter and database records (`PaymentTransaction`); live Razorpay SDK and webhook signature verification are scheduled for Phase 3.
 
 7. **Guest vs Registered Checkout**:
-   * `App.tsx` wraps `/checkout` in `<ProtectedRoute allowedRoles={["customer", "admin"]}>`, requiring users to log in before checking out.
-   * However, `backend/apps/orders/views.py` allows guest checkout (`customer_name=data.get('customerName', 'Guest Customer')`).
-   * **STATUS**: *UNKNOWN / REQUIRES CONFIRMATION*. Align on whether guest checkout without account registration is supported.
+   * **RECONCILED (DEC-1.5-19)**: At database layer, `orders.user_id` is nullable, and customer identity/address is snapshot. Frontend route access is controlled by `StoreConfiguration.guest_checkout_enabled` (initially `FALSE`).
+
+---
+
+## 5. Phase 1.5 Architecture References
+
+For detailed design specifications governing commercial configuration and financial integrity, refer to:
+* **Master Reconciliation**: [phase-1.5-reconciliation.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/phase-1.5-reconciliation.md)
+* **Configuration Architecture**: [configuration-architecture.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/configuration-architecture.md)
+* **Canonical Billing & Pricing Engine**: [billing-pricing-rules.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/billing-pricing-rules.md)
+* **Master Business Rules Registry**: [business-rules-registry.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/business-rules-registry.md)
+* **Order State Machine**: [order-state-machine.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/order-state-machine.md)
+* **Financial & Stock Ledger Integrity**: [financial-integrity-rules.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/financial-integrity-rules.md)
+* **Architecture Decision Log**: [phase-1.5-decision-log.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/phase-1.5-decision-log.md)
+

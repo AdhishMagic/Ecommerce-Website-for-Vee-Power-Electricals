@@ -25,19 +25,21 @@ The model is normalized to 3rd Normal Form (3NF) to eliminate data redundancy, p
 | `brands` | `products` | `brand_id` | 1 to Many | `RESTRICT` | Mandatory | Prevent deleting brand if products are associated with it. |
 | `products` | `product_images` | `product_id` | 1 to Many | `CASCADE` | Mandatory | Product gallery images belong strictly to that product. |
 | `products` | `product_specifications`| `product_id` | 1 to Many | `CASCADE` | Mandatory | Technical specs are deleted if product is deleted. |
-| `products` | `stock_transactions` | `product_id` | 1 to Many | `CASCADE` | Mandatory | Stock history is tied to product. |
+| `products` | `stock_transactions` | `product_id` | 1 to Many | `RESTRICT` | Mandatory | Reconciled in Phase 1.5 (DEC-1.5-13): Stock history is an immutable audit ledger; products with stock records cannot be hard-deleted (enforcing catalog soft-deletion). |
 | `products` | `order_items` | `product_id` | 1 to Many | `SET_NULL` | Optional | Order items snapshot product name/price; FK becomes null on delete. |
 | `products` | `quotation_items` | `product_id` | 1 to Many | `SET_NULL` | Optional | Quotations preserve quoted descriptions even if product is deleted. |
 | `products` | `invoice_items` | `product_id` | 1 to Many | `SET_NULL` | Optional | Invoices preserve tax line items even if product is deleted. |
 | `orders` | `order_items` | `order_id` | 1 to Many | `CASCADE` | Mandatory | Order items exist strictly within an order. |
 | `orders` | `order_status_history`| `order_id` | 1 to Many | `CASCADE` | Mandatory | Audit history belongs to the order. |
-| `orders` | `invoices` | `order_id` | 1 to 1 / Many | `SET_NULL` | Optional | Retail invoice generated from an order. |
+| `orders` | `invoices` | `order_id` | 1 to 1 / Many | `SET_NULL` | Optional | Retail invoice generated from an order (1:1 primary in retail; 1:N capable for B2B contract milestones; DEC-1.5-14). |
 | `orders` | `stock_transactions` | `order_id` | 1 to Many | `SET_NULL` | Optional | Links stock deductions/returns to specific orders. |
 | `clients` | `quotations` | `client_id` | 1 to Many | `RESTRICT` | Mandatory | Cannot delete corporate client with active quotation records. |
 | `clients` | `invoices` | `client_id` | 1 to Many | `RESTRICT` | Optional | Invoices issued directly to B2B corporate client. |
 | `quotations` | `quotation_items` | `quotation_id` | 1 to Many | `CASCADE` | Mandatory | Quotation items belong strictly to the parent quotation. |
 | `quotations` | `invoices` | `quotation_id` | 1 to 1 | `SET_NULL` | Optional | Converted quotation links to resulting invoice. |
 | `invoices` | `invoice_items` | `invoice_id` | 1 to Many | `CASCADE` | Mandatory | Invoice items belong strictly to parent invoice. |
+| `delivery_configurations` | `distance_slabs` | `delivery_config_id` | 1 to Many | `CASCADE` | Mandatory | Distance slab intervals belong to the parent delivery configuration. |
+| `users` | `admin_config_audit_logs`| `admin_user_id` | 1 to Many | `SET_NULL` | Optional | Tracks staff administrator who modified commercial configuration. |
 
 ---
 
@@ -93,3 +95,13 @@ erDiagram
 * Deductions occur when an order transitions to `CONFIRMED` or `PACKED`.
 * Restocks occur on order `CANCELLED` or `RETURN_COMPLETED`.
 * This ensures physical inventory matches accounting balances at all times.
+
+### 4. Stock Ledger Protection & Soft Deletion (Phase 1.5 Reconciliation)
+* `StockTransaction` is an immutable, write-only ledger.
+* Foreign key deletion behavior is set to `ON DELETE RESTRICT` (Django `models.PROTECT`).
+* Products with stock history cannot be physically removed from MySQL; catalog management uses soft-deletion (`is_active = FALSE`).
+
+### 5. Historical Billing Snapshots
+* `Order` and `Invoice` entities incorporate an immutable `calculation_snapshot` JSON column.
+* Future administrative alterations to GST rates, delivery tariffs, or discount rules do not alter previously generated transactions.
+

@@ -214,12 +214,13 @@
   * `performed_by_id` (`BIGINT UNSIGNED`, NULL)
 * **Timestamps**: `created_at` (Immutable, no updated_at)
 * **Relationships**:
-  * Belongs to `Product` (`ON DELETE CASCADE`).
+  * Belongs to `Product` (`ON DELETE RESTRICT` / Django `models.PROTECT`). *Reconciled in Phase 1.5 (DEC-1.5-13): Products with inventory movements cannot be hard-deleted; catalog uses soft-deletion.*
   * Belongs to `Order` (`ON DELETE SET NULL`).
   * Belongs to `User` (`performed_by_id`, `ON DELETE SET NULL`).
 * **Validation**:
   * `RESTOCK` and `RETURN`: `change_amount > 0`.
   * `SALE` and negative `ADJUSTMENT`: stock deduction must not result in negative inventory.
+  * Audit entries are insert-only; updates and deletions are strictly blocked.
 
 ---
 
@@ -229,7 +230,7 @@
 * **Unique Fields**: `order_number`
 * **Required Fields**:
   * `order_number` (`VARCHAR(100)`, UNIQUE, NOT NULL - e.g., `VPE-849201`)
-  * `user_id` (`BIGINT UNSIGNED`, NULL - permits guest checkout if confirmed)
+  * `user_id` (`BIGINT UNSIGNED`, NULL - nullable to support both guest checkout and registered accounts; DEC-1.5-19)
   * `customer_name` (`VARCHAR(200)`, NOT NULL)
   * `customer_email` (`VARCHAR(255)`, NOT NULL)
   * `customer_phone` (`VARCHAR(20)`, NOT NULL)
@@ -239,9 +240,10 @@
   * `tax_amount` (`DECIMAL(12, 2)`, NOT NULL, DEFAULT 0.00)
   * `shipping_fee` (`DECIMAL(12, 2)`, NOT NULL, DEFAULT 0.00)
   * `total_amount` (`DECIMAL(12, 2)`, NOT NULL)
-  * `status` (`ENUM('Pending', 'Confirmed', 'Packed', 'Shipped', 'Delivered', 'Return Approved', 'Return Completed', 'Cancelled')`, NOT NULL, DEFAULT `'Pending'`)
+  * `status` (`ENUM('PENDING', 'CONFIRMED', 'PACKED', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'RETURN_REQUESTED', 'RETURN_APPROVED', 'RETURN_REJECTED', 'RETURN_COMPLETED')`, NOT NULL, DEFAULT `'PENDING'`) *Standardized on 10-state FSM in Phase 1.5; DEC-1.5-12.*
   * `payment_status` (`ENUM('Pending', 'Paid', 'Failed', 'Refunded')`, NOT NULL, DEFAULT `'Pending'`)
   * `payment_method` (`VARCHAR(50)`, NOT NULL, DEFAULT `'UPI'`)
+  * `calculation_snapshot` (`JSON`, NOT NULL - captures frozen rates, distance, CGST/SGST/IGST breakdown, and active config version; DEC-1.5-11)
 * **Optional Fields**:
   * `is_business_order` (`TINYINT(1)`, DEFAULT 0)
   * `company_name` (`VARCHAR(200)`, NULL)
@@ -252,9 +254,9 @@
 * **Timestamps**: `created_at`, `updated_at`
 * **Relationships**:
   * Belongs to `User` (`ON DELETE SET NULL`).
-  * Has many `OrderItem` records.
-  * Has many `OrderStatusHistory` records.
-  * Has one or more linked `Invoice` records.
+  * Has many `OrderItem` records (`ON DELETE CASCADE`).
+  * Has many `OrderStatusHistory` records (`ON DELETE CASCADE`).
+  * Has linked `Invoice` records (1:1 primary for retail, 1:N capable for B2B; DEC-1.5-14).
 
 ---
 
@@ -387,6 +389,7 @@
   * `tax_amount` (`DECIMAL(14, 2)`, NOT NULL, DEFAULT 0.00)
   * `total_amount` (`DECIMAL(14, 2)`, NOT NULL)
   * `status` (`ENUM('Paid', 'Unpaid', 'Overdue', 'Cancelled')`, NOT NULL, DEFAULT `'Unpaid'`)
+  * `calculation_snapshot` (`JSON`, NOT NULL - captures immutable point-in-time rates, CGST/SGST/IGST breakdown, and active config version; DEC-1.5-11)
 * **Optional Fields**:
   * `order_id` (`BIGINT UNSIGNED`, NULL)
   * `client_id` (`BIGINT UNSIGNED`, NULL)
@@ -394,10 +397,10 @@
   * `notes` (`TEXT`, NULL)
 * **Timestamps**: `created_at`, `updated_at`
 * **Relationships**:
-  * Belongs to `Order` (`ON DELETE SET NULL`).
+  * Belongs to `Order` (`ON DELETE SET NULL` - 1:1 primary for retail, 1:N capable for B2B; DEC-1.5-14).
   * Belongs to `Client` (`ON DELETE RESTRICT`).
   * Belongs to `Quotation` (`ON DELETE SET NULL`).
-  * Has many `InvoiceItem` records.
+  * Has many `InvoiceItem` records (`ON DELETE CASCADE`).
 
 ---
 
@@ -467,3 +470,31 @@
   * `email` (`VARCHAR(255)`, NULL)
   * `admin_notes` (`TEXT`, NULL)
 * **Timestamps**: `created_at`, `updated_at`
+
+---
+
+## 3. Phase 1.5 Configuration Entities Specification (Design Blueprint)
+
+> [!NOTE]
+> The following entities are designed to support commercial adaptability without code changes as established in Phase 1.5. They will be implemented as Django models in Phase 2. For detailed architectural definitions, refer to [configuration-architecture.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/configuration-architecture.md).
+
+### Entity 22: TaxConfig (`tax_configurations`)
+* **Purpose**: Governs statutory GST rates, intra/inter-state split, and calculation modes.
+* **Key Fields**: `id`, `tax_enabled` (Boolean), `default_tax_rate` (`DECIMAL(5, 2)`), `cgst_rate` (`DECIMAL(5, 2)`), `sgst_rate` (`DECIMAL(5, 2)`), `igst_rate` (`DECIMAL(5, 2)`), `tax_calculation_mode` (`VARCHAR(20)`), `business_state` (`VARCHAR(100)`), `effective_from` (`DATETIME`), `effective_until` (`DATETIME`, NULL), `is_active` (`TINYINT(1)`).
+
+### Entity 23: DeliveryConfig (`delivery_configurations`)
+* **Purpose**: Governs warehouse dispatch origin coordinates, base shipping fees, distance slabs, and free delivery thresholds.
+* **Key Fields**: `id`, `origin_city` (`VARCHAR(100)`), `origin_state` (`VARCHAR(100)`), `origin_pincode` (`VARCHAR(10)`), `base_delivery_charge` (`DECIMAL(10, 2)`), `distance_slab_km` (`DECIMAL(6, 2)`), `charge_per_slab` (`DECIMAL(10, 2)`), `free_delivery_enabled` (`TINYINT(1)`), `free_delivery_threshold` (`DECIMAL(12, 2)`), `is_active` (`TINYINT(1)`).
+
+### Entity 24: DistanceSlab (`distance_slabs`)
+* **Purpose**: Granular distance-based delivery pricing increments.
+* **Key Fields**: `id`, `delivery_config_id` (`BIGINT UNSIGNED`), `min_distance_km` (`DECIMAL(6, 2)`), `max_distance_km` (`DECIMAL(6, 2)`), `rate` (`DECIMAL(10, 2)`), `sort_order` (`INT`).
+
+### Entity 25: OrderDiscount (`order_discounts`)
+* **Purpose**: Cart-level promotional coupon codes and order discounts.
+* **Key Fields**: `id`, `coupon_code` (`VARCHAR(50)`, UNIQUE), `discount_type` (`ENUM('percentage', 'fixed')`), `discount_value` (`DECIMAL(10, 2)`), `min_order_value` (`DECIMAL(12, 2)`), `max_discount_cap` (`DECIMAL(12, 2)`, NULL), `valid_from` (`DATETIME`), `valid_until` (`DATETIME`), `is_active` (`TINYINT(1)`).
+
+### Entity 26: AdminConfigAuditLog (`admin_config_audit_logs`)
+* **Purpose**: Indelible audit trail recording administrative changes to commercial and financial rules.
+* **Key Fields**: `id`, `admin_user_id` (`BIGINT UNSIGNED`), `domain` (`VARCHAR(50)`), `record_id` (`BIGINT UNSIGNED`), `action_type` (`VARCHAR(20)`), `old_value` (`JSON`), `new_value` (`JSON`), `change_reason` (`TEXT`), `ip_address` (`VARCHAR(45)`), `created_at` (`DATETIME`).
+
