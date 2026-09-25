@@ -1,5 +1,7 @@
 from django.core.management.base import BaseCommand
-from apps.products.models import Category, Brand, Product
+from django.db import models
+from django.utils.text import slugify
+from apps.products.models import Category, Subcategory, Brand, Product, ProductImage, ProductSpecification
 
 CATEGORIES = [
     {"id": "fans", "name": "Fans", "icon": "💨", "subcategories": ["Ceiling Fans", "Exhaust Fans", "Wall Mounted Fans", "Table Fans"]},
@@ -125,28 +127,78 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         self.stdout.write("Seeding categories...")
+        cat_map = {}
+        subcat_map = {}
         for cat in CATEGORIES:
-            Category.objects.get_or_create(
-                slug=cat["id"],
-                defaults={
-                    "name": cat["name"],
-                    "icon": cat["icon"],
-                    "subcategories": cat["subcategories"]
-                }
-            )
+            category = Category.objects.filter(models.Q(name=cat["name"]) | models.Q(slug=cat["id"])).first()
+            if not category:
+                category = Category.objects.create(
+                    slug=cat["id"],
+                    name=cat["name"],
+                    icon=cat["icon"],
+                )
+            cat_map[cat["id"]] = category
+            for idx, sub_name in enumerate(cat.get("subcategories", [])):
+                subcat, _ = Subcategory.objects.get_or_create(
+                    category=category,
+                    slug=slugify(sub_name),
+                    defaults={
+                        "name": sub_name,
+                        "display_order": idx,
+                    }
+                )
+                subcat_map[(cat["id"], sub_name)] = subcat
 
         self.stdout.write("Seeding brands...")
+        brand_map = {}
         for brand in BRANDS:
-            Brand.objects.get_or_create(
-                slug=brand.lower(),
+            b_obj, _ = Brand.objects.get_or_create(
+                slug=slugify(brand),
                 defaults={"name": brand}
             )
+            brand_map[brand] = b_obj
 
         self.stdout.write("Seeding products...")
         for p in PRODUCTS:
-            Product.objects.get_or_create(
-                sku=p["sku"],
-                defaults=p
+            p_data = dict(p)
+            cat_id = p_data.pop("category", None)
+            subcat_name = p_data.pop("subcategory", None)
+            brand_name = p_data.pop("brand", None)
+            img_list = p_data.pop("images", [])
+            specs_dict = p_data.pop("specifications", {})
+            _tags = p_data.pop("tags", [])
+
+            p_data["category"] = cat_map.get(cat_id)
+            p_data["subcategory"] = subcat_map.get((cat_id, subcat_name))
+            p_data["brand"] = brand_map.get(brand_name)
+            p_data["slug"] = slugify(p_data["name"])
+
+            if img_list:
+                p_data["primary_image"] = img_list[0]
+
+            product, _ = Product.objects.get_or_create(
+                sku=p_data["sku"],
+                defaults=p_data
             )
+
+            for order, img_url in enumerate(img_list):
+                ProductImage.objects.get_or_create(
+                    product=product,
+                    image_url=img_url,
+                    defaults={
+                        "sort_order": order,
+                        "is_primary": (order == 0),
+                    }
+                )
+
+            for order, (k, v) in enumerate(specs_dict.items()):
+                ProductSpecification.objects.get_or_create(
+                    product=product,
+                    spec_key=k,
+                    defaults={
+                        "spec_value": str(v),
+                        "sort_order": order,
+                    }
+                )
 
         self.stdout.write(self.style.SUCCESS("Database seeded successfully!"))

@@ -160,6 +160,22 @@ class Phase7PerformanceBaselineTestCase(TestCase):
             f"Expected <= 10 queries for my-orders, but executed {len(ctx.captured_queries)} queries.",
         )
 
+    def test_order_list_items_count_n_plus_one_avoidance(self):
+        """
+        Phase 9 Optimization: Order listing annotates items_count in single query,
+        preventing N+1 queries when serializing order items count.
+        """
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token_customer}')
+        with CaptureQueriesContext(connection) as ctx:
+            res = self.client.get('/api/v1/orders/my-orders/')
+            self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        # 3 queries total: user auth, count(*), select orders with annotated items_count
+        self.assertLessEqual(len(ctx.captured_queries), 4)
+        for order_data in res.data['results']:
+            self.assertIn('items_count', order_data)
+            self.assertIsInstance(order_data['items_count'], int)
+
     # -------------------------------------------------------------
     # 3. Pagination SQL Verification
     # -------------------------------------------------------------

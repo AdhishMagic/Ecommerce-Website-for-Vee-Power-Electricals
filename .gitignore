@@ -27,7 +27,9 @@ __pycache__/
 .DS_Store
 Thumbs.db
 .vscode/
-.idea/
-
 # Design reference
 bee animation.mp4
+
+# Test artifacts
+test-results/
+playwright-report/

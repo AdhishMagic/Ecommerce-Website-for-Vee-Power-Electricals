@@ -1,7 +1,7 @@
 import uuid
 from decimal import Decimal
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Count
 from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
@@ -73,7 +73,9 @@ class CustomerMyOrdersView(generics.ListAPIView):
     serializer_class = OrderListSerializer
 
     def get_queryset(self):
-        return Order.objects.filter(user=self.request.user).order_by('-created_at')
+        return Order.objects.filter(user=self.request.user).annotate(
+            annotated_items_count=Count('items')
+        ).order_by('-created_at')
 
 
 class OrderDetailView(generics.RetrieveAPIView):
@@ -100,7 +102,9 @@ class AdminOrderListView(generics.ListAPIView):
     serializer_class = OrderListSerializer
 
     def get_queryset(self):
-        qs = Order.objects.all().order_by('-created_at')
+        qs = Order.objects.annotate(
+            annotated_items_count=Count('items')
+        ).order_by('-created_at')
 
         status_param = self.request.query_params.get('status')
         if status_param:
