@@ -188,9 +188,8 @@ An automated live integration test suite was developed under `frontend/tests/int
 ## 7. Known Architectural Notes & Gaps
 
 1. **Operating Expenses Endpoint:**
-   - The backend includes the canonical database model `Expense` (`apps/finance/models.py`) and development seed data.
-   - However, `ExpenseViewSet` was intentionally not registered in `backend/apps/finance/urls.py` in previous phases.
-   - Following strict Rule 15 & Rule 18 ("If backend API does not exist: do not invent an endpoint. Keep feature intentionally client-side and document the integration gap"), `frontend/src/pages/admin/Expenses.tsx` remains client-state managed.
+   - This Phase 8 note was superseded by Step 1 of the Expense API completion.
+   - `ExpenseViewSet` is now registered at `/api/v1/expenses/`, and `frontend/src/pages/admin/Expenses.tsx` uses the live API rather than client-only state.
 2. **Coupons:**
    - Coupon codes are pre-validated via `POST /api/v1/config/coupons/validate/` during checkout preview, but the backend `CheckoutService` remains authoritative for applying discounts during final order calculation.
 

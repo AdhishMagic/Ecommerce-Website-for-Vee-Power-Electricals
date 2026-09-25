@@ -161,10 +161,9 @@ The complete customer journey was tested live via browser automation (Playwright
 
 ## 11. Known Gaps & Production Readiness Notes
 
-1. **Expense API ViewSet (Documented Phase 8 Gap):**
-   - The `Expense` model exists in `backend/apps/finance/models.py`.
-   - As established in Phase 8, `ExpenseViewSet` is not registered in `backend/apps/finance/urls.py`.
-   - Per Phase 9 instructions, no unauthorized Expense API was invented. The frontend `/admin/finance/expenses` route gracefully displays the documented interface without crashing.
+1. **Expense API ViewSet:**
+   - The Phase 8 gap was resolved in Step 1 of Expense API completion.
+   - Authorized administrators now use the protected `/api/v1/expenses/` endpoint; the admin expense page reads and writes through that API.
 2. **Third-Party Payment Gateway Integration:**
    - **Classification:** `NOT IMPLEMENTED / READY FOR FUTURE INTEGRATION`.
    - The application has complete database models and business services for `PaymentTransaction` and settlement ledger records.

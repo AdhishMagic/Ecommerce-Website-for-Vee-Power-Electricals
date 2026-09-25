@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { Plus, IndianRupee, Clock, Tag, X, Edit, Trash2 } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Plus, IndianRupee, Clock, Tag, X, Edit, Trash2, Loader2, AlertCircle } from "lucide-react";
+import { financeApi } from "../../api/finance";
+import { ExpenseItem } from "../../types/api";
 
 type Expense = {
   id: number;
@@ -11,32 +13,79 @@ type Expense = {
   status: "Paid" | "Pending";
 };
 
-const INITIAL_EXPENSES: Expense[] = [
-  { id: 1, date: "2026-09-15", category: "Logistics", description: "Delhivery Monthly Bill", vendor: "Delhivery", amount: 45000, status: "Paid" },
-  { id: 2, date: "2026-09-12", category: "Marketing", description: "Google Ads Campaign", vendor: "Google India", amount: 25000, status: "Paid" },
-  { id: 3, date: "2026-09-10", category: "Software", description: "Shopify Subscription", vendor: "Shopify", amount: 8000, status: "Paid" },
-  { id: 4, date: "2026-09-05", category: "Inventory", description: "Wire Restock", vendor: "Polycab", amount: 150000, status: "Pending" },
-  { id: 5, date: "2026-09-02", category: "Utilities", description: "Warehouse Electricity", vendor: "State Electricity Board", amount: 12000, status: "Pending" },
-];
-
 const STATUS_COLORS: Record<string, string> = {
   "Paid": "bg-emerald-100 text-emerald-700",
   "Pending": "bg-amber-100 text-amber-700",
 };
 
 export default function ExpensesPage() {
-  const [expenses, setExpenses] = useState<Expense[]>(INITIAL_EXPENSES);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState("All");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState<Partial<Expense>>({
     date: "", category: "Operations", description: "", vendor: "", amount: 0, status: "Pending"
   });
 
-  const filteredExpenses = categoryFilter === "All" 
-    ? expenses 
+  const fetchExpenses = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data: ExpenseItem[] = await financeApi.getExpenses();
+      const mapped: Expense[] = data.map(e => ({
+          id: e.id,
+          date: e.expense_date || e.date || "",
+          category: e.category,
+          description: e.description,
+          vendor: e.vendor,
+          amount: Number(e.amount) || 0,
+          status: (e.status === "Paid" ? "Paid" : "Pending") as "Paid" | "Pending",
+        }));
+      setExpenses(mapped);
+    } catch (err: unknown) {
+      setExpenses([]);
+      setError(err instanceof Error ? err.message : "Unable to load expenses. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchExpenses();
+  }, []);
+
+  const filteredExpenses = categoryFilter === "All"
+    ? expenses
     : expenses.filter(e => e.category === categoryFilter);
+
+  // Dynamic KPI Metrics
+  const { totalAmount, pendingCount, topCategory } = useMemo(() => {
+    const total = expenses.reduce((acc, curr) => acc + (curr.amount || 0), 0);
+    const pending = expenses.filter(e => e.status === "Pending").length;
+
+    const catCounts: Record<string, number> = {};
+    expenses.forEach(e => {
+      catCounts[e.category] = (catCounts[e.category] || 0) + 1;
+    });
+    let topCat = "General";
+    let maxCount = 0;
+    Object.entries(catCounts).forEach(([cat, cnt]) => {
+      if (cnt > maxCount) {
+        maxCount = cnt;
+        topCat = cat;
+      }
+    });
+
+    return {
+      totalAmount: total,
+      pendingCount: pending,
+      topCategory: topCat
+    };
+  }, [expenses]);
 
   const handleOpenModal = (expense?: Expense) => {
     if (expense) {
@@ -44,7 +93,14 @@ export default function ExpensesPage() {
       setFormData(expense);
     } else {
       setEditingExpense(null);
-      setFormData({ date: "", category: "Operations", description: "", vendor: "", amount: 0, status: "Pending" });
+      setFormData({
+        date: new Date().toISOString().split("T")[0],
+        category: "Operations",
+        description: "",
+        vendor: "",
+        amount: 0,
+        status: "Pending"
+      });
     }
     setIsModalOpen(true);
   };
@@ -54,18 +110,60 @@ export default function ExpensesPage() {
     setEditingExpense(null);
   };
 
-  const handleSaveExpense = () => {
-    if (editingExpense) {
-      setExpenses(expenses.map(e => e.id === editingExpense.id ? { ...e, ...formData } as Expense : e));
-    } else {
-      setExpenses([{ id: Date.now(), ...formData } as Expense, ...expenses]);
+  const handleSaveExpense = async () => {
+    if (!formData.date || !formData.description || !formData.amount) return;
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      const payload = {
+        expense_date: formData.date,
+        category: formData.category || "Operations",
+        description: formData.description,
+        vendor: formData.vendor || "Direct",
+        amount: Number(formData.amount),
+        status: formData.status || "Pending",
+      };
+
+      if (editingExpense) {
+        const updated = await financeApi.updateExpense(editingExpense.id, payload);
+        setExpenses(prev => prev.map(e => e.id === editingExpense.id ? {
+            ...e,
+            date: updated.expense_date || updated.date || formData.date!,
+            category: updated.category,
+            description: updated.description,
+            vendor: updated.vendor,
+            amount: Number(updated.amount),
+            status: updated.status as "Paid" | "Pending",
+        } : e));
+      } else {
+        const created = await financeApi.createExpense(payload);
+        setExpenses(prev => [{
+            id: created.id,
+            date: created.expense_date || created.date || formData.date!,
+            category: created.category,
+            description: created.description,
+            vendor: created.vendor,
+            amount: Number(created.amount),
+            status: created.status as "Paid" | "Pending",
+        }, ...prev]);
+      }
+      handleCloseModal();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Unable to save the expense. Please review the form and try again.");
+    } finally {
+      setSubmitting(false);
     }
-    handleCloseModal();
   };
 
-  const handleDeleteExpense = (id: number) => {
+  const handleDeleteExpense = async (id: number) => {
     if (confirm("Are you sure you want to delete this expense?")) {
-      setExpenses(expenses.filter(e => e.id !== id));
+      try {
+        await financeApi.deleteExpense(id);
+        setExpenses(prev => prev.filter(e => e.id !== id));
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Unable to delete the expense. Please try again.");
+      }
     }
   };
 
@@ -76,12 +174,34 @@ export default function ExpensesPage() {
         <p className="text-sm text-slate-500 mt-1">Track and log operational expenses and vendor payments.</p>
       </div>
 
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-red-700 text-sm">
+          <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { title: "Total Expenses (Month)", value: "₹2,40,000", icon: <IndianRupee className="w-6 h-6 text-red-600" />, bg: "bg-red-100" },
-          { title: "Pending Approvals", value: "2", icon: <Clock className="w-6 h-6 text-amber-600" />, bg: "bg-amber-100" },
-          { title: "Top Category", value: "Inventory", icon: <Tag className="w-6 h-6 text-[#0A2540]" />, bg: "bg-[#0A2540]/10" },
+          {
+            title: "Total Expenses",
+            value: `₹${totalAmount.toLocaleString("en-IN")}`,
+            icon: <IndianRupee className="w-6 h-6 text-red-600" />,
+            bg: "bg-red-100"
+          },
+          {
+            title: "Pending Approvals",
+            value: String(pendingCount),
+            icon: <Clock className="w-6 h-6 text-amber-600" />,
+            bg: "bg-amber-100"
+          },
+          {
+            title: "Top Category",
+            value: topCategory,
+            icon: <Tag className="w-6 h-6 text-[#0A2540]" />,
+            bg: "bg-[#0A2540]/10"
+          },
         ].map((kpi, idx) => (
           <div key={idx} className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
             <div>
@@ -123,49 +243,61 @@ export default function ExpensesPage() {
           </div>
         </div>
         
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[900px]">
-            <thead>
-              <tr className="bg-slate-50/80">
-                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase">Date</th>
-                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase">Category</th>
-                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase">Description</th>
-                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase">Vendor</th>
-                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase text-right">Amount (₹)</th>
-                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase text-center">Status</th>
-                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase text-center">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredExpenses.map(expense => (
-                <tr key={expense.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-5 py-4 text-sm font-medium text-slate-700">{expense.date}</td>
-                  <td className="px-5 py-4 text-sm">
-                    <span className="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md text-xs font-semibold">{expense.category}</span>
-                  </td>
-                  <td className="px-5 py-4 text-sm text-[#0A2540] font-medium">{expense.description}</td>
-                  <td className="px-5 py-4 text-sm text-slate-600">{expense.vendor}</td>
-                  <td className="px-5 py-4 text-sm font-bold text-[#0A2540] text-right">₹{expense.amount.toLocaleString("en-IN")}</td>
-                  <td className="px-5 py-4 text-center">
-                    <span className={`inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider ${STATUS_COLORS[expense.status]}`}>
-                      {expense.status}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <button onClick={() => handleOpenModal(expense)} className="p-1.5 text-slate-400 hover:text-[#0A2540] hover:bg-slate-100 rounded transition-colors" title="Edit">
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => handleDeleteExpense(expense.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
+        {loading ? (
+          <div className="p-12 flex flex-col items-center justify-center text-slate-400 gap-2">
+            <Loader2 className="w-8 h-8 animate-spin text-[#0A2540]" />
+            <p className="text-sm font-medium">Loading expenses...</p>
+          </div>
+        ) : filteredExpenses.length === 0 ? (
+          <div className="p-12 text-center text-slate-400">
+            <p className="text-base font-semibold text-slate-600">No expenses found</p>
+            <p className="text-sm mt-1">There are no expense records for the selected filter.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[900px]">
+              <thead>
+                <tr className="bg-slate-50/80">
+                  <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase">Date</th>
+                  <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase">Category</th>
+                  <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase">Description</th>
+                  <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase">Vendor</th>
+                  <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase text-right">Amount (₹)</th>
+                  <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase text-center">Status</th>
+                  <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase text-center">Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredExpenses.map(expense => (
+                  <tr key={expense.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-5 py-4 text-sm font-medium text-slate-700">{expense.date}</td>
+                    <td className="px-5 py-4 text-sm">
+                      <span className="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md text-xs font-semibold">{expense.category}</span>
+                    </td>
+                    <td className="px-5 py-4 text-sm text-[#0A2540] font-medium">{expense.description}</td>
+                    <td className="px-5 py-4 text-sm text-slate-600">{expense.vendor}</td>
+                    <td className="px-5 py-4 text-sm font-bold text-[#0A2540] text-right">₹{expense.amount.toLocaleString("en-IN")}</td>
+                    <td className="px-5 py-4 text-center">
+                      <span className={`inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider ${STATUS_COLORS[expense.status]}`}>
+                        {expense.status}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button onClick={() => handleOpenModal(expense)} className="p-1.5 text-slate-400 hover:text-[#0A2540] hover:bg-slate-100 rounded transition-colors" title="Edit">
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => handleDeleteExpense(expense.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Add/Edit Modal */}
@@ -256,9 +388,10 @@ export default function ExpensesPage() {
               </button>
               <button 
                 onClick={handleSaveExpense}
-                disabled={!formData.date || !formData.description || !formData.amount}
-                className="px-4 py-2 bg-[#F2A900] text-[#0A2540] text-sm font-bold rounded-lg hover:bg-[#e09b00] disabled:opacity-50 transition-colors shadow-sm"
+                disabled={submitting || !formData.date || !formData.description || !formData.amount}
+                className="px-4 py-2 bg-[#F2A900] text-[#0A2540] text-sm font-bold rounded-lg hover:bg-[#e09b00] disabled:opacity-50 transition-colors shadow-sm flex items-center gap-2"
               >
+                {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
                 Save Expense
               </button>
             </div>

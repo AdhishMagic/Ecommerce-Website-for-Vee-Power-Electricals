@@ -29,7 +29,6 @@ export interface UserProfile {
   created_at?: string;
   updated_at?: string;
 }
-
 export interface AuthTokens {
   access: string;
   refresh: string;
@@ -428,4 +427,21 @@ export interface PayoutSettlement {
   status: string;
   utr?: string;
   notes?: string;
+}
+
+export interface ExpenseItem {
+  id: number;
+  expense_date: string;
+  date?: string;
+  category: 'Logistics' | 'Marketing' | 'Software' | 'Inventory' | 'Utilities' | 'Operations' | string;
+  description: string;
+  vendor: string;
+  amount: number | string;
+  status: 'Paid' | 'Pending';
+  payment_mode?: string | null;
+  receipt_url?: string | null;
+  created_by?: number | null;
+  created_by_email?: string;
+  created_at?: string;
+  updated_at?: string;
 }

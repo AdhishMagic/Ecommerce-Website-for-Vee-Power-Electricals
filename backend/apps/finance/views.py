@@ -12,6 +12,7 @@ from .models import (
     PayoutSettlement,
     QuotationStatus,
     InvoiceStatus,
+    Expense,
 )
 from .serializers import (
     ClientSerializer,
@@ -19,6 +20,7 @@ from .serializers import (
     InvoiceSerializer,
     PaymentTransactionSerializer,
     PayoutSettlementSerializer,
+    ExpenseSerializer,
 )
 
 
@@ -154,3 +156,48 @@ class PayoutSettlementViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = PayoutSettlement.objects.all().order_by('-created_at')
     serializer_class = PayoutSettlementSerializer
     permission_classes = [IsAdminUser]
+
+
+class ExpenseViewSet(viewsets.ModelViewSet):
+    """
+    Administrative operational and capital expense tracking.
+    Enforces RBAC controls (Admin/Staff only) and audit logging of creator.
+    """
+    queryset = Expense.objects.select_related('created_by').all().order_by('-expense_date', '-id')
+    serializer_class = ExpenseSerializer
+    permission_classes = [IsAdminUser]
+
+    def get_queryset(self):
+        qs = Expense.objects.select_related('created_by').all().order_by('-expense_date', '-id')
+
+        category = self.request.query_params.get('category')
+        if category and category != 'All':
+            qs = qs.filter(category=category)
+
+        status_param = self.request.query_params.get('status')
+        if status_param and status_param != 'All':
+            qs = qs.filter(status=status_param)
+
+        search = self.request.query_params.get('search') or self.request.query_params.get('q')
+        if search:
+            qs = qs.filter(
+                Q(description__icontains=search) |
+                Q(vendor__icontains=search) |
+                Q(category__icontains=search)
+            )
+
+        start_date = self.request.query_params.get('start_date')
+        if start_date:
+            qs = qs.filter(expense_date__gte=start_date)
+
+        end_date = self.request.query_params.get('end_date')
+        if end_date:
+            qs = qs.filter(expense_date__lte=end_date)
+
+        return qs
+
+    def perform_create(self, serializer):
+        if self.request.user and self.request.user.is_authenticated:
+            serializer.save(created_by=self.request.user)
+        else:
+            serializer.save()

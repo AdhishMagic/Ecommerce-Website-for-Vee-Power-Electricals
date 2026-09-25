@@ -15,6 +15,7 @@ urlpatterns = [
     path('api/v1/addresses/', include('apps.users.urls_address')),
     path('api/v1/orders/', include('apps.orders.urls')),
     path('api/v1/finance/', include('apps.finance.urls')),
+    path('api/v1/expenses/', include('apps.finance.urls_expenses')),
     path('api/v1/inquiries/', include('apps.core.urls')),
     path('api/v1/config/', include('apps.commercial_config.urls')),
 ]

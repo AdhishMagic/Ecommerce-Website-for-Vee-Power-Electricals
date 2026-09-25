@@ -5,6 +5,7 @@ import {
   Invoice,
   PaymentTransaction,
   PayoutSettlement,
+  ExpenseItem,
   PaginatedResponse,
 } from '../types/api';
 
@@ -129,5 +130,35 @@ export const financeApi = {
   async getSettlements(params?: { page?: number }): Promise<PayoutSettlement[]> {
     const res = await apiClient<PaginatedResponse<PayoutSettlement> | PayoutSettlement[]>('/finance/settlements/', { params });
     return Array.isArray(res) ? res : res.results || [];
+  },
+
+  // Expenses
+  async getExpenses(params?: { category?: string; status?: string; search?: string; page?: number }): Promise<ExpenseItem[]> {
+    const res = await apiClient<PaginatedResponse<ExpenseItem> | ExpenseItem[]>('/expenses/', { params });
+    return Array.isArray(res) ? res : res.results || [];
+  },
+
+  async getExpenseDetail(id: number | string): Promise<ExpenseItem> {
+    return apiClient<ExpenseItem>(`/expenses/${id}/`);
+  },
+
+  async createExpense(data: Partial<ExpenseItem>): Promise<ExpenseItem> {
+    return apiClient<ExpenseItem>('/expenses/', {
+      method: 'POST',
+      body: data,
+    });
+  },
+
+  async updateExpense(id: number | string, data: Partial<ExpenseItem>): Promise<ExpenseItem> {
+    return apiClient<ExpenseItem>(`/expenses/${id}/`, {
+      method: 'PATCH',
+      body: data,
+    });
+  },
+
+  async deleteExpense(id: number | string): Promise<void> {
+    return apiClient<void>(`/expenses/${id}/`, {
+      method: 'DELETE',
+    });
   },
 };

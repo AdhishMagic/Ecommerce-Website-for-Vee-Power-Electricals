@@ -10,6 +10,9 @@ from .models import (
     PayoutSettlement,
     QuotationStatus,
     InvoiceStatus,
+    Expense,
+    ExpenseCategory,
+    ExpenseStatus,
 )
 
 
@@ -109,3 +112,55 @@ class PayoutSettlementSerializer(serializers.ModelSerializer):
             'status', 'utr', 'notes', 'created_at', 'updated_at'
         ]
         read_only_fields = fields
+
+
+class ExpenseSerializer(serializers.ModelSerializer):
+    created_by_email = serializers.CharField(source='created_by.email', read_only=True, default='')
+    date = serializers.DateField(source='expense_date', read_only=True)
+
+    class Meta:
+        model = Expense
+        fields = [
+            'id',
+            'expense_date',
+            'date',
+            'category',
+            'description',
+            'vendor',
+            'amount',
+            'status',
+            'payment_mode',
+            'receipt_url',
+            'created_by',
+            'created_by_email',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_by', 'created_by_email', 'created_at', 'updated_at', 'date']
+
+    def to_internal_value(self, data):
+        # Support 'date' as an alias for 'expense_date' on incoming payloads
+        if isinstance(data, dict) and 'date' in data and 'expense_date' not in data:
+            data = data.copy()
+            data['expense_date'] = data['date']
+        return super().to_internal_value(data)
+
+    def validate_amount(self, value):
+        if value <= Decimal('0.00'):
+            raise serializers.ValidationError("Expense amount must be greater than zero.")
+        return value
+    def validate_category(self, value):
+        valid_categories = [c.value for c in ExpenseCategory]
+        if value not in valid_categories:
+            raise serializers.ValidationError(
+                f"Invalid category '{value}'. Valid choices are: {valid_categories}"
+            )
+        return value
+
+    def validate_status(self, value):
+        valid_statuses = [s.value for s in ExpenseStatus]
+        if value not in valid_statuses:
+            raise serializers.ValidationError(
+                f"Invalid status '{value}'. Valid choices are: {valid_statuses}"
+            )
+        return value

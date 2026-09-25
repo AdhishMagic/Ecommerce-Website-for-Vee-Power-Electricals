@@ -153,8 +153,7 @@ Rollback protocols provide unambiguous criteria for halting traffic, deploying p
 ## 11. Carried Forward Gaps & Scope Status
 
 1. **Expense API ViewSet:**
-   - Status: Model exists in `backend/apps/finance/models.py`. ViewSet not registered in `urls.py`.
-   - Classification: Non-blocking for e-commerce catalog/checkout launch. Deferred to post-launch finance sprint.
+   - Status: **COMPLETED & VERIFIED (Step 1)**. `ExpenseSerializer`, `ExpenseViewSet`, and the canonical route (`/api/v1/expenses/`) are implemented with RBAC controls, dedicated tests, and live frontend integration in `Expenses.tsx`.
 2. **Third-Party Payment Gateway (Razorpay/Stripe):**
    - Status: `PaymentTransaction` model, settlement tables, and webhook infrastructure ready; direct third-party gateway keys pending merchant account issuance.
    - Classification: Deferred until merchant onboarding is finalized.
