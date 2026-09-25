@@ -20,3 +20,4 @@ class PaymentVerifySerializer(serializers.Serializer):
     razorpay_payment_id = serializers.CharField(required=True, max_length=100)
     razorpay_signature = serializers.CharField(required=True, max_length=255)
     payment_method = serializers.CharField(required=False, default='UPI', max_length=50)
+    currency = serializers.CharField(required=False, default='INR', max_length=10)

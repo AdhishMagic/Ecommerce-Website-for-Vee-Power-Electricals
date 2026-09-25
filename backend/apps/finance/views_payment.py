@@ -60,6 +60,7 @@ class PaymentVerifyView(APIView):
                 razorpay_payment_id=data['razorpay_payment_id'],
                 razorpay_signature=data['razorpay_signature'],
                 payment_method=data.get('payment_method', 'UPI'),
+                currency=data.get('currency', 'INR'),
             )
             return Response({
                 "status": "SUCCESS",

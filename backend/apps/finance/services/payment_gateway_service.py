@@ -181,6 +181,7 @@ class PaymentGatewayService:
         razorpay_payment_id: str,
         razorpay_signature: str,
         payment_method: str = 'UPI',
+        currency: str = 'INR',
     ) -> PaymentTransaction:
         """
         Authoritatively confirm payment on backend after cryptographic signature verification.
@@ -191,9 +192,32 @@ class PaymentGatewayService:
         except Order.DoesNotExist:
             raise ValidationError("Order not found.")
 
+        # Currency validation: only INR accepted
+        if currency and currency.upper() != 'INR':
+            raise ValidationError(f"Invalid currency '{currency}'. Only INR transactions are supported.")
+
         # Authorization: Must be owner or admin
         if order.user_id != user.id and not (user.is_staff or getattr(user, 'role', '') == 'admin'):
             raise ValidationError("You are not authorized to confirm payment for this order.")
+
+        # Cancelled Order Protection
+        if order.status == OrderStatus.CANCELLED:
+            raise ValidationError("Cannot confirm payment for a cancelled order.")
+
+        # Integrity check: Ensure gateway_order_id is not linked to a different order
+        foreign_order_txn = PaymentTransaction.objects.filter(
+            gateway_order_id=razorpay_order_id
+        ).exclude(order=order).first()
+        if foreign_order_txn:
+            raise ValidationError("Gateway order ID belongs to a different order.")
+
+        # Integrity check: Ensure gateway payment ID hasn't been credited to a different order
+        if razorpay_payment_id:
+            foreign_pay_txn = PaymentTransaction.objects.filter(
+                gateway_transaction_id=razorpay_payment_id
+            ).exclude(order=order).first()
+            if foreign_pay_txn:
+                raise ValidationError("This payment ID has already been credited to another order.")
 
         # Validate signature
         is_valid = cls.verify_payment_signature(razorpay_order_id, razorpay_payment_id, razorpay_signature)
@@ -210,6 +234,11 @@ class PaymentGatewayService:
             raise ValidationError("Invalid payment signature.")
 
         with transaction.atomic():
+            order = Order.objects.select_for_update().get(pk=order_id)
+
+            if order.status == OrderStatus.CANCELLED:
+                raise ValidationError("Cannot confirm payment for a cancelled order.")
+
             # Find or create PaymentTransaction
             txn = PaymentTransaction.objects.filter(
                 order=order,
@@ -291,10 +320,15 @@ class PaymentGatewayService:
             razorpay_order_id = payment_entity.get('order_id')
             razorpay_payment_id = payment_entity.get('id')
             amount_in_paise = payment_entity.get('amount')
+            currency = payment_entity.get('currency', 'INR')
             payment_method = payment_entity.get('method', 'UPI')
 
             if not razorpay_order_id:
                 return {"status": "ignored", "reason": "No order_id in payment entity"}
+
+            # Currency validation
+            if currency and currency.upper() != 'INR':
+                raise ValidationError(f"Webhook currency mismatch: expected INR, received {currency}.")
 
             txn = PaymentTransaction.objects.filter(
                 gateway_order_id=razorpay_order_id
@@ -303,9 +337,37 @@ class PaymentGatewayService:
             if not txn:
                 return {"status": "ignored", "reason": "Transaction not found"}
 
-            order = txn.order
+            order = Order.objects.select_for_update().get(pk=txn.order_id)
             if not order:
                 return {"status": "ignored", "reason": "Order not associated"}
+
+            # Verify amount consistency against authoritative order amount
+            expected_paise = int(order.total_amount * 100)
+            if amount_in_paise is not None and int(amount_in_paise) != expected_paise:
+                raise ValidationError(
+                    f"Webhook amount mismatch. Expected: {expected_paise} paise, received: {amount_in_paise} paise."
+                )
+
+            # Prevent payment ID reuse across different orders
+            if razorpay_payment_id and PaymentTransaction.objects.filter(
+                gateway_transaction_id=razorpay_payment_id
+            ).exclude(order=order).exists():
+                raise ValidationError("Duplicate payment ID across different orders.")
+
+            # Cancelled Order Protection: log receipt without order resurrection
+            if order.status == OrderStatus.CANCELLED:
+                txn.gateway_transaction_id = razorpay_payment_id
+                txn.status = PaymentTxStatus.SUCCESS
+                txn.metadata = {
+                    **(txn.metadata or {}),
+                    "warning": "Payment received after order cancellation. Manual reconciliation/refund required."
+                }
+                txn.save(update_fields=['gateway_transaction_id', 'status', 'metadata'])
+                return {
+                    "status": "cancelled_order_payment",
+                    "order_id": order.id,
+                    "reason": "Order was previously cancelled. Payment recorded for audit without order resurrection."
+                }
 
             # Idempotency check
             if txn.status == PaymentTxStatus.SUCCESS and order.payment_status == PaymentStatus.PAID:
@@ -354,6 +416,7 @@ class PaymentGatewayService:
             return {"status": "failed_recorded"}
 
         return {"status": "event_unhandled", "event": event}
+
 
     @classmethod
     def process_refund(cls, order_id: int, user, reason: str = '') -> Dict[str, Any]:

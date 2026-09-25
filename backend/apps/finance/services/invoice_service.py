@@ -59,6 +59,15 @@ class InvoiceService:
         if not due_date:
             due_date = invoice_date + datetime.timedelta(days=30)
 
+        # Idempotency: Return existing invoice for order if already generated
+        existing = Invoice.objects.filter(order=order).first()
+        if existing:
+            if order.payment_status == 'Paid' and existing.status != InvoiceStatus.PAID:
+                existing.status = InvoiceStatus.PAID
+                existing.payment_status = 'Paid'
+                existing.save(update_fields=['status', 'payment_status'])
+            return existing
+
         # Generate unique invoice sequence
         invoice_number = cls.generate_invoice_number(invoice_date)
         while Invoice.objects.filter(invoice_number=invoice_number).exists():
