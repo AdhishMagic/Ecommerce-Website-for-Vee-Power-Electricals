@@ -13,15 +13,32 @@ export default function InvoiceModal({ order, onClose }: InvoiceModalProps) {
     window.print();
   };
 
+  const total = Number(order.total_amount ?? order.total ?? 0);
+  const subtotal = Number(order.subtotal ?? (total * 100) / 118);
+  const cgst = Number(order.cgst_amount ?? (total * 9) / 118);
+  const sgst = Number(order.sgst_amount ?? (total * 9) / 118);
+  const orderNumber = order.order_number || order.id || "ORD-XXXX";
+  const customerName = order.customer_name || order.customer || "Valued Customer";
+  const customerPhone = order.customer_phone || order.phone || "+91 8610359797";
+  const shipping = order.shipping_address || {};
+  const shippingText = typeof shipping === 'object'
+    ? [shipping.address_line1, shipping.address_line2, shipping.city, shipping.state, shipping.pincode].filter(Boolean).join(', ')
+    : "Standard Delivery Address, Tamil Nadu";
+
+  const orderDate = order.created_at || order.date
+    ? new Date(order.created_at || order.date).toLocaleString("en-IN")
+    : new Date().toLocaleString("en-IN");
+
+  const items = Array.isArray(order.items) && order.items.length > 0 ? order.items : null;
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 sm:p-6 overflow-y-auto print:p-0 print:bg-white print:block">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-full overflow-y-auto print:shadow-none print:w-full print:max-w-none print:h-auto print:overflow-visible relative flex flex-col">
-        
         {/* Modal Controls - Hidden in print */}
         <div className="sticky top-0 bg-slate-50 border-b border-slate-200 p-4 flex justify-between items-center z-10 print:hidden shrink-0">
           <h2 className="font-bold text-[#0B3A63] text-lg">Invoice Preview</h2>
           <div className="flex items-center gap-3">
-            <button 
+            <button
               onClick={handlePrint}
               className="flex items-center gap-2 px-4 py-2 bg-[#0B3A63] text-white rounded-lg text-sm font-semibold hover:bg-[#1769AA] transition-colors"
             >
@@ -36,7 +53,6 @@ export default function InvoiceModal({ order, onClose }: InvoiceModalProps) {
 
         {/* Invoice Content */}
         <div className="p-8 sm:p-12 bg-white text-slate-800 print:p-4">
-          
           {/* Header */}
           <div className="flex flex-col sm:flex-row justify-between items-start border-b-2 border-[#0B3A63] pb-6 mb-6">
             <div>
@@ -47,18 +63,18 @@ export default function InvoiceModal({ order, onClose }: InvoiceModalProps) {
             </div>
             <div className="mt-6 sm:mt-0 text-left sm:text-right">
               <h2 className="text-4xl font-black text-slate-200 uppercase tracking-widest mb-2">Invoice</h2>
-              <p className="text-sm font-bold text-slate-800">Invoice No: {order.invoiceId || "INV-XXXXX"}</p>
-              <p className="text-sm text-slate-600">Order ID: {order.id}</p>
-              <p className="text-sm text-slate-600">Date: {new Date(order.date).toLocaleString("en-IN")}</p>
+              <p className="text-sm font-bold text-slate-800">Invoice No: {order.invoiceId || `INV-${orderNumber}`}</p>
+              <p className="text-sm text-slate-600 font-mono">Order ID: #{orderNumber}</p>
+              <p className="text-sm text-slate-600">Date: {orderDate}</p>
             </div>
           </div>
 
           {/* Customer Details */}
           <div className="mb-8">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Billed To / Shipped To:</h3>
-            <p className="text-lg font-bold text-[#0B3A63]">{order.customer}</p>
-            <p className="text-sm text-slate-600 w-full max-w-sm">Standard Delivery Address (Placeholder), Coimbatore, Tamil Nadu, 641001</p>
-            <p className="text-sm text-slate-600 mt-1">Mobile: +91 9876543210</p>
+            <p className="text-lg font-bold text-[#0B3A63]">{customerName}</p>
+            <p className="text-sm text-slate-600 w-full max-w-sm">{shippingText}</p>
+            <p className="text-sm text-slate-600 mt-1">Mobile: {customerPhone}</p>
           </div>
 
           {/* Itemized Table */}
@@ -68,26 +84,34 @@ export default function InvoiceModal({ order, onClose }: InvoiceModalProps) {
                 <tr className="bg-[#0B3A63] text-white">
                   <th className="p-3 font-semibold w-12 text-center">S.No</th>
                   <th className="p-3 font-semibold">Description of Goods</th>
-                  <th className="p-3 font-semibold">SKU/HSN</th>
+                  <th className="p-3 font-semibold">SKU</th>
                   <th className="p-3 font-semibold text-right">Qty</th>
                   <th className="p-3 font-semibold text-right">Unit Price</th>
-                  <th className="p-3 font-semibold text-right">CGST (9%)</th>
-                  <th className="p-3 font-semibold text-right">SGST (9%)</th>
                   <th className="p-3 font-semibold text-right">Net Amount</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {/* Mock single item for layout since order details aren't deep in MOCK_ORDERS */}
-                <tr>
-                  <td className="p-3 text-center text-slate-500">1</td>
-                  <td className="p-3 font-medium text-slate-800">Electrical Goods / Assorted Items (As per Order)</td>
-                  <td className="p-3 text-slate-500">8536</td>
-                  <td className="p-3 text-right font-medium">1</td>
-                  <td className="p-3 text-right">₹{((order.total * 100) / 118).toFixed(2)}</td>
-                  <td className="p-3 text-right">₹{((order.total * 9) / 118).toFixed(2)}</td>
-                  <td className="p-3 text-right">₹{((order.total * 9) / 118).toFixed(2)}</td>
-                  <td className="p-3 text-right font-bold text-slate-800">₹{order.total.toLocaleString("en-IN")}</td>
-                </tr>
+                {items ? (
+                  items.map((item: any, idx: number) => (
+                    <tr key={idx}>
+                      <td className="p-3 text-center text-slate-500">{idx + 1}</td>
+                      <td className="p-3 font-medium text-slate-800">{item.product_name || item.name}</td>
+                      <td className="p-3 text-slate-500 font-mono text-xs">{item.sku || "N/A"}</td>
+                      <td className="p-3 text-right font-medium">{item.quantity}</td>
+                      <td className="p-3 text-right">₹{Number(item.unit_price || item.price).toLocaleString("en-IN")}</td>
+                      <td className="p-3 text-right font-bold text-slate-800">₹{Number(item.total_amount || item.total || (item.unit_price * item.quantity)).toLocaleString("en-IN")}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td className="p-3 text-center text-slate-500">1</td>
+                    <td className="p-3 font-medium text-slate-800">Electrical Goods / Assorted Items (As per Order)</td>
+                    <td className="p-3 text-slate-500 font-mono text-xs">8536</td>
+                    <td className="p-3 text-right font-medium">1</td>
+                    <td className="p-3 text-right">₹{subtotal.toFixed(2)}</td>
+                    <td className="p-3 text-right font-bold text-slate-800">₹{total.toLocaleString("en-IN")}</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -97,19 +121,19 @@ export default function InvoiceModal({ order, onClose }: InvoiceModalProps) {
             <div className="w-full sm:w-80 space-y-2">
               <div className="flex justify-between text-sm text-slate-600">
                 <span>Subtotal (Excl. Tax)</span>
-                <span>₹{((order.total * 100) / 118).toFixed(2)}</span>
+                <span>₹{subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm text-slate-600">
-                <span>Total CGST (9%)</span>
-                <span>₹{((order.total * 9) / 118).toFixed(2)}</span>
+                <span>Total CGST</span>
+                <span>₹{cgst.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm text-slate-600">
-                <span>Total SGST (9%)</span>
-                <span>₹{((order.total * 9) / 118).toFixed(2)}</span>
+                <span>Total SGST</span>
+                <span>₹{sgst.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-lg font-black text-[#0B3A63] border-t-2 border-[#0B3A63] pt-2 mt-2">
                 <span>Grand Total</span>
-                <span>₹{order.total.toLocaleString("en-IN")}</span>
+                <span>₹{total.toLocaleString("en-IN")}</span>
               </div>
             </div>
           </div>
@@ -128,7 +152,6 @@ export default function InvoiceModal({ order, onClose }: InvoiceModalProps) {
               <p className="text-[10px] text-slate-500">Vee Power Electricals</p>
             </div>
           </div>
-          
         </div>
       </div>
     </div>

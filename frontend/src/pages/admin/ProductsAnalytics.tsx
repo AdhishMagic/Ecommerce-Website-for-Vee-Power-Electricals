@@ -205,7 +205,7 @@ export default function ProductsAnalytics() {
                 <Pie data={revenueByCategory} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
                   {revenueByCategory.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                 </Pie>
-                <RechartsTooltip formatter={(value: number) => `₹${value.toLocaleString()}`} />
+                <RechartsTooltip formatter={(value: any) => `₹${Number(value || 0).toLocaleString()}`} />
                 <Legend layout="vertical" verticalAlign="middle" align="right" />
               </PieChart>
             </ResponsiveContainer>
@@ -220,7 +220,7 @@ export default function ProductsAnalytics() {
                 <Pie data={customerTypeBreakdown} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
                   {customerTypeBreakdown.map((entry, index) => <Cell key={`cell-${index}`} fill={CUSTOMER_COLORS[index % CUSTOMER_COLORS.length]} />)}
                 </Pie>
-                <RechartsTooltip formatter={(value: number) => `₹${value.toLocaleString()}`} />
+                <RechartsTooltip formatter={(value: any) => `₹${Number(value || 0).toLocaleString()}`} />
                 <Legend layout="vertical" verticalAlign="middle" align="right" />
               </PieChart>
             </ResponsiveContainer>

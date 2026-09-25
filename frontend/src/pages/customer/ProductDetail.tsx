@@ -1,30 +1,86 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { products } from "../../data/mock/products";
+import { productService } from "../../services/productService";
+import { Product } from "../../types/product";
 import { useCart } from "../../context/CartContext";
 import ProductCard from "../../components/common/ProductCard";
 
 export default function ProductDetail() {
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { addToCart } = useCart();
+  const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [related, setRelated] = useState<Product[]>([]);
   const [qty, setQty] = useState(1);
   const [activeTab, setActiveTab] = useState("description");
   const [added, setAdded] = useState(false);
 
-  const product = products.find(p => p.id === id);
-  if (!product) return (
-    <div className="site-container py-20 text-center">
-      <div className="text-6xl mb-4">😕</div>
-      <h2 className="text-2xl font-bold text-[#0B3A63] mb-2">Product Not Found</h2>
-      <Link to="/shop" className="text-[#1769AA] underline">Back to Shop</Link>
-    </div>
-  );
+  useEffect(() => {
+    let isMounted = true;
+    const fetchProduct = async () => {
+      if (!id) return;
+      try {
+        setLoading(true);
+        const prod = await productService.getProductById(id);
+        if (isMounted) {
+          if (prod) {
+            setProduct(prod);
+            // Load related products
+            const allInCat = await productService.getProducts({ category: prod.category });
+            if (isMounted) {
+              setRelated(allInCat.filter(p => String(p.id) !== String(prod.id)).slice(0, 4));
+            }
+          } else {
+            setProduct(null);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch product detail:", err);
+        if (isMounted) setProduct(null);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
 
-  const discount = Math.round(((product.mrp - product.price) / product.mrp) * 100);
+    fetchProduct();
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="site-container py-12">
+        <div className="grid lg:grid-cols-2 gap-8 animate-pulse">
+          <div className="bg-gray-100 rounded-xl h-96 border border-gray-200"></div>
+          <div className="space-y-4">
+            <div className="h-6 bg-gray-100 rounded w-1/4"></div>
+            <div className="h-10 bg-gray-100 rounded w-3/4"></div>
+            <div className="h-20 bg-gray-100 rounded"></div>
+            <div className="h-12 bg-gray-100 rounded w-1/2"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="site-container py-20 text-center">
+        <div className="text-6xl mb-4">😕</div>
+        <h2 className="text-2xl font-bold text-[#0B3A63] mb-2">Product Not Found</h2>
+        <p className="text-gray-500 mb-4">The product you are looking for does not exist or has been removed.</p>
+        <Link to="/shop" className="text-[#1769AA] underline font-medium">Back to Shop</Link>
+      </div>
+    );
+  }
+
+  const discount = product.mrp > product.price
+    ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
+    : 0;
   const inStock = product.stock > 0;
-  const lowStock = product.stock > 0 && product.stock <= product.lowStockThreshold;
-  const related = products.filter(p => p.category === product.category && p.id !== product.id).slice(0, 4);
+  const lowStock = product.stock > 0 && product.stock <= (product.lowStockThreshold || 5);
 
   const handleAddToCart = () => {
     addToCart(product, qty);
@@ -45,8 +101,8 @@ export default function ProductDetail() {
         <span>/</span>
         <Link to="/shop" className="hover:text-[#1769AA]">Shop</Link>
         <span>/</span>
-        <Link to={`/shop?category=${product.category}`} className="hover:text-[#1769AA]">
-          {product.subcategory}
+        <Link to={`/shop?category=${encodeURIComponent(product.category)}`} className="hover:text-[#1769AA]">
+          {product.subcategory || product.category}
         </Link>
         <span>/</span>
         <span className="text-[#17212B] line-clamp-1">{product.name}</span>
@@ -54,7 +110,7 @@ export default function ProductDetail() {
 
       <div className="grid lg:grid-cols-2 gap-8">
         {/* Image */}
-        <div className="bg-white border border-[#D9E1E8] rounded-xl overflow-hidden">
+        <div className="bg-white border border-[#D9E1E8] rounded-xl overflow-hidden shadow-sm">
           <img
             src={product.images?.[0] || "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=600&fit=crop&auto=format"}
             alt={product.name}
@@ -150,7 +206,7 @@ export default function ProductDetail() {
       </div>
 
       {/* Tabs */}
-      <div className="mt-10 bg-white border border-[#D9E1E8] rounded-xl overflow-hidden">
+      <div className="mt-10 bg-white border border-[#D9E1E8] rounded-xl overflow-hidden shadow-sm">
         <div className="border-b border-[#D9E1E8] flex">
           {["description", "specifications", "delivery"].map(tab => (
             <button
@@ -165,21 +221,25 @@ export default function ProductDetail() {
         <div className="p-6">
           {activeTab === "description" && (
             <div>
-              <p className="text-[#17212B] leading-relaxed">{product.description}</p>
+              <p className="text-[#17212B] leading-relaxed">{product.description || "High quality electrical component built for durability and performance."}</p>
             </div>
           )}
           {activeTab === "specifications" && (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <tbody>
-                  {Object.entries(product.specifications).map(([key, val], i) => (
-                    <tr key={key} className={i % 2 === 0 ? "bg-[#F6F8FA]" : "bg-white"}>
-                      <td className="px-4 py-3 font-medium text-[#17212B] w-1/3">{key}</td>
-                      <td className="px-4 py-3 text-[#667085] font-mono">{val}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {product.specifications && Object.keys(product.specifications).length > 0 ? (
+                <table className="w-full text-sm">
+                  <tbody>
+                    {Object.entries(product.specifications).map(([key, val], i) => (
+                      <tr key={key} className={i % 2 === 0 ? "bg-[#F6F8FA]" : "bg-white"}>
+                        <td className="px-4 py-3 font-medium text-[#17212B] w-1/3">{key}</td>
+                        <td className="px-4 py-3 text-[#667085] font-mono">{val}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p className="text-gray-500 text-sm">No detailed technical specifications listed for this product.</p>
+              )}
             </div>
           )}
           {activeTab === "delivery" && (

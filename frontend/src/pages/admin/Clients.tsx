@@ -1,50 +1,92 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Users, Building2, IndianRupee, Search, Plus, Eye, Edit } from "lucide-react";
 import ClientModal, { Client } from "../../components/admin/ClientModal";
 import ClientViewModal from "../../components/admin/ClientViewModal";
-
-const INITIAL_CLIENTS: Client[] = [
-  { id: "CLI-001", companyName: "L&T Construction", contactPerson: "Rajesh Kumar", gstin: "27AADCL2445P1Z3", email: "rajesh.k@lntecc.com", phone: "+91 9876543210", creditLimit: 5000000, totalInvoiced: 12500000 },
-  { id: "CLI-002", companyName: "Tata Projects", contactPerson: "Suresh Menon", gstin: "27AAACT2727Q1Z5", email: "s.menon@tataprojects.com", phone: "+91 9876543211", creditLimit: 3000000, totalInvoiced: 8500000 },
-  { id: "CLI-003", companyName: "Reliance Retail", contactPerson: "Amit Shah", gstin: "27AAACR4321R1Z1", email: "amit.shah@ril.com", phone: "+91 9876543212", creditLimit: 10000000, totalInvoiced: 25000000 },
-  { id: "CLI-004", companyName: "Godrej Properties", contactPerson: "Priya Desai", gstin: "27AAACG1234G1Z2", email: "p.desai@godrej.com", phone: "+91 9876543213", creditLimit: 2000000, totalInvoiced: 4200000 },
-];
+import { financeApi } from "../../api/finance";
+import { ClientItem } from "../../types/api";
 
 export default function ClientsPage() {
-  const [clients, setClients] = useState<Client[]>(INITIAL_CLIENTS);
+  const [clients, setClients] = useState<(Client & { rawId?: number | string })[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [selectedClient, setSelectedClient] = useState<(Client & { rawId?: number | string }) | null>(null);
+
+  const fetchClients = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await financeApi.getClients();
+      const mapped = data.map((c: ClientItem) => ({
+        id: String(c.client_code || `CLI-${c.id}`),
+        rawId: c.id,
+        companyName: c.company_name,
+        contactPerson: c.contact_person,
+        gstin: c.gstin,
+        email: c.email,
+        phone: c.phone,
+        creditLimit: Number(c.credit_limit || 0),
+        totalInvoiced: 0,
+      }));
+      setClients(mapped);
+    } catch (err: any) {
+      console.error("Failed to fetch clients from backend:", err);
+      setError(err?.message || "Failed to load clients from API.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchClients();
+  }, []);
 
   const handleCreateNew = () => {
     setSelectedClient(null);
     setIsEditModalOpen(true);
   };
 
-  const handleEditClient = (client: Client) => {
+  const handleEditClient = (client: Client & { rawId?: number | string }) => {
     setSelectedClient(client);
     setIsEditModalOpen(true);
   };
 
-  const handleViewClient = (client: Client) => {
+  const handleViewClient = (client: Client & { rawId?: number | string }) => {
     setSelectedClient(client);
     setIsViewModalOpen(true);
   };
 
-  const handleModalSubmit = (data: Partial<Client>) => {
-    if (selectedClient) {
-      setClients(clients.map(c => c.id === selectedClient.id ? { ...c, ...data } as Client : c));
-    } else {
-      const newClient: Client = {
-        id: `CLI-${String(clients.length + 1).padStart(3, '0')}`,
-        totalInvoiced: 0,
-        ...data
-      } as Client;
-      setClients([newClient, ...clients]);
+  const handleModalSubmit = async (data: Partial<Client>) => {
+    try {
+      if (selectedClient && selectedClient.rawId) {
+        await financeApi.updateClient(selectedClient.rawId, {
+          company_name: data.companyName,
+          contact_person: data.contactPerson,
+          gstin: data.gstin,
+          email: data.email,
+          phone: data.phone,
+          credit_limit: data.creditLimit,
+        });
+      } else {
+        await financeApi.createClient({
+          company_name: data.companyName,
+          contact_person: data.contactPerson,
+          gstin: data.gstin,
+          email: data.email,
+          phone: data.phone,
+          credit_limit: data.creditLimit || 0,
+        });
+      }
+      await fetchClients();
+    } catch (err: any) {
+      console.error("Failed to save client:", err);
+      alert(err?.message || "Failed to save client to backend API.");
+    } finally {
+      setIsEditModalOpen(false);
     }
-    setIsEditModalOpen(false);
   };
 
   const filteredClients = clients.filter(c => 

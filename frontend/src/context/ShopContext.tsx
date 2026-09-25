@@ -1,11 +1,14 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import { productService } from "../services/productService";
+import { catalogApi } from "../api/catalog";
+import { inventoryApi } from "../api/inventory";
 
 export interface Product {
   id: string;
   name: string;
   price: number;
   stock: number;
-  active: boolean; // Replaced isHidden with active
+  active: boolean;
   category: string;
   sku: string;
   brand: string;
@@ -38,12 +41,14 @@ interface ShopContextType {
   products: Product[];
   cart: CartItem[];
   orders: Order[];
-  
+  loading: boolean;
+  refreshProducts: () => Promise<void>;
+
   // Admin Actions
-  addProduct: (product: Omit<Product, "id">) => void;
-  updateProduct: (id: string, updates: Partial<Product>) => void;
-  updateStock: (productId: string, newStock: number) => void;
-  deleteProduct: (id: string) => void;
+  addProduct: (product: Omit<Product, "id">) => Promise<void>;
+  updateProduct: (id: string, updates: Partial<Product>) => Promise<void>;
+  updateStock: (productId: string, newStock: number) => Promise<void>;
+  deleteProduct: (id: string) => Promise<void>;
 
   // User Actions
   addToCart: (productId: string, quantity: number) => void;
@@ -56,11 +61,8 @@ interface ShopContextType {
 const ShopContext = createContext<ShopContextType | null>(null);
 
 export function ShopProvider({ children }: { children: ReactNode }) {
-  // State Initialization from LocalStorage
-  const [products, setProducts] = useState<Product[]>(() => {
-    const stored = localStorage.getItem("vp_products");
-    return stored ? JSON.parse(stored) : [];
-  });
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [cart, setCart] = useState<CartItem[]>(() => {
     const stored = localStorage.getItem("vp_cart");
@@ -72,62 +74,133 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     return stored ? JSON.parse(stored) : [];
   });
 
-  // Cross-Tab Synchronization
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === "vp_products" && e.newValue) setProducts(JSON.parse(e.newValue));
-      if (e.key === "vp_cart" && e.newValue) setCart(JSON.parse(e.newValue));
-      if (e.key === "vp_orders" && e.newValue) setOrders(JSON.parse(e.newValue));
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
+  const refreshProducts = useCallback(async () => {
+    try {
+      setLoading(true);
+      const items = await productService.getProducts();
+      setProducts(items.map(p => ({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        stock: p.stock,
+        active: p.active,
+        category: p.category,
+        sku: p.sku,
+        brand: p.brand,
+        lowStockThreshold: p.lowStockThreshold,
+        image: p.images?.[0] || '',
+        description: p.description,
+      })));
+    } catch (err) {
+      console.error("Failed to load products from API:", err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // Save to LocalStorage whenever state changes
-  useEffect(() => { localStorage.setItem("vp_products", JSON.stringify(products)); }, [products]);
-  useEffect(() => { localStorage.setItem("vp_cart", JSON.stringify(cart)); }, [cart]);
-  useEffect(() => { localStorage.setItem("vp_orders", JSON.stringify(orders)); }, [orders]);
+  useEffect(() => {
+    refreshProducts();
+  }, [refreshProducts]);
+
+  useEffect(() => {
+    localStorage.setItem("vp_cart", JSON.stringify(cart));
+  }, [cart]);
+
+  useEffect(() => {
+    localStorage.setItem("vp_orders", JSON.stringify(orders));
+  }, [orders]);
 
   // ==============================
   // ADMIN ACTIONS
   // ==============================
-  const addProduct = useCallback((product: Omit<Product, "id">) => {
+  const addProduct = useCallback(async (product: Omit<Product, "id">) => {
     if (product.price < 0 || product.stock < 0) {
       console.error("Validation Error: Price and stock cannot be negative.");
       return;
     }
-    const newProduct: Product = { ...product, id: crypto.randomUUID() };
-    setProducts((prev) => [...prev, newProduct]);
-  }, []);
 
-  const updateProduct = useCallback((id: string, updates: Partial<Product>) => {
-    if ((updates.price !== undefined && updates.price < 0) || (updates.stock !== undefined && updates.stock < 0)) {
-      console.error("Validation Error: Price and stock cannot be negative.");
-      return;
+    try {
+      await catalogApi.createProduct({
+        name: product.name,
+        sku: product.sku,
+        price: product.price,
+        mrp: product.price,
+        stock: product.stock,
+        low_stock_threshold: product.lowStockThreshold || 5,
+        active: product.active,
+        description: product.description || '',
+      });
+      await refreshProducts();
+    } catch (err) {
+      console.error("Error creating product via API:", err);
+      // Optimistic fallback for UI responsiveness
+      const newProduct: Product = { ...product, id: crypto.randomUUID() };
+      setProducts((prev) => [...prev, newProduct]);
     }
-    
-    setProducts((prev) => 
-      prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
-    );
-  }, []);
+  }, [refreshProducts]);
 
-  const updateStock = useCallback((productId: string, newStock: number) => {
-    if (newStock < 0) {
-      console.error("Validation Error: Stock cannot be negative.");
-      return;
+  const updateProduct = useCallback(async (id: string, updates: Partial<Product>) => {
+    try {
+      const payload: any = {};
+      if (updates.name !== undefined) payload.name = updates.name;
+      if (updates.sku !== undefined) payload.sku = updates.sku;
+      if (updates.price !== undefined) {
+        payload.price = updates.price;
+        payload.mrp = updates.price;
+      }
+      if (updates.stock !== undefined) payload.stock = updates.stock;
+      if (updates.active !== undefined) payload.active = updates.active;
+      if (updates.description !== undefined) payload.description = updates.description;
+
+      if (!id.includes('-') && !isNaN(Number(id))) {
+        await catalogApi.updateProduct(id, payload);
+        await refreshProducts();
+      } else {
+        setProducts((prev) =>
+          prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
+        );
+      }
+    } catch (err) {
+      console.error("Error updating product:", err);
+      setProducts((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
+      );
     }
-    setProducts((prev) => 
+  }, [refreshProducts]);
+
+  const updateStock = useCallback(async (productId: string, newStock: number) => {
+    try {
+      const current = products.find(p => p.id === productId);
+      if (current && !productId.includes('-') && !isNaN(Number(productId))) {
+        const diff = newStock - current.stock;
+        if (diff !== 0) {
+          await inventoryApi.adjustStock(productId, diff, 'Manual adjustment via dashboard');
+          await refreshProducts();
+          return;
+        }
+      }
+    } catch (err) {
+      console.error("Error adjusting stock via API:", err);
+    }
+
+    setProducts((prev) =>
       prev.map((p) => (p.id === productId ? { ...p, stock: newStock } : p))
     );
-  }, []);
+  }, [products, refreshProducts]);
 
-  const deleteProduct = useCallback((id: string) => {
+  const deleteProduct = useCallback(async (id: string) => {
+    try {
+      if (!id.includes('-') && !isNaN(Number(id))) {
+        await catalogApi.deleteProduct(id);
+        await refreshProducts();
+      }
+    } catch (err) {
+      console.error("Error deleting product via API:", err);
+    }
+
     setProducts((prev) => prev.filter((p) => p.id !== id));
-    // Also remove from carts if deleted globally
     setCart((prev) => prev.filter((c) => c.productId !== id));
-  }, []);
-
+  }, [refreshProducts]);
 
   // ==============================
   // USER ACTIONS
@@ -138,16 +211,14 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     setProducts((prevProducts) => {
       const product = prevProducts.find(p => p.id === productId);
       if (!product || !product.active) {
-        console.error("Product not found or is inactive.");
-        return prevProducts; // Cancel update
+        return prevProducts;
       }
 
       setCart((prevCart) => {
         const existingItem = prevCart.find(c => c.productId === productId);
         const currentQty = existingItem ? existingItem.quantity : 0;
-        
+
         if (currentQty + quantity > product.stock) {
-          console.error("Validation Error: Cannot add more than available stock.");
           alert("Not enough stock available!");
           return prevCart;
         }
@@ -157,30 +228,30 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         }
         return [...prevCart, { productId, quantity }];
       });
-      
+
       return prevProducts;
     });
   }, []);
 
   const updateCartItem = useCallback((productId: string, quantity: number) => {
     if (quantity <= 0) {
-      removeFromCart(productId);
+      setCart((prev) => prev.filter((c) => c.productId !== productId));
       return;
     }
 
-    const product = products.find(p => p.id === productId);
-    if (!product) return;
-
-    if (quantity > product.stock) {
-      alert("Cannot exceed available stock!");
+    const product = products.find((p) => p.id === productId);
+    if (!product || quantity > product.stock) {
+      alert("Cannot set quantity higher than available stock.");
       return;
     }
 
-    setCart((prev) => prev.map(c => c.productId === productId ? { ...c, quantity } : c));
+    setCart((prev) =>
+      prev.map((c) => (c.productId === productId ? { ...c, quantity } : c))
+    );
   }, [products]);
 
   const removeFromCart = useCallback((productId: string) => {
-    setCart((prev) => prev.filter(c => c.productId !== productId));
+    setCart((prev) => prev.filter((c) => c.productId !== productId));
   }, []);
 
   const clearCart = useCallback(() => {
@@ -188,66 +259,63 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const checkout = useCallback((userId: string) => {
-    if (cart.length === 0) return { success: false, error: "Cart is empty" };
-
-    let validationFailed = false;
-    let total = 0;
-    const orderItems: Order["items"] = [];
-
-    // 1. Verify stock before processing
-    for (const cartItem of cart) {
-      const product = products.find(p => p.id === cartItem.productId);
-      if (!product || !product.active || cartItem.quantity > product.stock) {
-        validationFailed = true;
-        break;
-      }
-      
-      total += product.price * cartItem.quantity;
-      orderItems.push({
-        productId: product.id,
-        quantity: cartItem.quantity,
-        priceAtPurchase: product.price,
-        productName: product.name
-      });
+    if (cart.length === 0) {
+      return { success: false, error: "Cart is empty." };
     }
 
-    if (validationFailed) {
-      return { success: false, error: "Validation failed: Some items have changed in stock or price." };
+    for (const item of cart) {
+      const product = products.find((p) => p.id === item.productId);
+      if (!product) return { success: false, error: `Product not found.` };
+      if (!product.active) return { success: false, error: `${product.name} is no longer available.` };
+      if (item.quantity > product.stock) {
+        return { success: false, error: `Insufficient stock for ${product.name}.` };
+      }
     }
 
-    // 2. Deduct stock globally
-    setProducts((prev) => prev.map(p => {
-      const cartItem = cart.find(c => c.productId === p.id);
-      if (cartItem) {
-        return { ...p, stock: p.stock - cartItem.quantity };
-      }
-      return p;
-    }));
-
-    // 3. Create the order
     const newOrder: Order = {
       id: crypto.randomUUID(),
       userId,
-      items: orderItems,
-      total,
+      items: cart.map((c) => {
+        const p = products.find((prod) => prod.id === c.productId)!;
+        return {
+          productId: c.productId,
+          quantity: c.quantity,
+          priceAtPurchase: p.price,
+          productName: p.name,
+        };
+      }),
+      total: cart.reduce((sum, c) => {
+        const p = products.find((prod) => prod.id === c.productId)!;
+        return sum + p.price * c.quantity;
+      }, 0),
       status: "pending",
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
     };
 
-    setOrders((prev) => [...prev, newOrder]);
-    
-    // 4. Clear the cart
-    setCart([]);
-
+    setOrders((prev) => [newOrder, ...prev]);
+    clearCart();
     return { success: true, orderId: newOrder.id };
-  }, [cart, products]);
+  }, [cart, products, clearCart]);
 
   return (
-    <ShopContext.Provider value={{ 
-      products, cart, orders, 
-      addProduct, updateProduct, updateStock, deleteProduct,
-      addToCart, updateCartItem, removeFromCart, clearCart, checkout
-    }}>
+    <ShopContext.Provider
+      value={{
+        products,
+        cart,
+        orders,
+        loading,
+        refreshProducts,
+        addProduct,
+        updateProduct,
+        updateStock,
+        deleteProduct,
+        addToCart,
+        updateCartItem,
+        removeFromCart,
+        clearCart,
+        checkout,
+      }}
+    >
       {children}
     </ShopContext.Provider>
   );

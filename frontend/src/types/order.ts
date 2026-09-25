@@ -1,13 +1,18 @@
+import { OrderStatus, PaymentStatus } from './api';
+
 export interface OrderItem {
+  id?: number | string;
   productId: string;
   name: string;
   price: number;
   quantity: number;
-  image: string;
+  image?: string;
+  sku?: string;
+  total?: number;
 }
 
 export interface Order {
-  id: string;
+  id: string | number;
   orderNumber: string;
   customerName: string;
   customerEmail: string;
@@ -17,13 +22,20 @@ export interface Order {
     city: string;
     state: string;
     pincode: string;
+    recipient_name?: string;
+    phone?: string;
+    line1?: string;
+    line2?: string;
   };
+  billingAddress?: any;
   items: OrderItem[];
+  subtotal?: number;
   totalAmount: number;
   taxAmount: number;
   shippingFee: number;
-  status: 'Pending' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled';
-  paymentStatus: 'Paid' | 'Pending' | 'Failed';
+  status: OrderStatus | string;
+  paymentStatus: PaymentStatus | string;
   paymentMethod: string;
+  trackingNumber?: string | null;
   createdAt: string;
 }

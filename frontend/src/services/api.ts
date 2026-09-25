@@ -1,26 +1,25 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+import { apiClient, ApiError } from '../api/client';
+
+export { apiClient, ApiError };
 
 export async function apiFetch<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = localStorage.getItem('auth_token');
-
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(options.headers || {}),
-  };
-
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `API Request Failed with status ${response.status}`);
+  const { headers, body, method = 'GET', ...rest } = options;
+  let parsedBody: any = body;
+  if (typeof body === 'string') {
+    try {
+      parsedBody = JSON.parse(body);
+    } catch {
+      parsedBody = body;
+    }
   }
 
-  return response.json();
+  return apiClient<T>(endpoint, {
+    method,
+    headers: headers as Record<string, string>,
+    body: parsedBody,
+    ...rest,
+  });
 }

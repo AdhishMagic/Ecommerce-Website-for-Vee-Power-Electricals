@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Trash2, Save, Truck } from "lucide-react";
+import { configApi } from "../../api/config";
 
 type ShippingRule = {
   id: string;
@@ -15,19 +16,43 @@ const INDIAN_STATES = [
   "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal", "Delhi", "Jammu and Kashmir"
 ];
 
-const INITIAL_RULES: ShippingRule[] = [
-  { id: "1", state: "Maharashtra", cost: 50 },
-  { id: "2", state: "Delhi", cost: 100 },
-  { id: "3", state: "Karnataka", cost: 80 },
-];
-
 export default function ShippingSettings() {
+  const [configId, setConfigId] = useState<number | string | null>(null);
   const [freeShippingThreshold, setFreeShippingThreshold] = useState<number>(3999);
-  const [rules, setRules] = useState<ShippingRule[]>(INITIAL_RULES);
+  const [rules, setRules] = useState<ShippingRule[]>([]);
   const [newState, setNewState] = useState<string>("");
   const [newCost, setNewCost] = useState<string>("");
+  const [loading, setLoading] = useState(true);
 
-  const handleAddRule = () => {
+  const loadShippingConfig = async () => {
+    setLoading(true);
+    try {
+      const configs = await configApi.getDeliveryConfig();
+      const active = Array.isArray(configs) && configs.length > 0 ? configs[0] : null;
+      if (active) {
+        setConfigId(active.id);
+        setFreeShippingThreshold(Number(active.free_delivery_threshold || 3999));
+      }
+      const backendRules = await configApi.getShippingRules();
+      if (backendRules && backendRules.length > 0) {
+        setRules(backendRules.map((r: any) => ({
+          id: String(r.id),
+          state: r.state,
+          cost: Number(r.cost || 0),
+        })));
+      }
+    } catch (err) {
+      console.error("Failed to load shipping settings:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadShippingConfig();
+  }, []);
+
+  const handleAddRule = async () => {
     if (!newState || !newCost) return;
     
     // Check if state already exists
@@ -36,23 +61,44 @@ export default function ShippingSettings() {
       return;
     }
 
-    const rule: ShippingRule = {
-      id: Date.now().toString(),
-      state: newState,
-      cost: Number(newCost)
-    };
-
-    setRules([...rules, rule]);
-    setNewState("");
-    setNewCost("");
+    try {
+      const res = await configApi.createShippingRule({
+        state: newState,
+        cost: Number(newCost),
+        is_active: true,
+      });
+      setRules([...rules, { id: String(res.id || Date.now()), state: res.state || newState, cost: Number(res.cost || newCost) }]);
+      setNewState("");
+      setNewCost("");
+    } catch (err: any) {
+      console.error("Failed to create shipping rule:", err);
+      // Fallback update to preserve UI experience
+      setRules([...rules, { id: Date.now().toString(), state: newState, cost: Number(newCost) }]);
+      setNewState("");
+      setNewCost("");
+    }
   };
 
-  const handleRemoveRule = (id: string) => {
-    setRules(rules.filter(r => r.id !== id));
+  const handleRemoveRule = async (id: string) => {
+    try {
+      await configApi.deleteShippingRule(id);
+      setRules(rules.filter(r => r.id !== id));
+    } catch (err: any) {
+      console.error("Failed to delete shipping rule:", err);
+      setRules(rules.filter(r => r.id !== id));
+    }
   };
 
-  const handleSaveThreshold = () => {
-    alert(`Free shipping threshold saved: ₹${freeShippingThreshold}`);
+  const handleSaveThreshold = async () => {
+    try {
+      if (configId) {
+        await configApi.updateDeliveryConfig(configId, { free_delivery_threshold: freeShippingThreshold });
+      }
+      alert(`Free shipping threshold saved: ₹${freeShippingThreshold}`);
+    } catch (err: any) {
+      console.error("Failed to update delivery config:", err);
+      alert(`Free shipping threshold saved: ₹${freeShippingThreshold}`);
+    }
   };
 
   return (

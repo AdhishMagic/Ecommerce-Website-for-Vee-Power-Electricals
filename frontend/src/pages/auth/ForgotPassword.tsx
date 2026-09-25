@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import VeeElectricalsLogo from "../../components/brand/VeeElectricalsLogo";
+import { authApi } from "../../api/auth";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -13,7 +14,7 @@ export default function ForgotPassword() {
     return regex.test(emailStr);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -29,17 +30,19 @@ export default function ForgotPassword() {
 
     setIsLoading(true);
 
-    // Simulate sending email request
-    setTimeout(() => {
+    try {
+      await authApi.requestPasswordReset(email.trim());
       setIsLoading(false);
       setIsSubmitted(true);
-    }, 1000);
+    } catch (err: any) {
+      setIsLoading(false);
+      setError(err?.message || "Failed to submit password reset request.");
+    }
   };
 
   return (
     <div className="min-h-screen bg-[#F6F8FA] flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 sm:p-10 border border-[#D9E1E8]">
-        
         <div className="flex justify-center mb-6">
           <Link to="/">
             <VeeElectricalsLogo variant="full" size="md" id="forgot-password-logo" />
@@ -60,7 +63,7 @@ export default function ForgotPassword() {
                   {error}
                 </div>
               )}
-              
+
               <div>
                 <label className="block text-sm font-medium text-[#17212B] mb-1.5">Email Address</label>
                 <input

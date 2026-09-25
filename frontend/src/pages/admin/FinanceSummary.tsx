@@ -75,7 +75,7 @@ export default function FinanceSummaryPage() {
                 <RechartsTooltip 
                   cursor={{ fill: '#F1F5F9' }}
                   contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  formatter={(value: number) => [`₹${value.toLocaleString()}`, '']}
+                  formatter={(value: any) => [`₹${Number(value || 0).toLocaleString()}`, '']}
                 />
                 <Legend verticalAlign="top" height={36} />
                 <Bar dataKey="revenue" name="Revenue" fill="#0A2540" radius={[4, 4, 0, 0]} barSize={30} />

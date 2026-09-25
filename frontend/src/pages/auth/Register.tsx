@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import AuthLayout from "../../components/layout/AuthLayout";
 import VeeElectricalsLoader, { AuthLoaderStatus } from "../../components/brand/VeeElectricalsLoader";
+import { authService } from "../../services/authService";
 
 export default function Register() {
   const [name, setName] = useState("");
@@ -11,11 +12,11 @@ export default function Register() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [authStatus, setAuthStatus] = useState<AuthLoaderStatus>("idle");
-  
+
   // Independent states for each password field toggle
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
+
   const navigate = useNavigate();
 
   const validateEmail = (emailStr: string) => {
@@ -23,12 +24,12 @@ export default function Register() {
     return regex.test(emailStr);
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLoading || authStatus === "submitting" || authStatus === "success") return;
 
     setError("");
-    
+
     if (!name.trim() || !email.trim() || !password || !confirmPassword) {
       setError("Please fill out all fields.");
       return;
@@ -52,15 +53,29 @@ export default function Register() {
     setIsLoading(true);
     setAuthStatus("submitting");
 
-    // Real-time account creation request simulation (1.6s authenticating loop)
-    setTimeout(() => {
+    const parts = name.trim().split(/\s+/);
+    const first_name = parts[0] || "Customer";
+    const last_name = parts.slice(1).join(" ") || "User";
+
+    try {
+      await authService.register({
+        email: email.trim(),
+        password,
+        first_name,
+        last_name,
+      });
+
       setAuthStatus("success");
       setTimeout(() => {
         setIsLoading(false);
-        // Automatically redirect to login page with registered notice
         navigate("/login?registered=true");
       }, 500);
-    }, 1600);
+    } catch (err: any) {
+      const msg = err?.message || err?.detail || "Registration failed. Please check your details.";
+      setError(msg);
+      setAuthStatus("error");
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -110,68 +125,73 @@ export default function Register() {
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-charcoal mb-1.5">Password</label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 bg-bg border border-border rounded-xl focus:bg-white focus:border-electric focus:ring-4 focus:ring-electric/10 outline-none transition-all text-sm pr-10"
-                  placeholder="••••••••"
-                />
-                <button 
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted hover:text-charcoal transition-colors"
-                >
-                  {showPassword ? (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.543 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-charcoal mb-1.5">Confirm</label>
-              <div className="relative">
-                <input
-                  type={showConfirmPassword ? "text" : "password"}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-4 py-3 bg-bg border border-border rounded-xl focus:bg-white focus:border-electric focus:ring-4 focus:ring-electric/10 outline-none transition-all text-sm pr-10"
-                  placeholder="••••••••"
-                />
-                <button 
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted hover:text-charcoal transition-colors"
-                >
-                  {showConfirmPassword ? (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.543 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                  )}
-                </button>
-              </div>
+          <div>
+            <label className="block text-sm font-medium text-charcoal mb-1.5">Password</label>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 bg-bg border border-border rounded-xl focus:bg-white focus:border-electric focus:ring-4 focus:ring-electric/10 outline-none transition-all text-sm pr-11"
+                placeholder="At least 6 characters"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted hover:text-charcoal focus:outline-none transition-colors p-1"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" /></svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                )}
+              </button>
             </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={isLoading || authStatus !== "idle"}
-            className="w-full bg-electric hover:bg-navy text-white font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2 shadow-md shadow-electric/20 mt-6 disabled:opacity-70 disabled:cursor-not-allowed"
-          >
-            Create Account
-          </button>
+          <div>
+            <label className="block text-sm font-medium text-charcoal mb-1.5">Confirm Password</label>
+            <div className="relative">
+              <input
+                type={showConfirmPassword ? "text" : "password"}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-4 py-3 bg-bg border border-border rounded-xl focus:bg-white focus:border-electric focus:ring-4 focus:ring-electric/10 outline-none transition-all text-sm pr-11"
+                placeholder="Repeat your password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted hover:text-charcoal focus:outline-none transition-colors p-1"
+                aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+              >
+                {showConfirmPassword ? (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" /></svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full py-3.5 bg-electric hover:bg-electric-dark text-white font-semibold rounded-xl transition-all shadow-md shadow-electric/20 hover:shadow-lg hover:shadow-electric/30 active:scale-[0.99] disabled:opacity-50 text-sm"
+            >
+              Create Account
+            </button>
+          </div>
         </form>
 
-        <div className="mt-8 text-center text-sm text-muted">
-          Already have an account? <Link to="/login" className="text-electric font-medium hover:underline">Sign in</Link>
-        </div>
+        <p className="text-center text-sm text-muted mt-8">
+          Already have an account?{" "}
+          <Link to="/login" className="text-electric hover:text-electric-dark font-semibold transition-colors">
+            Sign In
+          </Link>
+        </p>
       </div>
     </AuthLayout>
   );

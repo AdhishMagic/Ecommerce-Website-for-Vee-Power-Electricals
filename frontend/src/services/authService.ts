@@ -1,68 +1,74 @@
+import { authApi } from '../api/auth';
+import { UserProfile } from '../types/api';
 import { User } from '../types/user';
-import { apiFetch } from './api';
+
+export const mapProfileToUser = (profile: UserProfile): User => {
+  const name =
+    [profile.first_name, profile.last_name].filter(Boolean).join(' ') ||
+    profile.username ||
+    profile.email.split('@')[0];
+  const isAdmin =
+    profile.role?.toLowerCase() === 'admin' ||
+    profile.is_staff === true ||
+    profile.is_superuser === true;
+
+  return {
+    id: profile.id,
+    name,
+    email: profile.email,
+    phone: profile.phone,
+    role: isAdmin ? 'admin' : 'customer',
+    is_admin: isAdmin,
+  };
+};
 
 export const authService = {
   async getCurrentUser(): Promise<User | null> {
     try {
-      const user = await apiFetch<User>('/auth/me/');
-      if (user) {
-        user.role = (user.is_admin || user.role === 'admin' || user.role === 'ADMIN') ? 'admin' : 'customer';
-      }
-      return user;
+      const profile = await authApi.getMe();
+      return mapProfileToUser(profile);
     } catch {
       return null;
     }
   },
 
   async login(email: string, password?: string): Promise<{ user: User; token: string }> {
-    try {
-      const res = await apiFetch<{ user: User; token: string }>('/auth/login/', {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      });
-      if (res && res.user) {
-        res.user.role = (res.user.is_admin || res.user.role === 'admin' || res.user.role === 'ADMIN') ? 'admin' : 'customer';
-      }
-      return res;
-    } catch (err: any) {
-      // If the backend explicitly reported invalid credentials, rethrow the error
-      const msg = err?.message || '';
-      if (msg.includes('Invalid') || msg.includes('401') || msg.includes('400')) {
-        throw new Error(msg.includes('Invalid') ? 'Invalid email or password' : msg);
-      }
-      
-      // Fallback: If backend is completely offline / unreachable, fallback to mock auth
-      if (email.toLowerCase() === 'admin@veeelectricals.com') {
-        if (password === 'Admin@12345') {
-          return {
-            user: {
-              id: 'admin-1',
-              name: 'Vee Admin',
-              email: 'admin@veeelectricals.com',
-              phone: '8610359797',
-              role: 'admin',
-              is_admin: true,
-            },
-            token: 'mock-jwt-token-admin',
-          };
-        }
-        throw new Error('Invalid email or password');
-      }
-
-      if (password && password.length >= 6) {
-        return {
-          user: {
-            id: 'u001',
-            name: email.split('@')[0],
-            email,
-            phone: '9876543210',
-            role: 'customer',
-          },
-          token: 'mock-jwt-token-user',
-        };
-      }
-
-      throw new Error('Invalid email or password');
+    if (!password) {
+      throw new Error('Password is required.');
     }
-  }
+    const res = await authApi.login({ email, password });
+    const user = mapProfileToUser(res.user);
+    return {
+      user,
+      token: res.access,
+    };
+  },
+
+  async register(data: {
+    email: string;
+    password: string;
+    first_name: string;
+    last_name: string;
+    phone?: string;
+  }): Promise<{ user: User; token: string }> {
+    const res = await authApi.register(data);
+    const user = mapProfileToUser(res.user);
+    return {
+      user,
+      token: res.access,
+    };
+  },
+
+  async logout(): Promise<void> {
+    await authApi.logout();
+  },
+
+  async updateProfile(data: {
+    first_name?: string;
+    last_name?: string;
+    phone?: string;
+  }): Promise<User> {
+    const profile = await authApi.updateProfile(data);
+    return mapProfileToUser(profile);
+  },
 };

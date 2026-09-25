@@ -1,15 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FileText, IndianRupee, AlertCircle, CreditCard, Plus, Download, CheckCircle2, Send } from "lucide-react";
 import GenerateInvoiceModal, { Invoice } from "../../components/admin/GenerateInvoiceModal";
 import InvoicePrintModal from "../../components/admin/InvoicePrintModal";
-
-const INITIAL_INVOICES: Invoice[] = [
-  { id: "INV-2026-101", orderId: "ORD-9381-IN", client: "L&T Construction", date: "2026-09-15", dueDate: "2026-09-30", amount: 450000, subtotal: 381355.93, taxAmount: 68644.07, status: "Paid", items: [{ id: "1", product: "Assorted Cables", quantity: 1, rate: 381355.93, taxPercent: 18 }] },
-  { id: "INV-2026-102", orderId: "ORD-9382-IN", client: "Tata Projects", date: "2026-09-10", dueDate: "2026-09-25", amount: 850000, status: "Unpaid" },
-  { id: "INV-2026-103", orderId: "ORD-9375-IN", client: "Reliance Retail", date: "2026-08-25", dueDate: "2026-09-10", amount: 1250000, status: "Overdue" },
-  { id: "INV-2026-104", orderId: "ORD-9390-IN", client: "Godrej Properties", date: "2026-09-17", dueDate: "2026-10-02", amount: 540000, status: "Unpaid" },
-  { id: "INV-2026-105", orderId: "ORD-9360-IN", client: "Shapoorji Pallonji", date: "2026-08-15", dueDate: "2026-08-30", amount: 320000, status: "Cancelled" },
-];
+import { financeApi } from "../../api/finance";
 
 const STATUS_TABS = ["All", "Paid", "Unpaid", "Overdue", "Cancelled"];
 
@@ -21,11 +14,50 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function InvoicesPage() {
-  const [invoices, setInvoices] = useState<Invoice[]>(INITIAL_INVOICES);
+  const [invoices, setInvoices] = useState<(Invoice & { rawId?: number | string })[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("All");
 
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const [printingInvoice, setPrintingInvoice] = useState<Invoice | null>(null);
+
+  const fetchInvoices = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await financeApi.getInvoices();
+      const mapped = (data || []).map((inv: any) => ({
+        id: inv.invoice_number || `INV-${inv.id}`,
+        rawId: inv.id,
+        orderId: inv.order_number || '',
+        client: inv.client_name || (inv.client ? `Client #${inv.client}` : 'General Order'),
+        date: inv.invoice_date || '',
+        dueDate: inv.due_date || '',
+        amount: Number(inv.total_amount || 0),
+        subtotal: Number(inv.subtotal || 0),
+        taxAmount: Number(inv.tax_amount || 0),
+        status: (inv.status === 'PAID' ? 'Paid' : inv.status === 'OVERDUE' ? 'Overdue' : inv.status === 'CANCELLED' ? 'Cancelled' : 'Unpaid') as any,
+        items: (inv.items || []).map((it: any) => ({
+          id: String(it.id),
+          product: it.item_name || 'Item',
+          quantity: it.quantity,
+          rate: Number(it.rate || 0),
+          taxPercent: Number(it.tax_percent || 18),
+        })),
+      }));
+      setInvoices(mapped);
+    } catch (err: any) {
+      console.error("Failed to load invoices:", err);
+      setError(err?.message || "Failed to load invoices from API.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchInvoices();
+  }, []);
 
   const handleGenerateInvoice = (data: Partial<Invoice>) => {
     const newInvoice: Invoice = {
@@ -36,8 +68,15 @@ export default function InvoicesPage() {
     setIsGenerateModalOpen(false);
   };
 
-  const handleMarkAsPaid = (invoice: Invoice) => {
-    setInvoices(invoices.map(inv => inv.id === invoice.id ? { ...inv, status: "Paid" } : inv));
+  const handleMarkAsPaid = async (invoice: Invoice & { rawId?: number | string }) => {
+    try {
+      const targetId = invoice.rawId || invoice.id;
+      await financeApi.updateInvoiceStatus(String(targetId), 'PAID');
+      await fetchInvoices();
+    } catch (err: any) {
+      console.error("Failed to mark invoice as paid:", err);
+      alert(err?.message || "Failed to update invoice status.");
+    }
   };
 
   const handleSendReminder = (invoice: Invoice) => {

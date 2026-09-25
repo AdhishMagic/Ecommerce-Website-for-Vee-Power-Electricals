@@ -183,7 +183,7 @@ export default function TrafficAnalytics() {
                 <Pie data={visitorType} innerRadius={50} outerRadius={70} paddingAngle={5} dataKey="value">
                   {visitorType.map((entry, index) => <Cell key={`cell-${index}`} fill={CUSTOMER_COLORS[index % CUSTOMER_COLORS.length]} />)}
                 </Pie>
-                <RechartsTooltip formatter={(value: number) => `${value}%`} />
+                <RechartsTooltip formatter={(value: any) => `${value}%`} />
                 <Legend layout="vertical" verticalAlign="middle" align="right" />
               </PieChart>
             </ResponsiveContainer>

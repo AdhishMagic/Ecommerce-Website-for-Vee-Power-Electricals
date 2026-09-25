@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useSearchParams, Link } from "react-router-dom";
-import { products, categories, brands } from "../../data/mock/products";
+import { productService } from "../../services/productService";
+import { Product, Category } from "../../types/product";
 import ProductCard from "../../components/common/ProductCard";
 
 const sortOptions = [
@@ -16,48 +17,113 @@ export default function Shop() {
   const [sort, setSort] = useState("featured");
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 50000]);
 
-  const slugifyBrand = (value: string) => value.trim().toLowerCase();
-  const findBrandLabel = (value: string) => brands.find(brand => slugifyBrand(brand) === slugifyBrand(value)) || value;
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [brands, setBrands] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const selectedCategory = searchParams.get("category") || "";
-  const selectedBrand = searchParams.get("brand") || "";
+  const selectedCategoryParam = searchParams.get("category") || "";
+  const selectedBrandParam = searchParams.get("brand") || "";
   const searchQuery = searchParams.get("q") || "";
   const view = searchParams.get("view") || "";
 
-  const [localBrands, setLocalBrands] = useState<string[]>(selectedBrand ? [findBrandLabel(selectedBrand)] : []);
-  const [localCategory, setLocalCategory] = useState(selectedCategory);
+  const slugifyBrand = (value: string) => value.trim().toLowerCase();
+  const findBrandLabel = (value: string) => brands.find(brand => slugifyBrand(brand) === slugifyBrand(value)) || value;
+
+  const [localBrands, setLocalBrands] = useState<string[]>([]);
+  const [localCategory, setLocalCategory] = useState(selectedCategoryParam);
   const [stockFilter, setStockFilter] = useState(false);
 
   useEffect(() => {
-    setLocalCategory(selectedCategory);
-  }, [selectedCategory]);
+    let isMounted = true;
+    const fetchCatalog = async () => {
+      try {
+        setLoading(true);
+        const [cats, brs, prods] = await Promise.all([
+          productService.getCategories(),
+          productService.getBrands(),
+          productService.getProducts(),
+        ]);
+        if (isMounted) {
+          setCategories(cats);
+          setBrands(brs);
+          setProducts(prods);
+        }
+      } catch (err) {
+        console.error("Failed to load catalog data:", err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchCatalog();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
-    setLocalBrands(selectedBrand ? [findBrandLabel(selectedBrand)] : []);
-  }, [selectedBrand]);
+    setLocalCategory(selectedCategoryParam);
+  }, [selectedCategoryParam]);
+
+  useEffect(() => {
+    if (selectedBrandParam && brands.length > 0) {
+      setLocalBrands([findBrandLabel(selectedBrandParam)]);
+    }
+  }, [selectedBrandParam, brands]);
+
+  const activeCategoryObj = useMemo(() => {
+    if (!localCategory) return null;
+    return categories.find(c => String(c.id) === String(localCategory) || c.slug === localCategory) || null;
+  }, [localCategory, categories]);
 
   const filtered = useMemo(() => {
     let list = [...products];
-    if (localCategory) list = list.filter(p => p.category === localCategory);
+
+    if (activeCategoryObj) {
+      list = list.filter(p =>
+        p.category.toLowerCase() === activeCategoryObj.name.toLowerCase() ||
+        String(p.category) === String(activeCategoryObj.id)
+      );
+    } else if (localCategory) {
+      list = list.filter(p =>
+        p.category.toLowerCase() === localCategory.toLowerCase() ||
+        String(p.category) === String(localCategory)
+      );
+    }
+
     if (localBrands.length) {
       const activeBrandSlugs = localBrands.map(slugifyBrand);
       list = list.filter(p => activeBrandSlugs.includes(slugifyBrand(p.brand)));
     }
-    if (stockFilter) list = list.filter(p => p.stock > 0);
-    if (searchQuery) list = list.filter(p =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.category.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+
+    if (stockFilter) {
+      list = list.filter(p => p.stock > 0);
+    }
+
+    if (searchQuery) {
+      const term = searchQuery.toLowerCase();
+      list = list.filter(p =>
+        p.name.toLowerCase().includes(term) ||
+        p.brand.toLowerCase().includes(term) ||
+        p.category.toLowerCase().includes(term) ||
+        p.sku.toLowerCase().includes(term)
+      );
+    }
+
     list = list.filter(p => p.price >= priceRange[0] && p.price <= priceRange[1]);
 
     switch (sort) {
-      case "price-asc": return list.sort((a, b) => a.price - b.price);
-      case "price-desc": return list.sort((a, b) => b.price - a.price);
-      case "name-asc": return list.sort((a, b) => a.name.localeCompare(b.name));
-      default: return list.sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
+      case "price-asc":
+        return list.sort((a, b) => a.price - b.price);
+      case "price-desc":
+        return list.sort((a, b) => b.price - a.price);
+      case "name-asc":
+        return list.sort((a, b) => a.name.localeCompare(b.name));
+      default:
+        return list.sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
     }
-  }, [localCategory, localBrands, searchQuery, sort, priceRange, stockFilter]);
+  }, [products, activeCategoryObj, localCategory, localBrands, searchQuery, sort, priceRange, stockFilter]);
 
   const toggleBrand = (brand: string) => {
     setLocalBrands(prev => prev.includes(brand) ? prev.filter(b => b !== brand) : [...prev, brand]);
@@ -70,9 +136,9 @@ export default function Shop() {
         <p className="text-[#667085] text-sm mb-8">Browse our complete electrical product range by category</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {categories.map(cat => (
-            <div key={cat.id} className="bg-white border border-[#D9E1E8] rounded-xl overflow-hidden">
+            <div key={cat.id} className="bg-white border border-[#D9E1E8] rounded-xl overflow-hidden shadow-sm">
               <div className="bg-[#0B3A63] px-5 py-4 flex items-center gap-3">
-                <span className="text-3xl">{cat.icon}</span>
+                <span className="text-3xl">{cat.icon || "⚡"}</span>
                 <h3 className="text-lg font-bold text-white">{cat.name}</h3>
               </div>
               <div className="p-4">
@@ -80,7 +146,7 @@ export default function Shop() {
                   {cat.subcategories.map(sub => (
                     <li key={sub}>
                       <Link
-                        to={`/shop?category=${cat.id}&subcategory=${encodeURIComponent(sub)}`}
+                        to={`/shop?category=${cat.slug || cat.id}&subcategory=${encodeURIComponent(sub)}`}
                         className="flex items-center gap-2 text-sm text-[#17212B] hover:text-[#1769AA] py-1 px-2 rounded hover:bg-[#F6F8FA] transition-colors"
                       >
                         <span className="w-1.5 h-1.5 bg-[#F2A900] rounded-full flex-shrink-0"></span>
@@ -90,7 +156,7 @@ export default function Shop() {
                   ))}
                 </ul>
                 <Link
-                  to={`/shop?category=${cat.id}`}
+                  to={`/shop?category=${cat.slug || cat.id}`}
                   className="mt-3 block text-center text-sm text-[#1769AA] hover:text-[#0B3A63] font-medium border border-[#D9E1E8] rounded-lg py-2 hover:bg-[#F6F8FA] transition-colors"
                 >
                   View All {cat.name}
@@ -120,7 +186,7 @@ export default function Shop() {
               </div>
               <div className="font-semibold text-[#17212B] transition-colors duration-300 group-hover:text-white">{brand}</div>
               <div className="text-xs text-[#667085] mt-1 transition-colors duration-300 group-hover:text-white/80">
-                {products.filter(p => p.brand === brand).length} products
+                {products.filter(p => slugifyBrand(p.brand) === slugifyBrand(brand)).length} products
               </div>
             </Link>
           ))}
@@ -140,7 +206,13 @@ export default function Shop() {
           </label>
           {categories.map(cat => (
             <label key={cat.id} className="flex items-center gap-2 cursor-pointer group">
-              <input type="radio" name="cat" checked={localCategory === cat.id} onChange={() => setLocalCategory(cat.id)} className="accent-[#1769AA]" />
+              <input
+                type="radio"
+                name="cat"
+                checked={localCategory === String(cat.id) || localCategory === cat.slug}
+                onChange={() => setLocalCategory(cat.slug || String(cat.id))}
+                className="accent-[#1769AA]"
+              />
               <span className="text-sm text-[#17212B] group-hover:text-[#1769AA]">{cat.name}</span>
             </label>
           ))}
@@ -154,7 +226,9 @@ export default function Shop() {
             <label key={brand} className="flex items-center gap-2 cursor-pointer group">
               <input type="checkbox" checked={localBrands.includes(brand)} onChange={() => toggleBrand(brand)} className="accent-[#1769AA]" />
               <span className="text-sm text-[#17212B] group-hover:text-[#1769AA]">{brand}</span>
-              <span className="ml-auto text-xs text-[#667085]">{products.filter(p => p.brand === brand).length}</span>
+              <span className="ml-auto text-xs text-[#667085]">
+                {products.filter(p => slugifyBrand(p.brand) === slugifyBrand(brand)).length}
+              </span>
             </label>
           ))}
         </div>
@@ -192,7 +266,7 @@ export default function Shop() {
         </label>
       </div>
 
-      {(localCategory || localBrands.length || stockFilter) && (
+      {(localCategory || localBrands.length > 0 || stockFilter || priceRange[0] > 0 || priceRange[1] < 50000) && (
         <button
           onClick={() => { setLocalCategory(""); setLocalBrands([]); setStockFilter(false); setPriceRange([0, 50000]); }}
           className="w-full py-2 text-sm text-[#C0392B] border border-[#C0392B]/30 rounded-lg hover:bg-[#FEF2F2] transition-colors"
@@ -209,13 +283,13 @@ export default function Shop() {
       <nav className="text-xs text-[#667085] mb-4 flex items-center gap-1.5">
         <Link to="/" className="hover:text-[#1769AA]">Home</Link>
         <span>/</span>
-        <span className="text-[#17212B]">{localCategory ? categories.find(c => c.id === localCategory)?.name : "All Products"}</span>
+        <span className="text-[#17212B]">{activeCategoryObj ? activeCategoryObj.name : "All Products"}</span>
       </nav>
 
       <div className="flex gap-6">
         {/* Desktop Sidebar */}
         <aside className="hidden lg:block w-56 flex-shrink-0">
-          <div className="bg-white border border-[#D9E1E8] rounded-xl p-5 sticky top-24">
+          <div className="bg-white border border-[#D9E1E8] rounded-xl p-5 sticky top-24 shadow-sm">
             <h3 className="font-bold text-[#0B3A63] mb-4">Filters</h3>
             <FilterPanel />
           </div>
@@ -233,7 +307,7 @@ export default function Shop() {
           <div className="flex items-center justify-between gap-3 mb-5">
             <div>
               <h1 className="text-xl font-bold text-[#0B3A63]">
-                {localCategory ? categories.find(c => c.id === localCategory)?.name : "All Products"}
+                {activeCategoryObj ? activeCategoryObj.name : "All Products"}
               </h1>
               <p className="text-sm text-[#667085]">{filtered.length} products</p>
             </div>
@@ -256,12 +330,23 @@ export default function Shop() {
             </div>
           </div>
 
-          {filtered.length === 0 ? (
-            <div className="text-center py-20 bg-white rounded-xl border border-[#D9E1E8]">
+          {loading && products.length === 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="animate-pulse bg-gray-100 rounded-xl h-64 border border-gray-200"></div>
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-20 bg-white rounded-xl border border-[#D9E1E8] shadow-sm">
               <div className="text-5xl mb-4">🔍</div>
               <h3 className="text-lg font-bold text-[#0B3A63] mb-2">No Products Found</h3>
               <p className="text-[#667085] text-sm">Try adjusting your filters or search term.</p>
-              <button onClick={() => { setLocalCategory(""); setLocalBrands([]); setPriceRange([0, 50000]); }} className="mt-4 text-sm text-[#1769AA] underline">Clear Filters</button>
+              <button
+                onClick={() => { setLocalCategory(""); setLocalBrands([]); setPriceRange([0, 50000]); setStockFilter(false); }}
+                className="mt-4 text-sm text-[#1769AA] underline font-medium"
+              >
+                Clear Filters
+              </button>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">

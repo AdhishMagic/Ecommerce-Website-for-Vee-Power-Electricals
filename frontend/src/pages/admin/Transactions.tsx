@@ -78,7 +78,7 @@ export default function Transactions() {
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748B' }} tickFormatter={(val) => `₹${val/1000}k`} />
                 <RechartsTooltip 
                   contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  formatter={(value: number) => [`₹${value.toLocaleString()}`, 'Revenue']}
+                  formatter={(value: any) => [`₹${Number(value || 0).toLocaleString()}`, 'Revenue']}
                 />
                 <Line type="monotone" dataKey="revenue" stroke="#F2A900" strokeWidth={3} dot={{ r: 4, fill: '#F2A900', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
               </LineChart>

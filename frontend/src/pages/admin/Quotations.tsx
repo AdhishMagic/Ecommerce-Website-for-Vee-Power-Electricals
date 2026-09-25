@@ -1,37 +1,66 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FileText, Clock, CheckCircle2, IndianRupee, Plus, Download, Edit, ArrowRightCircle } from "lucide-react";
 import QuotationModal, { Quotation } from "../../components/admin/QuotationModal";
 import QuotationPrintModal from "../../components/admin/QuotationPrintModal";
-
-const INITIAL_QUOTES: Quotation[] = [
-  { id: "QT-2026-001", client: "L&T Construction", date: "2026-09-15", expiry: "2026-10-15", value: 450000, status: "Approved", items: [{id: '1', product: '1.5 sq mm Wire', quantity: 100, price: 4500}] },
-  { id: "QT-2026-002", client: "Reliance Retail", date: "2026-09-12", expiry: "2026-10-12", value: 1250000, status: "Sent" },
-  { id: "QT-2026-003", client: "Tata Projects", date: "2026-09-10", expiry: "2026-10-10", value: 850000, status: "Draft" },
-  { id: "QT-2026-004", client: "Shapoorji Pallonji", date: "2026-09-05", expiry: "2026-10-05", value: 320000, status: "Rejected" },
-  { id: "QT-2026-005", client: "Godrej Properties", date: "2026-09-02", expiry: "2026-10-02", value: 540000, status: "Sent" },
-];
+import { financeApi } from "../../api/finance";
 
 const STATUS_COLORS: Record<string, string> = {
   "Draft": "bg-slate-100 text-slate-700",
   "Sent": "bg-blue-100 text-blue-700",
   "Approved": "bg-emerald-100 text-emerald-700",
   "Rejected": "bg-red-100 text-red-700",
+  "Converted": "bg-purple-100 text-purple-700",
 };
 
 export default function QuotationsPage() {
-  const [quotes, setQuotes] = useState<Quotation[]>(INITIAL_QUOTES);
+  const [quotes, setQuotes] = useState<(Quotation & { rawId?: number | string })[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("All");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingQuote, setEditingQuote] = useState<Quotation | null>(null);
+  const [editingQuote, setEditingQuote] = useState<(Quotation & { rawId?: number | string }) | null>(null);
   const [printingQuote, setPrintingQuote] = useState<Quotation | null>(null);
+
+  const fetchQuotations = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await financeApi.getQuotations();
+      const mapped = (data || []).map((q: any) => ({
+        id: q.quotation_number || `QT-${q.id}`,
+        rawId: q.id,
+        client: q.client_name || `Client #${q.client}`,
+        date: q.quotation_date || '',
+        expiry: q.expiry_date || '',
+        value: Number(q.total_value || 0),
+        status: (q.status === 'APPROVED' ? 'Approved' : q.status === 'REJECTED' ? 'Rejected' : q.status === 'CONVERTED' ? 'Converted' : q.status === 'SENT' ? 'Sent' : 'Draft') as any,
+        items: (q.items || []).map((it: any) => ({
+          id: String(it.id),
+          product: it.product_name || it.item_name || 'Item',
+          quantity: it.quantity,
+          price: Number(it.unit_price || 0),
+        })),
+      }));
+      setQuotes(mapped);
+    } catch (err: any) {
+      console.error("Failed to load quotations:", err);
+      setError(err?.message || "Failed to load quotations from API.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchQuotations();
+  }, []);
 
   const handleCreateNew = () => {
     setEditingQuote(null);
     setIsModalOpen(true);
   };
 
-  const handleEditQuotation = (quote: Quotation) => {
+  const handleEditQuotation = (quote: Quotation & { rawId?: number | string }) => {
     setEditingQuote(quote);
     setIsModalOpen(true);
   };
@@ -40,16 +69,23 @@ export default function QuotationsPage() {
     setPrintingQuote(quote);
   };
 
-  const handleConvertToInvoice = (quote: Quotation) => {
+  const handleConvertToInvoice = async (quote: Quotation & { rawId?: number | string }) => {
     if (window.confirm(`Convert Quotation ${quote.id} to an Invoice?`)) {
-      setQuotes(quotes.map(q => q.id === quote.id ? { ...q, status: "Converted" } : q));
-      alert(`Success! Invoice generated for ${quote.client}. You can view it in the Invoices panel.`);
+      try {
+        const targetId = quote.rawId || quote.id;
+        await financeApi.convertQuotationToInvoice(String(targetId));
+        alert(`Success! Invoice generated for ${quote.client}. You can view it in the Invoices panel.`);
+        await fetchQuotations();
+      } catch (err: any) {
+        console.error("Failed to convert quotation to invoice:", err);
+        alert(err?.message || "Failed to convert quotation to invoice.");
+      }
     }
   };
 
   const handleModalSubmit = (data: Partial<Quotation>) => {
     if (editingQuote) {
-      setQuotes(quotes.map(q => q.id === editingQuote.id ? { ...q, ...data } as Quotation : q));
+      setQuotes(quotes.map(q => q.id === editingQuote.id ? { ...q, ...data } as any : q));
     } else {
       const newQuote: Quotation = {
         id: `QT-2026-${String(quotes.length + 1).padStart(3, '0')}`,
@@ -65,6 +101,10 @@ export default function QuotationsPage() {
     ? quotes 
     : quotes.filter(q => q.status === statusFilter);
 
+  const totalValue = quotes.reduce((sum, q) => sum + q.value, 0);
+  const pendingCount = quotes.filter(q => q.status === "Draft" || q.status === "Sent").length;
+  const convertedCount = quotes.filter(q => q.status === "Converted" || q.status === "Approved").length;
+
   return (
     <div className="space-y-6">
       <div>
@@ -75,10 +115,10 @@ export default function QuotationsPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { title: "Total Quotes Issued", value: "45", icon: <FileText className="w-5 h-5 text-blue-600" />, bg: "bg-blue-100" },
-          { title: "Pending Approval", value: "12", icon: <Clock className="w-5 h-5 text-amber-600" />, bg: "bg-amber-100" },
-          { title: "Converted to Orders", value: "28", icon: <CheckCircle2 className="w-5 h-5 text-emerald-600" />, bg: "bg-emerald-100" },
-          { title: "Total Quoted Value", value: "₹45,20,000", icon: <IndianRupee className="w-5 h-5 text-[#0A2540]" />, bg: "bg-[#0A2540]/10" },
+          { title: "Total Quotes Issued", value: quotes.length.toString(), icon: <FileText className="w-5 h-5 text-blue-600" />, bg: "bg-blue-100" },
+          { title: "Pending Approval", value: pendingCount.toString(), icon: <Clock className="w-5 h-5 text-amber-600" />, bg: "bg-amber-100" },
+          { title: "Converted to Orders", value: convertedCount.toString(), icon: <CheckCircle2 className="w-5 h-5 text-emerald-600" />, bg: "bg-emerald-100" },
+          { title: "Total Quoted Value", value: `₹${totalValue.toLocaleString("en-IN")}`, icon: <IndianRupee className="w-5 h-5 text-[#0A2540]" />, bg: "bg-[#0A2540]/10" },
         ].map((kpi, idx) => (
           <div key={idx} className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
             <div>
