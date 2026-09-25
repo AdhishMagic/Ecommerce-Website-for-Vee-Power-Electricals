@@ -445,3 +445,35 @@ export interface ExpenseItem {
   created_at?: string;
   updated_at?: string;
 }
+
+export interface PaymentIntentResponse {
+  key_id: string;
+  order_id: number;
+  order_number: string;
+  gateway_order_id: string;
+  amount: number;
+  amount_inr: string;
+  currency: string;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  transaction_id: number;
+}
+
+export interface PaymentVerifyPayload {
+  order_id: number;
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+  payment_method?: string;
+}
+
+export interface PaymentVerifyResponse {
+  status: 'SUCCESS' | string;
+  message: string;
+  order_id: number;
+  transaction_id: number;
+  payment_status: PaymentStatus;
+  order_status: OrderStatus;
+}
+
