@@ -31,8 +31,11 @@ fi
 echo "Applying database migrations..."
 python manage.py migrate --noinput
 
-echo "Checking / Seeding initial demo data..."
-python manage.py seed_data || true
+# Guard demo data seeding: run only if explicitly requested or in debug/dev environments
+if [ "${SEED_DEMO_DATA:-False}" = "True" ] || [ "${SEED_DEMO_DATA:-False}" = "true" ] || [ "${DJANGO_DEBUG:-False}" = "True" ] || [ "${DJANGO_DEBUG:-False}" = "true" ]; then
+    echo "Checking / Seeding initial demo data (Development/Staging)..."
+    python manage.py seed_data || true
+fi
 
 echo "Starting backend process..."
 exec "$@"

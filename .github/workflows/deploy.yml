@@ -1,0 +1,66 @@
+name: CD Production Release Packaging
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: 'Target Deployment Environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  package-and-verify:
+    name: Package Release Artifacts
+    runs-on: ubuntu-latest
+    needs: []
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Extract Metadata & Git Commit SHA
+        id: meta
+        run: |
+          echo "commit_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "build_timestamp=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Production Backend Docker Image
+        run: |
+          docker build \
+            --file backend/docker/backend/Dockerfile \
+            --tag veepower-backend:${{ steps.meta.outputs.commit_sha }} \
+            --tag veepower-backend:latest \
+            backend
+
+      - name: Build Production Frontend Image with Embedded Nginx
+        run: |
+          docker build \
+            --file frontend/Dockerfile \
+            --target production \
+            --build-arg VITE_API_URL=https://api.veepower.in/api/v1 \
+            --tag veepower-frontend:${{ steps.meta.outputs.commit_sha }} \
+            --tag veepower-frontend:latest \
+            frontend
+
+      - name: Verify Container Image Metadata
+        run: |
+          docker images | grep veepower
+
+      - name: Release Manifest Summary
+        run: |
+          echo "=========================================="
+          echo "RELEASE CANDIDATE ARTIFACTS COMPILED"
+          echo "Git SHA:        ${{ steps.meta.outputs.commit_sha }}"
+          echo "Build Time:     ${{ steps.meta.outputs.build_timestamp }}"
+          echo "Target Env:     ${{ github.event.inputs.target_env || 'production' }}"
+          echo "=========================================="

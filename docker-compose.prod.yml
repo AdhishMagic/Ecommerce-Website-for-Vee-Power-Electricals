@@ -1,15 +1,25 @@
 services:
   backend:
-    command: gunicorn --bind 0.0.0.0:8000 --workers 3 config.wsgi:application
+    command: gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 60 config.wsgi:application
     environment:
       DJANGO_DEBUG: "False"
       USE_SQLITE: "False"
+      DJANGO_SETTINGS_MODULE: "config.settings.production"
+      SEED_DEMO_DATA: "False"
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       target: production
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000/api/v1}
     ports:
-      - "80:80"
+      - "${PROD_FRONTEND_PORT:-80}:80"
     volumes: []
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

@@ -5,6 +5,10 @@ node_modules/
 # Build & Dist
 dist/
 build/
+staticfiles/
+backend/staticfiles/
+media/
+backend/media/
 *.egg-info/
 .venv/
 env/
@@ -18,6 +22,8 @@ venv/
 # Database & Cache
 *.sqlite3
 *.db
+*.sql
+backups/
 __pycache__/
 *.pyc
 .pytest_cache/
