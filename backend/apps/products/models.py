@@ -46,6 +46,18 @@ class Category(TimeStampedModel):
             models.Index(fields=['show_in_hero', 'is_active', 'hero_order'], name='idx_cat_hero'),
         ]
 
+    def clean(self):
+        super().clean()
+        from django.core.exceptions import ValidationError
+        if self.name:
+            self.name = self.name.strip()
+        if not self.name:
+            raise ValidationError({'name': 'Category name cannot be blank.'})
+        if self.discount_value is not None and self.discount_value < 0:
+            raise ValidationError({'discount_value': 'Discount value cannot be negative.'})
+        if self.discount_type == CategoryDiscountType.PERCENTAGE and self.discount_value is not None and self.discount_value > 100:
+            raise ValidationError({'discount_value': 'Percentage discount cannot exceed 100%.'})
+
     def save(self, *args, **kwargs):
         if not self.slug and self.name:
             self.slug = slugify(self.name)
@@ -82,6 +94,14 @@ class Subcategory(TimeStampedModel):
             ),
         ]
 
+    def clean(self):
+        super().clean()
+        from django.core.exceptions import ValidationError
+        if self.name:
+            self.name = self.name.strip()
+        if not self.name:
+            raise ValidationError({'name': 'Subcategory name cannot be blank.'})
+
     def save(self, *args, **kwargs):
         if not self.slug and self.name:
             self.slug = slugify(self.name)
@@ -109,6 +129,14 @@ class Brand(TimeStampedModel):
         indexes = [
             models.Index(fields=['is_active'], name='idx_brand_active'),
         ]
+
+    def clean(self):
+        super().clean()
+        from django.core.exceptions import ValidationError
+        if self.name:
+            self.name = self.name.strip()
+        if not self.name:
+            raise ValidationError({'name': 'Brand name cannot be blank.'})
 
     def save(self, *args, **kwargs):
         if not self.slug and self.name:
@@ -186,11 +214,34 @@ class Product(TimeStampedModel):
             models.Index(fields=['created_at'], name='idx_prod_created'),
         ]
 
+    def clean(self):
+        super().clean()
+        from django.core.exceptions import ValidationError
+        if self.name:
+            self.name = self.name.strip()
+        if not self.name:
+            raise ValidationError({'name': 'Product name cannot be blank.'})
+        if self.price is not None and self.mrp is not None and self.price > self.mrp:
+            raise ValidationError({'price': 'Selling price cannot exceed Maximum Retail Price (MRP).'})
+        if self.price is not None and self.price < 0:
+            raise ValidationError({'price': 'Selling price must be non-negative.'})
+        if self.mrp is not None and self.mrp < 0:
+            raise ValidationError({'mrp': 'MRP must be non-negative.'})
+        if self.stock is not None and self.stock < 0:
+            raise ValidationError({'stock': 'Stock quantity cannot be negative.'})
+        if self.low_stock_threshold is not None and self.low_stock_threshold < 0:
+            raise ValidationError({'low_stock_threshold': 'Low stock threshold cannot be negative.'})
+        if self.subcategory and self.category and self.subcategory.category_id != self.category_id:
+            raise ValidationError({'subcategory': f"Subcategory '{self.subcategory.name}' does not belong to category '{self.category.name}'."})
+
     def save(self, *args, **kwargs):
         if not self.slug and self.name:
             self.slug = slugify(self.name)
         if self.sku:
             self.sku = self.sku.upper().strip()
+        if self.subcategory and self.category and self.subcategory.category_id != self.category_id:
+            from django.core.exceptions import ValidationError
+            raise ValidationError({'subcategory': f"Subcategory '{self.subcategory.name}' does not belong to category '{self.category.name}'."})
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -221,6 +272,40 @@ class ProductImage(models.Model):
             models.Index(fields=['product', 'sort_order'], name='idx_prod_img_sort'),
         ]
 
+    def clean(self):
+        super().clean()
+        from django.core.exceptions import ValidationError
+        if self.image_url:
+            self.image_url = self.image_url.strip()
+        if not self.image_url:
+            raise ValidationError({'image_url': 'Image URL cannot be blank.'})
+
+    def save(self, *args, **kwargs):
+        if self.image_url:
+            self.image_url = self.image_url.strip()
+        super().save(*args, **kwargs)
+        if self.is_primary:
+            ProductImage.objects.filter(product_id=self.product_id).exclude(pk=self.pk).update(is_primary=False)
+            Product.objects.filter(id=self.product_id).update(primary_image=self.image_url)
+        else:
+            has_primary = ProductImage.objects.filter(product_id=self.product_id, is_primary=True).exists()
+            if not has_primary:
+                self.is_primary = True
+                ProductImage.objects.filter(pk=self.pk).update(is_primary=True)
+                Product.objects.filter(id=self.product_id).update(primary_image=self.image_url)
+
+    def delete(self, *args, **kwargs):
+        was_primary = self.is_primary
+        prod_id = self.product_id
+        super().delete(*args, **kwargs)
+        if was_primary:
+            next_img = ProductImage.objects.filter(product_id=prod_id).order_by('sort_order', 'id').first()
+            if next_img:
+                ProductImage.objects.filter(pk=next_img.pk).update(is_primary=True)
+                Product.objects.filter(id=prod_id).update(primary_image=next_img.image_url)
+            else:
+                Product.objects.filter(id=prod_id).update(primary_image='')
+
     def __str__(self):
         return f"Image for {self.product.name} (order: {self.sort_order})"
 
@@ -250,6 +335,25 @@ class ProductSpecification(models.Model):
                 name='uq_prod_spec'
             ),
         ]
+
+    def clean(self):
+        super().clean()
+        from django.core.exceptions import ValidationError
+        if self.spec_key:
+            self.spec_key = self.spec_key.strip()
+        if self.spec_value:
+            self.spec_value = self.spec_value.strip()
+        if not self.spec_key:
+            raise ValidationError({'spec_key': 'Specification key cannot be blank.'})
+        if not self.spec_value:
+            raise ValidationError({'spec_value': 'Specification value cannot be blank.'})
+
+    def save(self, *args, **kwargs):
+        if self.spec_key:
+            self.spec_key = self.spec_key.strip()
+        if self.spec_value:
+            self.spec_value = self.spec_value.strip()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.product.name}: {self.spec_key} = {self.spec_value}"

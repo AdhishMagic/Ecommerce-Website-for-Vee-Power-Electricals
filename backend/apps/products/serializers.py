@@ -11,6 +11,7 @@ from .models import (
 
 class CategorySerializer(serializers.ModelSerializer):
     slug = serializers.SlugField(required=False, allow_blank=True)
+    is_active = serializers.BooleanField(required=False, default=True)
 
     class Meta:
         model = Category
@@ -22,22 +23,33 @@ class CategorySerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
+    def to_internal_value(self, data):
+        data = data.copy() if hasattr(data, 'copy') else dict(data)
+        if not data.get('slug') and data.get('name'):
+            from django.utils.text import slugify
+            data['slug'] = slugify(data['name'])
+        return super().to_internal_value(data)
+
+    def validate_name(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Category name cannot be blank.")
+        return value.strip()
+
     def validate(self, data):
-        discount_enabled = data.get('discount_enabled', getattr(self.instance, 'discount_enabled', False))
         discount_value = data.get('discount_value', getattr(self.instance, 'discount_value', 0))
         discount_type = data.get('discount_type', getattr(self.instance, 'discount_type', 'percentage'))
 
-        if discount_enabled:
-            if discount_value is not None and discount_value < 0:
-                raise serializers.ValidationError({"discount_value": "Discount value must be a positive number."})
-            if discount_type == 'percentage' and discount_value is not None and discount_value > 100:
-                raise serializers.ValidationError({"discount_value": "Percentage discount cannot exceed 100%."})
+        if discount_value is not None and discount_value < 0:
+            raise serializers.ValidationError({"discount_value": "Discount value cannot be negative."})
+        if discount_type == 'percentage' and discount_value is not None and discount_value > 100:
+            raise serializers.ValidationError({"discount_value": "Percentage discount cannot exceed 100%."})
         return data
 
 
 class SubcategorySerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     slug = serializers.SlugField(required=False, allow_blank=True)
+    is_active = serializers.BooleanField(required=False, default=True)
 
     class Meta:
         model = Subcategory
@@ -47,9 +59,22 @@ class SubcategorySerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
+    def to_internal_value(self, data):
+        data = data.copy() if hasattr(data, 'copy') else dict(data)
+        if not data.get('slug') and data.get('name'):
+            from django.utils.text import slugify
+            data['slug'] = slugify(data['name'])
+        return super().to_internal_value(data)
+
+    def validate_name(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Subcategory name cannot be blank.")
+        return value.strip()
+
 
 class BrandSerializer(serializers.ModelSerializer):
     slug = serializers.SlugField(required=False, allow_blank=True)
+    is_active = serializers.BooleanField(required=False, default=True)
 
     class Meta:
         model = Brand
@@ -59,6 +84,18 @@ class BrandSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
+    def to_internal_value(self, data):
+        data = data.copy() if hasattr(data, 'copy') else dict(data)
+        if not data.get('slug') and data.get('name'):
+            from django.utils.text import slugify
+            data['slug'] = slugify(data['name'])
+        return super().to_internal_value(data)
+
+    def validate_name(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Brand name cannot be blank.")
+        return value.strip()
+
 
 class ProductImageSerializer(serializers.ModelSerializer):
     class Meta:
@@ -66,12 +103,26 @@ class ProductImageSerializer(serializers.ModelSerializer):
         fields = ['id', 'product', 'image_url', 'alt_text', 'sort_order', 'is_primary', 'created_at']
         read_only_fields = ['id', 'created_at']
 
+    def validate_image_url(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Image URL cannot be blank.")
+        return value.strip()
+
 
 class ProductSpecificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductSpecification
         fields = ['id', 'product', 'spec_key', 'spec_value', 'sort_order', 'created_at']
         read_only_fields = ['id', 'created_at']
+
+    def validate(self, data):
+        spec_key = data.get('spec_key', getattr(self.instance, 'spec_key', None))
+        spec_value = data.get('spec_value', getattr(self.instance, 'spec_value', None))
+        if spec_key is not None and not str(spec_key).strip():
+            raise serializers.ValidationError({"spec_key": "Specification key cannot be blank."})
+        if spec_value is not None and not str(spec_value).strip():
+            raise serializers.ValidationError({"spec_value": "Specification value cannot be blank."})
+        return data
 
 
 class ProductListSerializer(serializers.ModelSerializer):
@@ -120,6 +171,7 @@ class ProductDetailSerializer(ProductListSerializer):
 
 class ProductAdminCreateUpdateSerializer(serializers.ModelSerializer):
     slug = serializers.SlugField(required=False, allow_blank=True)
+    active = serializers.BooleanField(required=False, default=True)
 
     class Meta:
         model = Product
@@ -130,10 +182,22 @@ class ProductAdminCreateUpdateSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id']
 
+    def to_internal_value(self, data):
+        data = data.copy() if hasattr(data, 'copy') else dict(data)
+        if not data.get('slug') and data.get('name'):
+            from django.utils.text import slugify
+            data['slug'] = slugify(data['name'])
+        return super().to_internal_value(data)
+
     def validate(self, data):
+        name = data.get('name', getattr(self.instance, 'name', None))
+        if name is not None and not str(name).strip():
+            raise serializers.ValidationError({"name": "Product name cannot be blank."})
+
         price = data.get('price', getattr(self.instance, 'price', None))
         mrp = data.get('mrp', getattr(self.instance, 'mrp', None))
         stock = data.get('stock', getattr(self.instance, 'stock', None))
+        low_stock_threshold = data.get('low_stock_threshold', getattr(self.instance, 'low_stock_threshold', None))
 
         if price is not None and mrp is not None and price > mrp:
             raise serializers.ValidationError({"price": "Selling price cannot exceed Maximum Retail Price (MRP)."})
@@ -143,4 +207,13 @@ class ProductAdminCreateUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"mrp": "MRP must be non-negative."})
         if stock is not None and stock < 0:
             raise serializers.ValidationError({"stock": "Stock quantity cannot be negative."})
+        if low_stock_threshold is not None and low_stock_threshold < 0:
+            raise serializers.ValidationError({"low_stock_threshold": "Low stock threshold cannot be negative."})
+
+        # Category and Subcategory compatibility check
+        category = data.get('category', getattr(self.instance, 'category', None))
+        subcategory = data.get('subcategory', getattr(self.instance, 'subcategory', None))
+        if subcategory and category and subcategory.category_id != category.id:
+            raise serializers.ValidationError({"subcategory": f"Subcategory '{subcategory.name}' does not belong to category '{category.name}'."})
+
         return data
