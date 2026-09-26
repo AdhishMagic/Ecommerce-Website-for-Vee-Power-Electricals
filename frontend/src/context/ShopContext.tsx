@@ -169,18 +169,14 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   }, [refreshProducts]);
 
   const updateStock = useCallback(async (productId: string, newStock: number) => {
-    try {
-      const current = products.find(p => p.id === productId);
-      if (current && !productId.includes('-') && !isNaN(Number(productId))) {
-        const diff = newStock - current.stock;
-        if (diff !== 0) {
-          await inventoryApi.adjustStock(productId, diff, 'Manual adjustment via dashboard');
-          await refreshProducts();
-          return;
-        }
+    const current = products.find(p => p.id === productId);
+    if (current && !productId.includes('-') && !isNaN(Number(productId))) {
+      const diff = newStock - current.stock;
+      if (diff !== 0) {
+        await inventoryApi.adjustStock(productId, diff, 'Manual adjustment via dashboard');
+        await refreshProducts();
+        return;
       }
-    } catch (err) {
-      console.error("Error adjusting stock via API:", err);
     }
 
     setProducts((prev) =>

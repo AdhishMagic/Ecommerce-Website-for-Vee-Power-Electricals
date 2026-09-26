@@ -10,6 +10,9 @@ export default function AdminInventory() {
   // Modal State
   const [adjustingItem, setAdjustingItem] = useState<Product | null>(null);
   const [adjustAmount, setAdjustAmount] = useState<number>(0);
+  const [isSaving, setIsSaving] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
   // Derived Metrics
   const inStockCount = inventory.filter(item => calculateStockStatus(item.stock, item.lowStockThreshold) === "IN STOCK").length;
@@ -34,22 +37,43 @@ export default function AdminInventory() {
   const handleOpenAdjust = (item: Product) => {
     setAdjustingItem(item);
     setAdjustAmount(item.stock);
+    setModalError(null);
   };
 
   const handleCloseAdjust = () => {
     setAdjustingItem(null);
     setAdjustAmount(0);
+    setModalError(null);
+    setIsSaving(false);
   };
 
-  const handleSaveStock = () => {
+  const handleSaveStock = async () => {
     if (adjustingItem && adjustAmount >= 0) {
-      updateStock(adjustingItem.id, adjustAmount);
-      handleCloseAdjust();
+      setIsSaving(true);
+      setModalError(null);
+      try {
+        await updateStock(adjustingItem.id, adjustAmount);
+        setSuccessBanner(`Stock for "${adjustingItem.name}" updated successfully.`);
+        setTimeout(() => setSuccessBanner(null), 4000);
+        handleCloseAdjust();
+      } catch (err: any) {
+        setModalError(err?.message || "Failed to update stock. Check permissions or network.");
+      } finally {
+        setIsSaving(false);
+      }
     }
   };
 
   return (
     <div className="space-y-6">
+      {successBanner && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl text-sm font-semibold flex items-center justify-between">
+          <span>{successBanner}</span>
+          <button onClick={() => setSuccessBanner(null)} className="text-emerald-500 hover:text-emerald-700">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
       {/* 2. Top Header & Overview Cards */}
       <div>
         <h1 className="text-2xl font-bold text-[#0A2540]">Inventory Management</h1>
@@ -205,19 +229,26 @@ export default function AdminInventory() {
                   <Plus className="w-5 h-5" />
                 </button>
               </div>
+              {modalError && (
+                <div className="w-full mb-4 p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs font-semibold text-red-700 text-center">
+                  {modalError}
+                </div>
+              )}
             </div>
             <div className="p-5 border-t border-slate-200 flex gap-3 justify-end bg-slate-50">
               <button 
                 onClick={handleCloseAdjust}
-                className="flex-1 px-4 py-2 border border-slate-200 bg-white text-slate-600 text-sm font-semibold rounded-lg hover:bg-slate-100 transition-colors"
+                disabled={isSaving}
+                className="flex-1 px-4 py-2 border border-slate-200 bg-white text-slate-600 text-sm font-semibold rounded-lg hover:bg-slate-100 disabled:opacity-50 transition-colors"
               >
                 Cancel
               </button>
               <button 
                 onClick={handleSaveStock}
-                className="flex-1 px-4 py-2 bg-[#F2A900] text-[#0A2540] text-sm font-bold rounded-lg hover:bg-[#e09b00] transition-colors shadow-sm"
+                disabled={isSaving}
+                className="flex-1 px-4 py-2 bg-[#F2A900] text-[#0A2540] text-sm font-bold rounded-lg hover:bg-[#e09b00] disabled:opacity-50 transition-colors shadow-sm"
               >
-                Update Stock
+                {isSaving ? "Updating..." : "Update Stock"}
               </button>
             </div>
           </div>

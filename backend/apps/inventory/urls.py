@@ -4,6 +4,7 @@ from .views import (
     StockTransactionListView,
     StockRestockView,
     StockAdjustmentView,
+    StockLedgerSummaryView,
 )
 
 urlpatterns = [
@@ -11,4 +12,5 @@ urlpatterns = [
     path('transactions/', StockTransactionListView.as_view(), name='inventory-transactions'),
     path('restock/', StockRestockView.as_view(), name='inventory-restock'),
     path('adjust/', StockAdjustmentView.as_view(), name='inventory-adjust'),
+    path('summary/<int:product_id>/', StockLedgerSummaryView.as_view(), name='inventory-summary'),
 ]

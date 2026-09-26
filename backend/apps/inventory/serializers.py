@@ -36,7 +36,7 @@ class StockTransactionSerializer(serializers.ModelSerializer):
 
 class StockRestockSerializer(serializers.Serializer):
     product_id = serializers.IntegerField(required=True)
-    quantity = serializers.IntegerField(required=True, min_value=1)
+    quantity = serializers.IntegerField(required=True, min_value=1, max_value=1_000_000)
     notes = serializers.CharField(required=False, allow_blank=True, default='')
 
     def validate_product_id(self, value):
@@ -47,7 +47,7 @@ class StockRestockSerializer(serializers.Serializer):
 
 class StockAdjustmentSerializer(serializers.Serializer):
     product_id = serializers.IntegerField(required=True)
-    change_amount = serializers.IntegerField(required=True)
+    change_amount = serializers.IntegerField(required=True, min_value=-1_000_000, max_value=1_000_000)
     notes = serializers.CharField(required=False, allow_blank=True, default='')
 
     def validate_product_id(self, value):
@@ -56,11 +56,17 @@ class StockAdjustmentSerializer(serializers.Serializer):
         return value
 
     def validate(self, data):
-        if data['change_amount'] == 0:
+        change_amount = data.get('change_amount')
+        if change_amount == 0:
             raise serializers.ValidationError({"change_amount": "Adjustment amount cannot be zero."})
-        product = Product.objects.get(id=data['product_id'])
-        if product.stock + data['change_amount'] < 0:
-            raise serializers.ValidationError({
-                "change_amount": f"Insufficient stock. Current stock is {product.stock}, cannot reduce by {abs(data['change_amount'])}."
-            })
+        product_id = data.get('product_id')
+        if product_id is not None:
+            try:
+                product = Product.objects.get(id=product_id)
+                if product.stock + change_amount < 0:
+                    raise serializers.ValidationError({
+                        "change_amount": f"Insufficient stock. Current stock is {product.stock}, cannot reduce by {abs(change_amount)}."
+                    })
+            except Product.DoesNotExist:
+                pass
         return data

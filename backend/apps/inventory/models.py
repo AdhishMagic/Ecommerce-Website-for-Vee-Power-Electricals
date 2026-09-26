@@ -55,6 +55,17 @@ class StockTransaction(models.Model):
             models.Index(fields=['product', 'created_at'], name='idx_stk_prod_created'),
         ]
 
+    def save(self, *args, **kwargs):
+        if self.pk and not kwargs.get('force_insert', False):
+            if StockTransaction.objects.filter(pk=self.pk).exists():
+                from django.core.exceptions import ValidationError
+                raise ValidationError("StockTransaction ledger records are immutable and cannot be modified.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        from django.core.exceptions import ValidationError
+        raise ValidationError("StockTransaction ledger records are immutable and cannot be deleted.")
+
     def __str__(self):
         sign = '+' if self.change_amount > 0 else ''
         return f"{self.product.sku}: {sign}{self.change_amount} ({self.transaction_type})"
