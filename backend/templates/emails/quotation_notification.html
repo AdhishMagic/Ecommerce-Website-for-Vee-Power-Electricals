@@ -1,0 +1,76 @@
+{% extends "emails/base.html" %}
+
+{% block title %}Commercial Quotation: {{ quotation_number }} ({{ status }}){% endblock %}
+
+{% block content %}
+<div style="background-color: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+  <p style="margin: 0; font-size: 14px; font-weight: 600; color: #1E293B;">
+    Commercial Quotation #{{ quotation_number }} — Status: {{ status }}
+  </p>
+</div>
+
+<h2 style="margin: 0 0 12px 0; font-size: 18px; font-weight: 700; color: #17212B;">
+  Quotation for {{ client_name }}
+</h2>
+<p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; color: #334155;">
+  Please find the commercial quotation details issued by Vee Power Electricals for your institutional project.
+</p>
+
+<!-- Quotation Overview -->
+<div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 20px; margin-bottom: 24px;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="font-size: 13px; color: #334155;">
+    <tr>
+      <td style="padding-bottom: 8px;"><strong>Quotation Number:</strong></td>
+      <td align="right" style="padding-bottom: 8px; font-weight: 700; color: #1769AA;">{{ quotation_number }}</td>
+    </tr>
+    <tr>
+      <td style="padding-bottom: 8px;"><strong>Issue Date:</strong></td>
+      <td align="right" style="padding-bottom: 8px;">{{ quotation_date }}</td>
+    </tr>
+    <tr>
+      <td style="padding-bottom: 8px;"><strong>Valid Until:</strong></td>
+      <td align="right" style="padding-bottom: 8px; color: #DC2626;">{{ expiry_date }}</td>
+    </tr>
+    <tr style="border-top: 1px solid #E2E8F0; font-size: 15px; font-weight: 700; color: #17212B;">
+      <td style="padding-top: 10px;">Total Commercial Estimate:</td>
+      <td align="right" style="padding-top: 10px; color: #1769AA;">₹{{ total_value }}</td>
+    </tr>
+  </table>
+</div>
+
+{% if items %}
+<h3 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #1E293B;">
+  Proposed Line Items
+</h3>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse: collapse; margin-bottom: 24px; font-size: 13px;">
+  <thead>
+    <tr style="border-bottom: 2px solid #E2E8F0; text-align: left; color: #64748B;">
+      <th style="padding: 8px 0;">Item Description</th>
+      <th align="center" style="padding: 8px;">Qty</th>
+      <th align="right" style="padding: 8px 0;">Unit Rate</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in items %}
+    <tr style="border-bottom: 1px solid #F1F5F9;">
+      <td style="padding: 10px 0; font-weight: 600; color: #1E293B;">{{ item.item_name }}</td>
+      <td align="center" style="padding: 10px 8px; color: #475569;">{{ item.quantity }}</td>
+      <td align="right" style="padding: 10px 0; color: #1E293B;">₹{{ item.unit_price }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% if notes %}
+<div style="background-color: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px; padding: 14px; margin-bottom: 20px;">
+  <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #92400E;">
+    <strong>Commercial Terms:</strong> {{ notes }}
+  </p>
+</div>
+{% endif %}
+
+<p style="margin: 0; font-size: 13px; line-height: 1.5; color: #64748B;">
+  To convert this quotation into a formal tax invoice or discuss revisions, contact your designated corporate account manager.
+</p>
+{% endblock %}

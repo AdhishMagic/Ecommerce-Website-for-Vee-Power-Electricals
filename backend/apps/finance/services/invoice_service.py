@@ -135,6 +135,10 @@ class InvoiceService:
                 total_amount=item.total_amount,
             )
 
+        # Dispatch statutory tax invoice communication
+        from apps.core.services.communication_service import CommunicationService
+        CommunicationService.send_invoice_notification(invoice=invoice)
+
         return invoice
 
     @classmethod
@@ -244,5 +248,9 @@ class InvoiceService:
                 invoice=invoice,
                 **item_data
             )
+
+        # Dispatch statutory tax invoice communication
+        from apps.core.services.communication_service import CommunicationService
+        CommunicationService.send_invoice_notification(invoice=invoice)
 
         return invoice

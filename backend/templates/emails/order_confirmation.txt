@@ -1,0 +1,33 @@
+Order Confirmed: #{{ order_number }} - Vee Power Electricals
+
+Thank you for your order, {{ customer_name }}!
+
+Order Summary:
+- Order Number: #{{ order_number }}
+- Payment Method: {{ payment_method }}
+- Payment Status: {{ payment_status }}
+- Total Amount: ₹{{ total_amount }}
+
+Items Ordered:
+{% for item in items %}
+- {{ item.product_name }} (SKU: {{ item.sku }}) x {{ item.quantity }} = ₹{{ item.total_amount }}
+{% endfor %}
+
+Subtotal: ₹{{ subtotal }}
+Taxes: ₹{{ tax_amount }}
+Shipping: ₹{{ shipping_fee }}
+Total: ₹{{ total_amount }}
+
+{% if shipping_address %}
+Shipping Address:
+{{ shipping_address.recipient_name }}
+{{ shipping_address.address_line1 }}
+{{ shipping_address.city }}, {{ shipping_address.state }} - {{ shipping_address.pincode }}
+Phone: {{ shipping_address.phone }}
+{% endif %}
+
+Track your order: {{ frontend_url }}/account/orders
+
+---
+Vee Power Electricals Private Limited
+Coimbatore, Tamil Nadu, India | support@veepower.in

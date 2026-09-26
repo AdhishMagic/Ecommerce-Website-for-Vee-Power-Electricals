@@ -93,3 +93,55 @@ class ContactInquiry(TimeStampedModel):
 
     def __str__(self):
         return f"{self.subject} - {self.name} ({self.status})"
+
+
+class CommunicationChannel(models.TextChoices):
+    EMAIL = 'EMAIL', 'Email'
+    SMS = 'SMS', 'SMS'
+
+
+class CommunicationStatus(models.TextChoices):
+    SENT = 'SENT', 'Sent'
+    FAILED = 'FAILED', 'Failed'
+    SKIPPED = 'SKIPPED', 'Skipped'
+
+
+class CommunicationLog(TimeStampedModel):
+    """
+    Authoritative audit ledger and idempotency register for customer communications.
+    Guarantees cross-channel traceability, delivery tracking, and duplicate prevention.
+    """
+    event_type = models.CharField(max_length=60)
+    channel = models.CharField(
+        max_length=20,
+        choices=CommunicationChannel.choices,
+        default=CommunicationChannel.EMAIL
+    )
+    recipient = models.CharField(max_length=255)
+    subject = models.CharField(max_length=255)
+    idempotency_key = models.CharField(max_length=150, unique=True)
+    status = models.CharField(
+        max_length=20,
+        choices=CommunicationStatus.choices,
+        default=CommunicationStatus.SENT
+    )
+    error_message = models.TextField(null=True, blank=True)
+    template_name = models.CharField(max_length=100, blank=True, default='')
+    context_snapshot = models.JSONField(default=dict, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'communication_logs'
+        verbose_name = 'Communication Log'
+        verbose_name_plural = 'Communication Logs'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['event_type', 'created_at'], name='idx_comm_event_created'),
+            models.Index(fields=['recipient', 'created_at'], name='idx_comm_recipient_date'),
+            models.Index(fields=['status'], name='idx_comm_status'),
+            models.Index(fields=['idempotency_key'], name='idx_comm_idempotency'),
+        ]
+
+    def __str__(self):
+        return f"[{self.status}] {self.event_type} -> {self.recipient} ({self.created_at})"
+

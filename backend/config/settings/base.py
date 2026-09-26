@@ -162,10 +162,18 @@ SIMPLE_JWT = {
     'JTI_CLAIM': 'jti',
 }
 
-# Password Reset Security Configuration
+# Password Reset & Customer Communication Configuration
 PASSWORD_RESET_TIMEOUT = 86400  # 24 hours in seconds
 EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@veepower.in')
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'localhost')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 't')
+EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'False').lower() in ('true', '1', 't')
+EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', 10))
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'Vee Power Electricals <noreply@veepower.in>')
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True

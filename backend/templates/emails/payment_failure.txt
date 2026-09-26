@@ -1,0 +1,16 @@
+Payment Attempt Failed for Order #{{ order_number }} - Vee Power Electricals
+
+Hello {{ customer_name }},
+
+We were unable to process your payment for Order #{{ order_number }}.
+
+Order Reference: #{{ order_number }}
+Payable Amount: ₹{{ amount }}
+{% if error_message %}Reason: {{ error_message }}{% endif %}
+
+Your order remains pending. You can retry payment anytime:
+{{ frontend_url }}/checkout
+
+---
+Vee Power Electricals Private Limited
+Coimbatore, Tamil Nadu, India | support@veepower.in

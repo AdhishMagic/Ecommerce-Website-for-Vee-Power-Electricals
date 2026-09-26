@@ -26,6 +26,12 @@ class ContactInquiryViewSet(viewsets.ModelViewSet):
             return ContactInquiryPublicSerializer
         return ContactInquiryAdminSerializer
 
+    def perform_create(self, serializer):
+        inquiry = serializer.save()
+        from apps.core.services.communication_service import CommunicationService
+        CommunicationService.send_inquiry_acknowledgement(inquiry)
+
+
     def get_queryset(self):
         qs = ContactInquiry.objects.all().order_by('-created_at')
         status_param = self.request.query_params.get('status')

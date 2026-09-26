@@ -43,6 +43,7 @@ const TrafficAnalytics = lazy(() => import("./pages/admin/TrafficAnalytics"));
 const Login = lazy(() => import("./pages/auth/Login"));
 const Register = lazy(() => import("./pages/auth/Register"));
 const ForgotPassword = lazy(() => import("./pages/auth/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/auth/ResetPassword"));
 
 import VeeElectricalsLoader from "./components/brand/VeeElectricalsLoader";
 
@@ -64,6 +65,7 @@ export default function App() {
                 <Route path="/admin/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
 
                 {/* Customer routes */}
                 <Route path="/" element={<CustomerLayout><Home /></CustomerLayout>} />

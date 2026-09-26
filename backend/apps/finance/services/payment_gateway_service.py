@@ -231,6 +231,16 @@ class PaymentGatewayService:
                 error_code="INVALID_SIGNATURE",
                 error_message="Cryptographic signature verification failed."
             )
+            fail_txn = PaymentTransaction.objects.filter(
+                order=order,
+                gateway_order_id=razorpay_order_id
+            ).first()
+            from apps.core.services.communication_service import CommunicationService
+            CommunicationService.send_payment_failure(
+                order=order,
+                transaction=fail_txn,
+                error_message="Cryptographic signature verification failed."
+            )
             raise ValidationError("Invalid payment signature.")
 
         with transaction.atomic():
@@ -289,6 +299,10 @@ class PaymentGatewayService:
             except Exception:
                 # Invoice generation should not block successful payment acknowledgement if already generated
                 pass
+
+            # Dispatch payment confirmation communication
+            from apps.core.services.communication_service import CommunicationService
+            CommunicationService.send_payment_confirmation(order=order, transaction=txn)
 
             return txn
 
@@ -396,6 +410,9 @@ class PaymentGatewayService:
             except Exception:
                 pass
 
+            from apps.core.services.communication_service import CommunicationService
+            CommunicationService.send_payment_confirmation(order=order, transaction=txn)
+
             return {"status": "success", "order_id": order.id}
 
         elif event == 'payment.failed':
@@ -412,6 +429,16 @@ class PaymentGatewayService:
                     error_code=error_code,
                     error_message=error_desc,
                 )
+                fail_txn = PaymentTransaction.objects.filter(
+                    gateway_order_id=razorpay_order_id
+                ).first()
+                if fail_txn and fail_txn.order:
+                    from apps.core.services.communication_service import CommunicationService
+                    CommunicationService.send_payment_failure(
+                        order=fail_txn.order,
+                        transaction=fail_txn,
+                        error_message=error_desc
+                    )
 
             return {"status": "failed_recorded"}
 

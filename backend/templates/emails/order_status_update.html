@@ -1,0 +1,51 @@
+{% extends "emails/base.html" %}
+
+{% block title %}Order Update: #{{ order_number }} ({{ status_display }}){% endblock %}
+
+{% block content %}
+<h2 style="margin: 0 0 16px 0; font-size: 18px; font-weight: 700; color: #17212B;">
+  Order Status Update: #{{ order_number }}
+</h2>
+<p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #334155;">
+  Hello {{ customer_name }},
+</p>
+<p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; color: #334155;">
+  Your order status has changed to:
+</p>
+
+<div style="background-color: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 8px; padding: 18px; margin-bottom: 24px;">
+  <p style="margin: 0 0 6px 0; font-size: 16px; font-weight: 700; color: #0369A1;">
+    {{ status_display }}
+  </p>
+  {% if tracking_number %}
+  <p style="margin: 0 0 4px 0; font-size: 13px; color: #0284C7;">
+    <strong>Tracking / AWB Number:</strong> {{ tracking_number }}
+  </p>
+  {% endif %}
+  {% if reason %}
+  <p style="margin: 0; font-size: 13px; color: #475569;">
+    <strong>Details:</strong> {{ reason }}
+  </p>
+  {% endif %}
+</div>
+
+{% if new_status == 'SHIPPED' %}
+<p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #334155;">
+  Your package has been dispatched from our central warehouse and is in transit with our logistics courier partner.
+</p>
+{% elif new_status == 'DELIVERED' %}
+<p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #334155;">
+  Your package has been successfully delivered. Please inspect the items upon receipt.
+</p>
+{% elif new_status == 'CANCELLED' %}
+<p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #334155;">
+  This order has been cancelled. Any reserved stock has been safely released back to available inventory.
+</p>
+{% endif %}
+
+<div style="text-align: center; margin: 28px 0 16px 0;">
+  <a href="{{ frontend_url }}/account/orders" style="display: inline-block; background-color: #1769AA; color: #FFFFFF; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 600;">
+    View Order in Account
+  </a>
+</div>
+{% endblock %}

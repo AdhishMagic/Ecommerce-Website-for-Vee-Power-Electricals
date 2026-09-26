@@ -1,0 +1,17 @@
+Inquiry Received: Ticket #{{ ticket_id }} - Vee Power Electricals
+
+Hello {{ customer_name }},
+
+Thank you for contacting Vee Power Electricals. We have received your inquiry regarding "{{ subject }}".
+
+Ticket Details:
+- Ticket #: {{ ticket_id }}
+- Subject: {{ subject }}
+- Phone: {{ phone }}
+- Status: New Ticket
+
+Our team typically responds within 1 business day.
+
+---
+Vee Power Electricals Private Limited
+Coimbatore, Tamil Nadu, India | support@veepower.in

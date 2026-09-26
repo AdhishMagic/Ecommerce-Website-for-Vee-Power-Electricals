@@ -1,0 +1,111 @@
+{% extends "emails/base.html" %}
+
+{% block title %}Order Confirmed: #{{ order_number }}{% endblock %}
+
+{% block content %}
+<div style="background-color: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+  <p style="margin: 0; font-size: 14px; font-weight: 600; color: #065F46;">
+    ✓ Order Confirmed: #{{ order_number }}
+  </p>
+</div>
+
+<h2 style="margin: 0 0 12px 0; font-size: 18px; font-weight: 700; color: #17212B;">
+  Thank you for your order, {{ customer_name }}!
+</h2>
+<p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; color: #334155;">
+  We are pleased to confirm your order. Our warehouse team is preparing your items for packaging and dispatch.
+</p>
+
+<!-- Order Summary Box -->
+<div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 20px; margin-bottom: 24px;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="font-size: 13px; color: #334155;">
+    <tr>
+      <td style="padding-bottom: 8px;"><strong>Order Number:</strong></td>
+      <td align="right" style="padding-bottom: 8px; font-weight: 600; color: #1769AA;">#{{ order_number }}</td>
+    </tr>
+    <tr>
+      <td style="padding-bottom: 8px;"><strong>Payment Method:</strong></td>
+      <td align="right" style="padding-bottom: 8px;">{{ payment_method }}</td>
+    </tr>
+    <tr>
+      <td style="padding-bottom: 8px;"><strong>Payment Status:</strong></td>
+      <td align="right" style="padding-bottom: 8px; font-weight: 600; color: #059669;">{{ payment_status }}</td>
+    </tr>
+  </table>
+</div>
+
+<!-- Order Items -->
+<h3 style="margin: 0 0 12px 0; font-size: 15px; font-weight: 600; color: #1E293B;">
+  Items Ordered
+</h3>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse: collapse; margin-bottom: 24px; font-size: 13px;">
+  <thead>
+    <tr style="border-bottom: 2px solid #E2E8F0; text-align: left; color: #64748B;">
+      <th style="padding: 8px 0;">Item</th>
+      <th align="center" style="padding: 8px;">Qty</th>
+      <th align="right" style="padding: 8px 0;">Amount</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in items %}
+    <tr style="border-bottom: 1px solid #F1F5F9;">
+      <td style="padding: 10px 0;">
+        <span style="font-weight: 600; color: #1E293B;">{{ item.product_name }}</span><br>
+        <span style="font-size: 11px; color: #64748B;">SKU: {{ item.sku }}</span>
+      </td>
+      <td align="center" style="padding: 10px 8px; color: #475569;">{{ item.quantity }}</td>
+      <td align="right" style="padding: 10px 0; font-weight: 600; color: #1E293B;">₹{{ item.total_amount }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<!-- Price Breakdown -->
+<div style="background-color: #F8FAFC; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="font-size: 13px; color: #475569;">
+    <tr>
+      <td style="padding-bottom: 6px;">Subtotal:</td>
+      <td align="right" style="padding-bottom: 6px;">₹{{ subtotal }}</td>
+    </tr>
+    {% if total_discount and total_discount != "0.00" %}
+    <tr>
+      <td style="padding-bottom: 6px; color: #059669;">Discounts Applied:</td>
+      <td align="right" style="padding-bottom: 6px; color: #059669;">-₹{{ total_discount }}</td>
+    </tr>
+    {% endif %}
+    <tr>
+      <td style="padding-bottom: 6px;">GST & Statutory Taxes:</td>
+      <td align="right" style="padding-bottom: 6px;">₹{{ tax_amount }}</td>
+    </tr>
+    <tr>
+      <td style="padding-bottom: 10px;">Shipping Fee:</td>
+      <td align="right" style="padding-bottom: 10px;">{% if shipping_fee == "0.00" %}FREE{% else %}₹{{ shipping_fee }}{% endif %}</td>
+    </tr>
+    <tr style="border-top: 1px solid #E2E8F0; font-size: 15px; font-weight: 700; color: #17212B;">
+      <td style="padding-top: 10px;">Total Paid:</td>
+      <td align="right" style="padding-top: 10px; color: #1769AA;">₹{{ total_amount }}</td>
+    </tr>
+  </table>
+</div>
+
+<!-- Shipping Address -->
+{% if shipping_address %}
+<div style="margin-bottom: 24px;">
+  <h4 style="margin: 0 0 6px 0; font-size: 13px; font-weight: 600; color: #475569; text-transform: uppercase;">
+    Shipping Address
+  </h4>
+  <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #334155;">
+    {{ shipping_address.recipient_name }}<br>
+    {{ shipping_address.address_line1 }}{% if shipping_address.address_line2 %}, {{ shipping_address.address_line2 }}{% endif %}<br>
+    {{ shipping_address.city }}, {{ shipping_address.state }} - {{ shipping_address.pincode }}<br>
+    Phone: {{ shipping_address.phone }}
+  </p>
+</div>
+{% endif %}
+
+<div style="text-align: center; margin-top: 28px;">
+  <a href="{{ frontend_url }}/account/orders" style="display: inline-block; background-color: #1769AA; color: #FFFFFF; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 600;">
+    Track Order Status
+  </a>
+</div>
+{% endblock %}

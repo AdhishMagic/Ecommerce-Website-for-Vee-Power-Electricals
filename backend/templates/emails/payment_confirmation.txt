@@ -1,0 +1,17 @@
+Payment Received for Order #{{ order_number }} - Vee Power Electricals
+
+Hello {{ customer_name }},
+
+We have received and verified your payment.
+
+Payment Details:
+- Order Number: #{{ order_number }}
+- Transaction ID: {{ transaction_id }}
+- Method: {{ payment_method }}
+- Amount: ₹{{ amount }}
+
+A statutory GST tax invoice has been generated for your purchase and is accessible in your account.
+
+---
+Vee Power Electricals Private Limited
+Coimbatore, Tamil Nadu, India | support@veepower.in

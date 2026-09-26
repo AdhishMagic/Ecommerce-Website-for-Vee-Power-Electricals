@@ -75,6 +75,10 @@ class QuotationViewSet(viewsets.ModelViewSet):
             )
         quotation.status = new_status
         quotation.save()
+
+        from apps.core.services.communication_service import CommunicationService
+        CommunicationService.send_quotation_notification(quotation=quotation, status_action=new_status)
+
         return Response(QuotationSerializer(quotation).data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], url_path='convert')

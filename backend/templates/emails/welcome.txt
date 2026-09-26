@@ -1,0 +1,15 @@
+Welcome to Vee Power Electricals, {{ customer_name }}!
+
+Your customer account has been created successfully. You now have full access to our curated catalog of industrial electrical switchgear, modular switches, power distribution units, and enterprise procurement tools.
+
+Account Overview:
+- Registered Email: {{ customer_email }}
+{% if customer_phone %}- Phone: {{ customer_phone }}{% endif %}
+
+Browse our catalog: {{ frontend_url }}/shop
+
+If you have any questions or need custom quotation assistance, contact us at support@veepower.in.
+
+---
+Vee Power Electricals Private Limited
+Coimbatore, Tamil Nadu, India | GSTIN: 33AAAAA0000A1Z5

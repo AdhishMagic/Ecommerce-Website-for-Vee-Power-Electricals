@@ -1,7 +1,6 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
-from django.core.mail import send_mail
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from rest_framework import status
@@ -10,6 +9,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
+
+from apps.core.services.communication_service import CommunicationService
 
 from .serializers import (
     LogoutSerializer,
@@ -35,6 +36,9 @@ class RegisterView(APIView):
         serializer = UserRegistrationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+
+        # Dispatch customer registration welcome communication
+        CommunicationService.send_registration_welcome(user)
 
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
@@ -184,22 +188,7 @@ class PasswordResetView(APIView):
         if user and user.is_active:
             uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
             token = default_token_generator.make_token(user)
-
-            subject = "Password Reset Request - Vee Power Electricals"
-            body = (
-                f"Hello {user.first_name or user.username},\n\n"
-                f"You requested a password reset for your Vee Power Electricals account.\n\n"
-                f"UID: {uidb64}\n"
-                f"Token: {token}\n\n"
-                f"If you did not make this request, please ignore this email.\n"
-            )
-            send_mail(
-                subject=subject,
-                message=body,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
-                fail_silently=False,
-            )
+            CommunicationService.send_password_reset(user, uidb64, token)
 
         return Response(
             {'message': 'If an account with this email exists, password reset instructions have been sent.'},

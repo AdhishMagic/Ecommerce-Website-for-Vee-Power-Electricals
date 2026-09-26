@@ -1,0 +1,25 @@
+Commercial Quotation #{{ quotation_number }} - Vee Power Electricals
+
+Quotation for {{ client_name }}
+Status: {{ status }}
+
+Details:
+- Quotation Number: {{ quotation_number }}
+- Issue Date: {{ quotation_date }}
+- Expiry Date: {{ expiry_date }}
+- Total Estimate: ₹{{ total_value }}
+
+{% if items %}
+Proposed Items:
+{% for item in items %}
+- {{ item.item_name }} x {{ item.quantity }} @ ₹{{ item.unit_price }}
+{% endfor %}
+{% endif %}
+
+{% if notes %}Terms: {{ notes }}{% endif %}
+
+Contact support@veepower.in for conversion or questions.
+
+---
+Vee Power Electricals Private Limited
+Coimbatore, Tamil Nadu, India | support@veepower.in

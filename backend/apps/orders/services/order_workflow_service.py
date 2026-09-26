@@ -94,7 +94,27 @@ class OrderWorkflowService:
             reason=reason or f"Order transitioned from {current_status} to {target_status}"
         )
 
+        # Authoritative customer communication dispatch
+        from apps.core.services.communication_service import CommunicationService
+        if target_status == OrderStatus.CONFIRMED:
+            CommunicationService.send_order_confirmation(order=order)
+        elif target_status in (
+            OrderStatus.SHIPPED,
+            OrderStatus.DELIVERED,
+            OrderStatus.CANCELLED,
+            OrderStatus.RETURN_REQUESTED,
+            OrderStatus.RETURN_APPROVED,
+            OrderStatus.RETURN_REJECTED,
+            OrderStatus.RETURN_COMPLETED,
+        ):
+            CommunicationService.send_order_status_update(
+                order=order,
+                new_status=target_status,
+                reason=reason or ''
+            )
+
         return order
+
 
     @classmethod
     @transaction.atomic

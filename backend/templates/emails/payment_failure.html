@@ -1,0 +1,48 @@
+{% extends "emails/base.html" %}
+
+{% block title %}Payment Failed: #{{ order_number }}{% endblock %}
+
+{% block content %}
+<div style="background-color: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+  <p style="margin: 0; font-size: 14px; font-weight: 600; color: #DC2626;">
+    ✕ Payment Transaction Unsuccessful
+  </p>
+</div>
+
+<h2 style="margin: 0 0 12px 0; font-size: 18px; font-weight: 700; color: #17212B;">
+  Payment Attempt Failed for Order #{{ order_number }}
+</h2>
+<p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; color: #334155;">
+  Hello {{ customer_name }}, we were unable to process your payment for Order <strong>#{{ order_number }}</strong>.
+</p>
+
+<!-- Failure Details -->
+<div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 20px; margin-bottom: 24px;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="font-size: 13px; color: #334155;">
+    <tr>
+      <td style="padding-bottom: 8px;"><strong>Order Reference:</strong></td>
+      <td align="right" style="padding-bottom: 8px; font-weight: 600; color: #1769AA;">#{{ order_number }}</td>
+    </tr>
+    <tr>
+      <td style="padding-bottom: 8px;"><strong>Payable Amount:</strong></td>
+      <td align="right" style="padding-bottom: 8px; font-weight: 600;">₹{{ amount }}</td>
+    </tr>
+    {% if error_message %}
+    <tr style="border-top: 1px solid #E2E8F0;">
+      <td style="padding-top: 8px; color: #DC2626;"><strong>Reason:</strong></td>
+      <td align="right" style="padding-top: 8px; color: #DC2626;">{{ error_message }}</td>
+    </tr>
+    {% endif %}
+  </table>
+</div>
+
+<p style="margin: 0 0 20px 0; font-size: 13px; line-height: 1.6; color: #475569;">
+  Your order remains in our system in pending payment status. You can retry paying using UPI, credit/debit card, or netbanking.
+</p>
+
+<div style="text-align: center; margin: 28px 0 16px 0;">
+  <a href="{{ frontend_url }}/checkout" style="display: inline-block; background-color: #1769AA; color: #FFFFFF; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 600;">
+    Retry Payment
+  </a>
+</div>
+{% endblock %}
