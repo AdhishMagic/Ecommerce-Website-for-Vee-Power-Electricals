@@ -27,22 +27,171 @@ from .serializers import (
 class ClientViewSet(viewsets.ModelViewSet):
     """
     Administrative management for B2B corporate buyers, builders, and contractors.
+    Strict RBAC enforced: Admin/Staff only.
     """
-    queryset = Client.objects.all().order_by('company_name')
+    queryset = Client.objects.prefetch_related('invoices', 'quotations').all().order_by('company_name', 'id')
     serializer_class = ClientSerializer
     permission_classes = [IsAdminUser]
 
     def get_queryset(self):
-        qs = Client.objects.all().order_by('company_name')
+        qs = Client.objects.prefetch_related('invoices', 'quotations').all().order_by('company_name', 'id')
         search = self.request.query_params.get('search') or self.request.query_params.get('q')
         if search:
+            search = search.strip()
             qs = qs.filter(
                 Q(company_name__icontains=search) |
                 Q(client_code__icontains=search) |
                 Q(gstin__icontains=search) |
-                Q(contact_person__icontains=search)
+                Q(contact_person__icontains=search) |
+                Q(email__icontains=search) |
+                Q(phone__icontains=search)
             )
+        is_active = self.request.query_params.get('is_active')
+        if is_active is not None:
+            if is_active.lower() in ['true', '1']:
+                qs = qs.filter(is_active=True)
+            elif is_active.lower() in ['false', '0']:
+                qs = qs.filter(is_active=False)
         return qs
+
+    @action(detail=True, methods=['get'], url_path='credit')
+    def credit_details(self, request, pk=None):
+        """
+        Returns authoritative real-time credit diagnosis for client.
+        """
+        client = self.get_object()
+        from apps.finance.services.credit_service import CreditService
+        credit_info = CreditService.check_credit_availability(client)
+        return Response(credit_info, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['patch', 'post'], url_path='credit-limit')
+    def adjust_credit_limit(self, request, pk=None):
+        """
+        Dedicated endpoint to update client credit limit with audit reason.
+        """
+        from decimal import Decimal
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        client = self.get_object()
+        new_limit = request.data.get('credit_limit')
+        if new_limit is None:
+            return Response({"detail": "credit_limit is required."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            new_limit = Decimal(str(new_limit))
+        except (ValueError, TypeError):
+            return Response({"detail": "Invalid credit limit value."}, status=status.HTTP_400_BAD_REQUEST)
+
+        reason = request.data.get('reason', '')
+        from apps.finance.services.credit_service import CreditService
+        try:
+            client = CreditService.record_credit_limit_change(
+                client=client,
+                new_limit=new_limit,
+                changed_by=request.user,
+                reason=reason,
+                ip_address=request.META.get('REMOTE_ADDR')
+            )
+            return Response(ClientSerializer(client, context={'request': request}).data, status=status.HTTP_200_OK)
+        except DjangoValidationError as e:
+            msg = e.message if hasattr(e, 'message') else str(e)
+            return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='deactivate')
+    def deactivate_client(self, request, pk=None):
+        """Deactivate a client account."""
+        client = self.get_object()
+        client.is_active = False
+        client.save(update_fields=['is_active', 'updated_at'])
+        from apps.core.models import AdminConfigAuditLog, AuditActionType
+        AdminConfigAuditLog.objects.create(
+            admin_user=request.user,
+            domain='client',
+            record_id=client.id,
+            action_type=AuditActionType.DEACTIVATE,
+            old_value={'is_active': True},
+            new_value={'is_active': False},
+            change_reason=request.data.get('reason', 'Client deactivated via API'),
+            ip_address=request.META.get('REMOTE_ADDR')
+        )
+        return Response(ClientSerializer(client, context={'request': request}).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='activate')
+    def activate_client(self, request, pk=None):
+        """Activate a client account."""
+        client = self.get_object()
+        client.is_active = True
+        client.save(update_fields=['is_active', 'updated_at'])
+        from apps.core.models import AdminConfigAuditLog, AuditActionType
+        AdminConfigAuditLog.objects.create(
+            admin_user=request.user,
+            domain='client',
+            record_id=client.id,
+            action_type=AuditActionType.UPDATE,
+            old_value={'is_active': False},
+            new_value={'is_active': True},
+            change_reason=request.data.get('reason', 'Client activated via API'),
+            ip_address=request.META.get('REMOTE_ADDR')
+        )
+        return Response(ClientSerializer(client, context={'request': request}).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'], url_path='quotations')
+    def client_quotations(self, request, pk=None):
+        """List all quotations associated with this client."""
+        client = self.get_object()
+        quotations = Quotation.objects.filter(client=client).select_related('created_by').prefetch_related('items__product').order_by('-created_at')
+        from .serializers import QuotationSerializer
+        page = self.paginate_queryset(quotations)
+        if page is not None:
+            serializer = QuotationSerializer(page, many=True, context={'request': request})
+            return self.get_paginated_response(serializer.data)
+        serializer = QuotationSerializer(quotations, many=True, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'], url_path='invoices')
+    def client_invoices(self, request, pk=None):
+        """List all invoices associated with this client."""
+        client = self.get_object()
+        invoices = Invoice.objects.filter(client=client).select_related('order', 'quotation').prefetch_related('items__product').order_by('-created_at')
+        from .serializers import InvoiceSerializer
+        page = self.paginate_queryset(invoices)
+        if page is not None:
+            serializer = InvoiceSerializer(page, many=True, context={'request': request})
+            return self.get_paginated_response(serializer.data)
+        serializer = InvoiceSerializer(invoices, many=True, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'], url_path='payments')
+    def client_payments(self, request, pk=None):
+        """List all payments associated with this client's invoices."""
+        client = self.get_object()
+        payments = PaymentTransaction.objects.filter(invoice__client=client).select_related('invoice', 'order').order_by('-created_at')
+        from .serializers import PaymentTransactionSerializer
+        page = self.paginate_queryset(payments)
+        if page is not None:
+            serializer = PaymentTransactionSerializer(page, many=True, context={'request': request})
+            return self.get_paginated_response(serializer.data)
+        serializer = PaymentTransactionSerializer(payments, many=True, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'], url_path='audit-history')
+    def client_audit_history(self, request, pk=None):
+        """List credit limit and administrative audit trail for this client."""
+        client = self.get_object()
+        from apps.core.models import AdminConfigAuditLog
+        logs = AdminConfigAuditLog.objects.filter(
+            domain__in=['client', 'client_credit'],
+            record_id=client.id
+        ).select_related('admin_user').order_by('-created_at')
+        data = [{
+            'id': log.id,
+            'domain': log.domain,
+            'action_type': log.action_type,
+            'old_value': log.old_value,
+            'new_value': log.new_value,
+            'change_reason': log.change_reason,
+            'admin_user': log.admin_user.email if log.admin_user else 'System',
+            'created_at': log.created_at.isoformat(),
+        } for log in logs]
+        return Response(data, status=status.HTTP_200_OK)
 
 
 class QuotationViewSet(viewsets.ModelViewSet):

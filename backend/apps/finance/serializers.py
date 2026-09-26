@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 from rest_framework import serializers
 from .models import (
@@ -10,21 +11,143 @@ from .models import (
     PayoutSettlement,
     QuotationStatus,
     InvoiceStatus,
+    PaymentTxStatus,
     Expense,
     ExpenseCategory,
     ExpenseStatus,
+    GST_STATE_CODES,
 )
 
 
 class ClientSerializer(serializers.ModelSerializer):
+    pan = serializers.CharField(read_only=True)
+    state = serializers.CharField(read_only=True)
+    state_code = serializers.CharField(read_only=True)
+    customer_type = serializers.CharField(read_only=True, default='CORPORATE')
+    billing_address = serializers.CharField(source='address', required=False, allow_blank=True, allow_null=True)
+    shipping_address = serializers.CharField(source='address', read_only=True)
+    credit_exposure = serializers.SerializerMethodField()
+    available_credit = serializers.SerializerMethodField()
+    total_invoiced = serializers.SerializerMethodField()
+
     class Meta:
         model = Client
         fields = [
             'id', 'client_code', 'company_name', 'contact_person',
-            'gstin', 'email', 'phone', 'credit_limit', 'address',
-            'is_active', 'created_at', 'updated_at'
+            'gstin', 'pan', 'state', 'state_code', 'customer_type',
+            'email', 'phone', 'credit_limit', 'credit_exposure',
+            'available_credit', 'total_invoiced', 'address',
+            'billing_address', 'shipping_address', 'is_active',
+            'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'pan', 'state', 'state_code', 'customer_type',
+            'credit_exposure', 'available_credit', 'total_invoiced',
+            'shipping_address', 'created_at', 'updated_at'
+        ]
+        extra_kwargs = {
+            'client_code': {'required': False},
+        }
+
+    def get_credit_exposure(self, obj) -> str:
+        from apps.finance.services.credit_service import CreditService
+        return str(CreditService.get_outstanding_exposure(obj))
+
+    def get_available_credit(self, obj) -> str:
+        from apps.finance.services.credit_service import CreditService
+        return str(CreditService.get_available_credit(obj))
+
+    def get_total_invoiced(self, obj) -> str:
+        from django.db.models import Sum
+        total = obj.invoices.exclude(status=InvoiceStatus.CANCELLED).aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
+        return str(total.quantize(Decimal('0.01')))
+
+    def validate_credit_limit(self, value):
+        if value < Decimal('0.00'):
+            raise serializers.ValidationError("Credit limit cannot be negative.")
+        return value
+
+    def validate_gstin(self, value):
+        val = value.upper().strip()
+        if not re.match(r'^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$', val):
+            raise serializers.ValidationError("GSTIN must conform to 15-character Indian statutory format.")
+        if val[:2] not in GST_STATE_CODES:
+            raise serializers.ValidationError(f"Invalid GST state code '{val[:2]}'.")
+
+        qs = Client.objects.filter(gstin=val)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError(f"Client with GSTIN '{val}' already exists.")
+        return val
+
+    def validate_client_code(self, value):
+        if not value:
+            return value
+        val = value.upper().strip()
+        qs = Client.objects.filter(client_code=val)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError(f"Client code '{val}' is already registered.")
+        return val
+
+    def create(self, validated_data):
+        client = super().create(validated_data)
+        from apps.core.models import AdminConfigAuditLog, AuditActionType
+        request = self.context.get('request')
+        user = request.user if request and request.user.is_authenticated else None
+        ip = request.META.get('REMOTE_ADDR') if request else None
+        AdminConfigAuditLog.objects.create(
+            admin_user=user,
+            domain='client_credit',
+            record_id=client.id,
+            action_type=AuditActionType.CREATE,
+            old_value={'credit_limit': '0.00'},
+            new_value={'credit_limit': str(client.credit_limit)},
+            change_reason="Client created with initial credit limit",
+            ip_address=ip,
+        )
+        return client
+
+    def update(self, instance, validated_data):
+        old_limit = instance.credit_limit
+        old_active = instance.is_active
+        client = super().update(instance, validated_data)
+
+        request = self.context.get('request')
+        user = request.user if request and request.user.is_authenticated else None
+        ip = request.META.get('REMOTE_ADDR') if request else None
+
+        from apps.core.models import AdminConfigAuditLog, AuditActionType
+        if 'credit_limit' in validated_data and old_limit != client.credit_limit:
+            reason = validated_data.get('reason') or (request.data.get('reason') if request else '') or f"Credit limit modified from ₹{old_limit} to ₹{client.credit_limit}"
+            AdminConfigAuditLog.objects.create(
+                admin_user=user,
+                domain='client_credit',
+                record_id=client.id,
+                action_type=AuditActionType.UPDATE,
+                old_value={'credit_limit': str(old_limit)},
+                new_value={'credit_limit': str(client.credit_limit)},
+                change_reason=reason,
+                ip_address=ip,
+            )
+
+        if 'is_active' in validated_data and old_active != client.is_active:
+            action = AuditActionType.UPDATE if client.is_active else AuditActionType.DEACTIVATE
+            reason = validated_data.get('reason') or (request.data.get('reason') if request else '') or (f"Client {'activated' if client.is_active else 'deactivated'}")
+            AdminConfigAuditLog.objects.create(
+                admin_user=user,
+                domain='client',
+                record_id=client.id,
+                action_type=action,
+                old_value={'is_active': old_active},
+                new_value={'is_active': client.is_active},
+                change_reason=reason,
+                ip_address=ip,
+            )
+
+        return client
 
 
 class QuotationItemSerializer(serializers.ModelSerializer):
@@ -168,6 +291,21 @@ class InvoiceSerializer(serializers.ModelSerializer):
             validated_data['total_amount'] = subtotal + tax_amount
         if not validated_data.get('taxable_amount'):
             validated_data['taxable_amount'] = subtotal
+
+        client = validated_data.get('client')
+        inv_status = validated_data.get('status', InvoiceStatus.UNPAID)
+        total_amt = validated_data.get('total_amount', Decimal('0.00'))
+        if client and inv_status in [InvoiceStatus.UNPAID, InvoiceStatus.OVERDUE]:
+            if not client.is_active:
+                raise serializers.ValidationError(f"Cannot create invoice for inactive client {client.company_name}.")
+            if client.credit_limit > Decimal('0.00'):
+                from apps.finance.services.credit_service import CreditService
+                from django.core.exceptions import ValidationError as DjangoValidationError
+                try:
+                    CreditService.validate_credit_limit(client, additional_amount=total_amt, lock_client=True)
+                except DjangoValidationError as e:
+                    msg = e.message if hasattr(e, 'message') else str(e)
+                    raise serializers.ValidationError({"credit_limit": msg})
 
         return super().create(validated_data)
 

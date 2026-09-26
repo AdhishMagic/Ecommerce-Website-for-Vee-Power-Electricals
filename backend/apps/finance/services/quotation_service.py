@@ -52,6 +52,14 @@ class QuotationService:
                 "Direct transition to CONVERTED is not allowed. Use convert_quotation_to_invoice."
             )
 
+        # Validate client active state and credit availability on approval
+        if target_status == QuotationStatus.APPROVED:
+            client = quotation.client
+            if not client.is_active:
+                raise ValidationError(f"Cannot approve quotation for inactive client {client.company_name} ({client.client_code}).")
+            if client.credit_limit > 0:
+                CreditService.validate_credit_limit(client, additional_amount=quotation.total_value, lock_client=True)
+
         quotation.status = target_status
         if reason:
             if quotation.notes:
@@ -102,8 +110,11 @@ class QuotationService:
 
         # 4. B2B Client Credit Limit Check
         client = quotation.client
-        if client and client.credit_limit > 0:
-            CreditService.validate_credit_limit(client, additional_amount=quotation.total_value)
+        if client:
+            if not client.is_active:
+                raise ValidationError(f"Cannot convert quotation for inactive client {client.company_name} ({client.client_code}).")
+            if client.credit_limit > 0:
+                CreditService.validate_credit_limit(client, additional_amount=quotation.total_value, lock_client=True)
 
         # 5. Create Invoice via InvoiceService
         invoice = InvoiceService.create_invoice_for_quotation(

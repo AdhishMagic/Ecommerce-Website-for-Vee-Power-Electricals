@@ -55,6 +55,49 @@ class SettlementStatus(models.TextChoices):
     FAILED = 'Failed', 'Failed'
 
 
+GST_STATE_CODES = {
+    '01': 'Jammu and Kashmir',
+    '02': 'Himachal Pradesh',
+    '03': 'Punjab',
+    '04': 'Chandigarh',
+    '05': 'Uttarakhand',
+    '06': 'Haryana',
+    '07': 'Delhi',
+    '08': 'Rajasthan',
+    '09': 'Uttar Pradesh',
+    '10': 'Bihar',
+    '11': 'Sikkim',
+    '12': 'Arunachal Pradesh',
+    '13': 'Nagaland',
+    '14': 'Manipur',
+    '15': 'Mizoram',
+    '16': 'Tripura',
+    '17': 'Meghalaya',
+    '18': 'Assam',
+    '19': 'West Bengal',
+    '20': 'Jharkhand',
+    '21': 'Odisha',
+    '22': 'Chhattisgarh',
+    '23': 'Madhya Pradesh',
+    '24': 'Gujarat',
+    '25': 'Daman and Diu',
+    '26': 'Dadra and Nagar Haveli and Daman and Diu',
+    '27': 'Maharashtra',
+    '28': 'Andhra Pradesh',
+    '29': 'Karnataka',
+    '30': 'Goa',
+    '31': 'Lakshadweep',
+    '32': 'Kerala',
+    '33': 'Tamil Nadu',
+    '34': 'Puducherry',
+    '35': 'Andaman and Nicobar Islands',
+    '36': 'Telangana',
+    '37': 'Andhra Pradesh',
+    '38': 'Ladakh',
+    '97': 'Other Territory',
+}
+
+
 class Client(TimeStampedModel):
     """
     B2B corporate buyers, building contractors, and credit accounts.
@@ -81,18 +124,67 @@ class Client(TimeStampedModel):
             ),
         ]
 
+    @property
+    def pan(self) -> str:
+        """Extract statutory Permanent Account Number (PAN) from GSTIN (characters 3 to 12)."""
+        if self.gstin and len(self.gstin) >= 12:
+            return self.gstin[2:12].upper()
+        return ''
+
+    @property
+    def state_code(self) -> str:
+        """Extract 2-digit GST state code from GSTIN."""
+        if self.gstin and len(self.gstin) >= 2:
+            return self.gstin[:2]
+        return ''
+
+    @property
+    def state(self) -> str:
+        """Statutory state name derived from GST state code."""
+        return GST_STATE_CODES.get(self.state_code, '')
+
+    @property
+    def billing_address(self) -> str:
+        return self.address or ''
+
+    @property
+    def shipping_address(self) -> str:
+        return self.address or ''
+
+    @property
+    def customer_type(self) -> str:
+        return 'CORPORATE'
+
+    @property
+    def credit_exposure(self) -> Decimal:
+        from apps.finance.services.credit_service import CreditService
+        return CreditService.get_outstanding_exposure(self)
+
+    @property
+    def available_credit(self) -> Decimal:
+        from apps.finance.services.credit_service import CreditService
+        return CreditService.get_available_credit(self)
+
     def clean(self):
         super().clean()
+        if self.credit_limit is not None and self.credit_limit < Decimal('0.00'):
+            raise ValidationError({'credit_limit': 'Credit limit cannot be negative.'})
         if self.gstin:
             self.gstin = self.gstin.upper().strip()
             if not re.match(r'^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$', self.gstin):
                 raise ValidationError({'gstin': 'GSTIN must conform to 15-character Indian statutory format.'})
+            if self.gstin[:2] not in GST_STATE_CODES:
+                raise ValidationError({'gstin': f"Invalid GST state code '{self.gstin[:2]}'."})
 
     def save(self, *args, **kwargs):
         if self.client_code:
             self.client_code = self.client_code.upper().strip()
         if self.gstin:
             self.gstin = self.gstin.upper().strip()
+        if self.company_name:
+            self.company_name = self.company_name.strip()
+        if self.contact_person:
+            self.contact_person = self.contact_person.strip()
         super().save(*args, **kwargs)
 
     def __str__(self):
