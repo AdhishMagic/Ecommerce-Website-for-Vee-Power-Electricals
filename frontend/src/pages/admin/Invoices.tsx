@@ -59,13 +59,25 @@ export default function InvoicesPage() {
     fetchInvoices();
   }, []);
 
-  const handleGenerateInvoice = (data: Partial<Invoice>) => {
-    const newInvoice: Invoice = {
-      id: `INV-2026-${String(100 + invoices.length + 1)}`,
-      ...data
-    } as Invoice;
-    setInvoices([newInvoice, ...invoices]);
-    setIsGenerateModalOpen(false);
+  const handleGenerateInvoice = async (data: Partial<Invoice>) => {
+    try {
+      if (data.clientId) {
+        await financeApi.createInvoice({
+          client: data.clientId,
+          invoice_date: data.date,
+          due_date: data.dueDate,
+          notes: data.notes,
+          subtotal: data.subtotal,
+          tax_amount: data.taxAmount,
+          total_amount: data.amount,
+        });
+      }
+      setIsGenerateModalOpen(false);
+      await fetchInvoices();
+    } catch (err: any) {
+      console.error("Failed to generate invoice:", err);
+      alert(err?.message || "Failed to generate invoice.");
+    }
   };
 
   const handleMarkAsPaid = async (invoice: Invoice & { rawId?: number | string }) => {

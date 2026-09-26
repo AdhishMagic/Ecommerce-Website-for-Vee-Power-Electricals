@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { FileText, Clock, CheckCircle2, IndianRupee, Plus, Download, Edit, ArrowRightCircle } from "lucide-react";
+import { FileText, Clock, CheckCircle2, IndianRupee, Plus, Download, Edit, ArrowRightCircle, Send, XCircle } from "lucide-react";
 import QuotationModal, { Quotation } from "../../components/admin/QuotationModal";
 import QuotationPrintModal from "../../components/admin/QuotationPrintModal";
 import { financeApi } from "../../api/finance";
@@ -31,10 +31,12 @@ export default function QuotationsPage() {
         id: q.quotation_number || `QT-${q.id}`,
         rawId: q.id,
         client: q.client_name || `Client #${q.client}`,
+        clientId: q.client,
         date: q.quotation_date || '',
         expiry: q.expiry_date || '',
         value: Number(q.total_value || 0),
         status: (q.status === 'APPROVED' ? 'Approved' : q.status === 'REJECTED' ? 'Rejected' : q.status === 'CONVERTED' ? 'Converted' : q.status === 'SENT' ? 'Sent' : 'Draft') as any,
+        notes: q.notes || '',
         items: (q.items || []).map((it: any) => ({
           id: String(it.id),
           product: it.product_name || it.item_name || 'Item',
@@ -69,6 +71,17 @@ export default function QuotationsPage() {
     setPrintingQuote(quote);
   };
 
+  const handleUpdateStatus = async (quote: Quotation & { rawId?: number | string }, newStatus: string) => {
+    try {
+      const targetId = quote.rawId || quote.id;
+      await financeApi.updateQuotationStatus(String(targetId), newStatus);
+      await fetchQuotations();
+    } catch (err: any) {
+      console.error(`Failed to update quotation to ${newStatus}:`, err);
+      alert(err?.message || `Failed to update quotation status to ${newStatus}.`);
+    }
+  };
+
   const handleConvertToInvoice = async (quote: Quotation & { rawId?: number | string }) => {
     if (window.confirm(`Convert Quotation ${quote.id} to an Invoice?`)) {
       try {
@@ -83,18 +96,31 @@ export default function QuotationsPage() {
     }
   };
 
-  const handleModalSubmit = (data: Partial<Quotation>) => {
-    if (editingQuote) {
-      setQuotes(quotes.map(q => q.id === editingQuote.id ? { ...q, ...data } as any : q));
-    } else {
-      const newQuote: Quotation = {
-        id: `QT-2026-${String(quotes.length + 1).padStart(3, '0')}`,
-        date: new Date().toISOString().split('T')[0],
-        ...data
-      } as Quotation;
-      setQuotes([newQuote, ...quotes]);
+  const handleModalSubmit = async (data: Partial<Quotation>) => {
+    try {
+      if (editingQuote && editingQuote.rawId) {
+        await financeApi.updateQuotation(editingQuote.rawId, {
+          notes: data.notes,
+          expiry_date: data.expiry,
+        });
+      } else {
+        await financeApi.createQuotation({
+          client: (data as any).clientId || data.client,
+          expiry_date: data.expiry,
+          notes: data.notes,
+          items: (data.items || []).map(i => ({
+            item_name: i.product,
+            quantity: i.quantity,
+            unit_price: i.price,
+          })),
+        });
+      }
+      setIsModalOpen(false);
+      await fetchQuotations();
+    } catch (err: any) {
+      console.error("Failed to save quotation:", err);
+      alert(err?.message || "Failed to save quotation.");
     }
-    setIsModalOpen(false);
   };
 
   const filteredQuotes = statusFilter === "All" 
@@ -189,9 +215,26 @@ export default function QuotationsPage() {
                       <button onClick={() => handleDownloadPDF(quote)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Download PDF">
                         <Download className="w-4 h-4" />
                       </button>
-                      <button onClick={() => handleEditQuotation(quote)} className="p-1.5 text-slate-400 hover:text-[#0A2540] hover:bg-slate-100 rounded transition-colors" title="Edit">
-                        <Edit className="w-4 h-4" />
-                      </button>
+                      {(quote.status === "Draft" || quote.status === "Sent") && (
+                        <button onClick={() => handleEditQuotation(quote)} className="p-1.5 text-slate-400 hover:text-[#0A2540] hover:bg-slate-100 rounded transition-colors" title="Edit">
+                          <Edit className="w-4 h-4" />
+                        </button>
+                      )}
+                      {quote.status === "Draft" && (
+                        <button onClick={() => handleUpdateStatus(quote, "SENT")} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Send Quotation">
+                          <Send className="w-4 h-4" />
+                        </button>
+                      )}
+                      {quote.status === "Sent" && (
+                        <>
+                          <button onClick={() => handleUpdateStatus(quote, "APPROVED")} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="Approve Quotation">
+                            <CheckCircle2 className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => handleUpdateStatus(quote, "REJECTED")} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Reject Quotation">
+                            <XCircle className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
                       {quote.status === "Approved" && (
                         <button onClick={() => handleConvertToInvoice(quote)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="Convert to Invoice">
                           <ArrowRightCircle className="w-4 h-4" />

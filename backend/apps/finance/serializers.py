@@ -53,6 +53,59 @@ class QuotationSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'quotation_number': {'required': False},
+            'quotation_date': {'required': False},
+            'expiry_date': {'required': False},
+        }
+
+    def create(self, validated_data):
+        from django.utils import timezone
+        import datetime
+        if not validated_data.get('quotation_date'):
+            validated_data['quotation_date'] = timezone.now().date()
+        if not validated_data.get('expiry_date'):
+            validated_data['expiry_date'] = validated_data['quotation_date'] + datetime.timedelta(days=30)
+        if not validated_data.get('quotation_number'):
+            year = validated_data['quotation_date'].year
+            count = Quotation.objects.filter(quotation_number__startswith=f"QUO-{year}").count() + 1
+            num = f"QUO-{year}-{count:04d}"
+            while Quotation.objects.filter(quotation_number=num).exists():
+                count += 1
+                num = f"QUO-{year}-{count:04d}"
+            validated_data['quotation_number'] = num
+
+        items_data = self.initial_data.get('items', [])
+        items_to_create = []
+        if items_data and isinstance(items_data, list):
+            calculated_total = Decimal('0.00')
+            from apps.products.models import Product
+            for item in items_data:
+                product_id = item.get('product') or item.get('product_id')
+                product_obj = None
+                if product_id:
+                    try:
+                        product_obj = Product.objects.get(pk=product_id)
+                    except Product.DoesNotExist:
+                        product_obj = None
+                item_name = item.get('item_name') or item.get('product_name') or (product_obj.name if product_obj else 'Item')
+                quantity = int(item.get('quantity', 1))
+                unit_price = Decimal(str(item.get('unit_price') or item.get('price') or (product_obj.price if product_obj else 0)))
+                subtotal = unit_price * quantity
+                calculated_total += subtotal
+                items_to_create.append({
+                    'product': product_obj,
+                    'item_name': item_name,
+                    'quantity': quantity,
+                    'unit_price': unit_price,
+                    'subtotal': subtotal,
+                })
+            validated_data['total_value'] = calculated_total
+
+        quotation = super().create(validated_data)
+        for it in items_to_create:
+            QuotationItem.objects.create(quotation=quotation, **it)
+        return quotation
 
 
 class InvoiceItemSerializer(serializers.ModelSerializer):
@@ -85,6 +138,38 @@ class InvoiceSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'invoice_number': {'required': False},
+            'invoice_date': {'required': False},
+            'due_date': {'required': False},
+            'subtotal': {'required': False},
+            'taxable_amount': {'required': False},
+            'total_amount': {'required': False},
+        }
+
+    def create(self, validated_data):
+        from apps.finance.services.invoice_service import InvoiceService
+        from django.utils import timezone
+        import datetime
+        invoice_date = validated_data.get('invoice_date') or timezone.now().date()
+        validated_data['invoice_date'] = invoice_date
+        if not validated_data.get('due_date'):
+            validated_data['due_date'] = invoice_date + datetime.timedelta(days=30)
+        if not validated_data.get('invoice_number'):
+            validated_data['invoice_number'] = InvoiceService.generate_invoice_number(invoice_date)
+            while Invoice.objects.filter(invoice_number=validated_data['invoice_number']).exists():
+                seq_part = int(validated_data['invoice_number'].split('-')[-1]) + 1
+                year_part = validated_data['invoice_number'].split('-')[1]
+                validated_data['invoice_number'] = f"INV-{year_part}-{seq_part:04d}"
+
+        subtotal = validated_data.get('subtotal', Decimal('0.00'))
+        tax_amount = validated_data.get('tax_amount', Decimal('0.00'))
+        if not validated_data.get('total_amount'):
+            validated_data['total_amount'] = subtotal + tax_amount
+        if not validated_data.get('taxable_amount'):
+            validated_data['taxable_amount'] = subtotal
+
+        return super().create(validated_data)
 
 
 class PaymentTransactionSerializer(serializers.ModelSerializer):

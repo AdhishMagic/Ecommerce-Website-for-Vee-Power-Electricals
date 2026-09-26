@@ -158,11 +158,17 @@ class InvoiceService:
         if not due_date:
             due_date = invoice_date + datetime.timedelta(days=30)
 
+        # Idempotency guard: Return existing invoice for quotation if already generated
+        existing = Invoice.objects.filter(quotation=quotation).first()
+        if existing:
+            return existing
+
         invoice_number = cls.generate_invoice_number(invoice_date)
         while Invoice.objects.filter(invoice_number=invoice_number).exists():
             seq_part = int(invoice_number.split('-')[-1]) + 1
             year_part = invoice_number.split('-')[1]
             invoice_number = f"INV-{year_part}-{seq_part:04d}"
+
 
         # Determine tax split based on client GSTIN or state
         # GSTIN starting with '33' is Tamil Nadu (Intra-state)

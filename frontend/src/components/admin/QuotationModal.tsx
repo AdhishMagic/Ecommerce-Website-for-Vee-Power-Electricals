@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { X, Plus, Trash2 } from "lucide-react";
+import { financeApi } from "../../api/finance";
 
 interface QuotationItem {
   id: string; // local id for list rendering
@@ -11,6 +12,7 @@ interface QuotationItem {
 export interface Quotation {
   id: string;
   client: string;
+  clientId?: number | string;
   date: string;
   expiry: string;
   value: number;
@@ -28,19 +30,27 @@ interface QuotationModalProps {
 
 export default function QuotationModal({ isOpen, onClose, onSubmit, initialData }: QuotationModalProps) {
   const [client, setClient] = useState("");
+  const [clientId, setClientId] = useState<number | string>("");
+  const [clientList, setClientList] = useState<any[]>([]);
   const [expiry, setExpiry] = useState("");
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<QuotationItem[]>([{ id: Date.now().toString(), product: "", quantity: 1, price: 0 }]);
 
   useEffect(() => {
     if (isOpen) {
+      financeApi.getClients().then(res => {
+        setClientList(res || []);
+      }).catch(console.error);
+
       if (initialData) {
         setClient(initialData.client || "");
+        setClientId(initialData.clientId || "");
         setExpiry(initialData.expiry || "");
         setNotes(initialData.notes || "");
         setItems(initialData.items?.length ? initialData.items : [{ id: Date.now().toString(), product: "", quantity: 1, price: 0 }]);
       } else {
         setClient("");
+        setClientId("");
         setExpiry("");
         setNotes("");
         setItems([{ id: Date.now().toString(), product: "", quantity: 1, price: 0 }]);
@@ -71,6 +81,7 @@ export default function QuotationModal({ isOpen, onClose, onSubmit, initialData 
     e.preventDefault();
     onSubmit({
       client,
+      clientId,
       expiry,
       notes,
       items,
@@ -92,15 +103,41 @@ export default function QuotationModal({ isOpen, onClose, onSubmit, initialData 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Client Name</label>
-              <input 
-                type="text" 
-                required
-                value={client} 
-                onChange={e => setClient(e.target.value)}
-                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-[#0A2540] text-sm"
-                placeholder="Enter client name"
-              />
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Client Selection</label>
+              {clientList.length > 0 ? (
+                <select
+                  required
+                  value={clientId ? String(clientId) : client}
+                  onChange={e => {
+                    const val = e.target.value;
+                    const found = clientList.find(c => String(c.id) === val);
+                    if (found) {
+                      setClientId(found.id);
+                      setClient(found.company_name);
+                    } else {
+                      setClientId("");
+                      setClient(val);
+                    }
+                  }}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-[#0A2540] text-sm"
+                >
+                  <option value="">Select a client...</option>
+                  {clientList.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.company_name} ({c.client_code || c.gstin})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input 
+                  type="text" 
+                  required
+                  value={client} 
+                  onChange={e => setClient(e.target.value)}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-[#0A2540] text-sm"
+                  placeholder="Enter client name"
+                />
+              )}
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">Expiry Date</label>

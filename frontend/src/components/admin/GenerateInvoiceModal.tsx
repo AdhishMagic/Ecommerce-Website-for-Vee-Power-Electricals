@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { X, Plus, Trash2, IndianRupee } from "lucide-react";
 
+import { financeApi } from "../../api/finance";
+
 export interface InvoiceItem {
   id: string;
   product: string;
@@ -13,6 +15,7 @@ export interface Invoice {
   id: string;
   orderId: string;
   client: string;
+  clientId?: number | string;
   date: string;
   dueDate: string;
   amount: number;
@@ -31,6 +34,8 @@ interface GenerateInvoiceModalProps {
 
 export default function GenerateInvoiceModal({ isOpen, onClose, onSubmit }: GenerateInvoiceModalProps) {
   const [client, setClient] = useState("");
+  const [clientId, setClientId] = useState<number | string>("");
+  const [clientList, setClientList] = useState<any[]>([]);
   const [orderId, setOrderId] = useState("");
   const [date, setDate] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -41,7 +46,12 @@ export default function GenerateInvoiceModal({ isOpen, onClose, onSubmit }: Gene
 
   useEffect(() => {
     if (isOpen) {
+      financeApi.getClients().then(res => {
+        setClientList(res || []);
+      }).catch(console.error);
+
       setClient("");
+      setClientId("");
       setOrderId("");
       setDate(new Date().toISOString().split("T")[0]);
       setDueDate("");
@@ -74,6 +84,7 @@ export default function GenerateInvoiceModal({ isOpen, onClose, onSubmit }: Gene
     e.preventDefault();
     onSubmit({
       client,
+      clientId,
       orderId,
       date,
       dueDate,
@@ -105,16 +116,26 @@ export default function GenerateInvoiceModal({ isOpen, onClose, onSubmit }: Gene
               <label className="block text-sm font-semibold text-slate-700 mb-2">Client Selection</label>
               <select 
                 required
-                value={client}
-                onChange={e => setClient(e.target.value)}
+                value={clientId ? String(clientId) : client}
+                onChange={e => {
+                  const val = e.target.value;
+                  const found = clientList.find(c => String(c.id) === val);
+                  if (found) {
+                    setClientId(found.id);
+                    setClient(found.company_name);
+                  } else {
+                    setClientId("");
+                    setClient(val);
+                  }
+                }}
                 className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-[#0A2540] text-sm"
               >
                 <option value="">Select a client...</option>
-                <option value="L&T Construction">L&T Construction</option>
-                <option value="Tata Projects">Tata Projects</option>
-                <option value="Reliance Retail">Reliance Retail</option>
-                <option value="Godrej Properties">Godrej Properties</option>
-                <option value="Walk-in Customer">Walk-in Customer</option>
+                {clientList.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.company_name} ({c.client_code || c.gstin})
+                  </option>
+                ))}
               </select>
             </div>
             <div>

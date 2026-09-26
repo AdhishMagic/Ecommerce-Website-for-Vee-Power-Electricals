@@ -49,12 +49,12 @@ class QuotationViewSet(viewsets.ModelViewSet):
     """
     Administrative commercial quotations and estimates.
     """
-    queryset = Quotation.objects.select_related('client').prefetch_related('items').all().order_by('-created_at')
+    queryset = Quotation.objects.select_related('client', 'created_by').prefetch_related('items__product').all().order_by('-created_at')
     serializer_class = QuotationSerializer
     permission_classes = [IsAdminUser]
 
     def get_queryset(self):
-        qs = Quotation.objects.select_related('client').prefetch_related('items').all().order_by('-created_at')
+        qs = Quotation.objects.select_related('client', 'created_by').prefetch_related('items__product').all().order_by('-created_at')
         client_id = self.request.query_params.get('client') or self.request.query_params.get('client_id')
         if client_id:
             qs = qs.filter(client_id=client_id)
@@ -64,22 +64,50 @@ class QuotationViewSet(viewsets.ModelViewSet):
             qs = qs.filter(status=status_param)
         return qs
 
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+    def update(self, request, *args, **kwargs):
+        quotation = self.get_object()
+        if quotation.status in [QuotationStatus.APPROVED, QuotationStatus.CONVERTED]:
+            return Response(
+                {"detail": f"Cannot modify quotation #{quotation.quotation_number} in '{quotation.status}' status."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        quotation = self.get_object()
+        if quotation.status in [QuotationStatus.APPROVED, QuotationStatus.CONVERTED]:
+            return Response(
+                {"detail": f"Cannot delete quotation #{quotation.quotation_number} in '{quotation.status}' status."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return super().destroy(request, *args, **kwargs)
+
     @action(detail=True, methods=['patch'], url_path='status')
     def update_status(self, request, pk=None):
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from apps.finance.services import QuotationService
+
         quotation = self.get_object()
         new_status = request.data.get('status')
-        if new_status not in [s.value for s in QuotationStatus]:
+        if not new_status or new_status not in [s.value for s in QuotationStatus]:
             return Response(
                 {"detail": f"Invalid quotation status. Valid choices are: {[s.value for s in QuotationStatus]}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        quotation.status = new_status
-        quotation.save()
-
-        from apps.core.services.communication_service import CommunicationService
-        CommunicationService.send_quotation_notification(quotation=quotation, status_action=new_status)
-
-        return Response(QuotationSerializer(quotation).data, status=status.HTTP_200_OK)
+        try:
+            quotation = QuotationService.transition_status(
+                quotation_id=quotation.id,
+                target_status=new_status,
+                changed_by=request.user,
+                reason=request.data.get('reason', '')
+            )
+            return Response(QuotationSerializer(quotation).data, status=status.HTTP_200_OK)
+        except DjangoValidationError as e:
+            msg = e.message if hasattr(e, 'message') else str(e)
+            return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'], url_path='convert')
     def convert_to_invoice(self, request, pk=None):
@@ -104,12 +132,12 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     """
     Administrative GST tax invoicing ledger adhering to 1:N order relationship.
     """
-    queryset = Invoice.objects.select_related('client', 'order', 'quotation').prefetch_related('items').all().order_by('-created_at')
+    queryset = Invoice.objects.select_related('client', 'order', 'quotation').prefetch_related('items__product').all().order_by('-created_at')
     serializer_class = InvoiceSerializer
     permission_classes = [IsAdminUser]
 
     def get_queryset(self):
-        qs = Invoice.objects.select_related('client', 'order', 'quotation').prefetch_related('items').all().order_by('-created_at')
+        qs = Invoice.objects.select_related('client', 'order', 'quotation').prefetch_related('items__product').all().order_by('-created_at')
         client_id = self.request.query_params.get('client')
         if client_id:
             qs = qs.filter(client_id=client_id)
@@ -123,17 +151,30 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             qs = qs.filter(status=status_param)
         return qs
 
+    def destroy(self, request, *args, **kwargs):
+        invoice = self.get_object()
+        if invoice.status == InvoiceStatus.PAID:
+            return Response(
+                {"detail": f"Cannot delete paid statutory invoice #{invoice.invoice_number}."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return super().destroy(request, *args, **kwargs)
+
     @action(detail=True, methods=['patch'], url_path='status')
     def update_status(self, request, pk=None):
         invoice = self.get_object()
         new_status = request.data.get('status')
-        if new_status not in [s.value for s in InvoiceStatus]:
+        if not new_status or new_status not in [s.value for s in InvoiceStatus]:
             return Response(
                 {"detail": f"Invalid invoice status. Valid choices are: {[s.value for s in InvoiceStatus]}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         invoice.status = new_status
-        invoice.save()
+        if new_status == InvoiceStatus.PAID:
+            invoice.payment_status = 'Paid'
+        elif new_status == InvoiceStatus.CANCELLED:
+            invoice.payment_status = 'Cancelled'
+        invoice.save(update_fields=['status', 'payment_status', 'updated_at'])
         return Response(InvoiceSerializer(invoice).data, status=status.HTTP_200_OK)
 
 
