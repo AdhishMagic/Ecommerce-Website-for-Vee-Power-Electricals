@@ -50,4 +50,25 @@ export const ordersApi = {
       body: { status, reason },
     });
   },
+
+  async cancelOrder(
+    id: number | string,
+    reason: string = ''
+  ): Promise<OrderDetailData> {
+    return apiClient<OrderDetailData>(`/orders/${id}/cancel/`, {
+      method: 'POST',
+      body: { reason },
+    });
+  },
+
+  async requestReturn(
+    id: number | string,
+    reason: string
+  ): Promise<OrderDetailData> {
+    return apiClient<OrderDetailData>(`/orders/${id}/return/`, {
+      method: 'POST',
+      body: { reason },
+    });
+  },
 };
+

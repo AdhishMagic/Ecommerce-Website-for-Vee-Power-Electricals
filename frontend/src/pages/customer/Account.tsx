@@ -60,6 +60,8 @@ export default function Account() {
   const [profilePhone, setProfilePhone] = useState("");
   const [profileSuccess, setProfileSuccess] = useState(false);
   const [profileError, setProfileError] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   useEffect(() => {
     if (user) {
@@ -211,6 +213,42 @@ export default function Account() {
     }
   };
 
+  const handleCancelOrder = async (orderId: number) => {
+    const reason = window.prompt("Please enter a reason for cancelling this order:") || "Cancelled by customer";
+    setActionError("");
+    setActionLoading(true);
+    try {
+      const updated = await ordersApi.cancelOrder(orderId, reason);
+      setSelectedOrder(updated);
+      const res = await ordersApi.getMyOrders();
+      setOrders(Array.isArray(res) ? res : res.results || []);
+    } catch (err: any) {
+      setActionError(err?.message || "Failed to cancel order.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRequestReturn = async (orderId: number) => {
+    const reason = window.prompt("Please enter the reason for your return request (min 3 characters):");
+    if (!reason || reason.trim().length < 3) {
+      alert("A valid return reason of at least 3 characters is required.");
+      return;
+    }
+    setActionError("");
+    setActionLoading(true);
+    try {
+      const updated = await ordersApi.requestReturn(orderId, reason.trim());
+      setSelectedOrder(updated);
+      const res = await ordersApi.getMyOrders();
+      setOrders(Array.isArray(res) ? res : res.results || []);
+    } catch (err: any) {
+      setActionError(err?.message || "Failed to submit return request.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileError("");
@@ -317,10 +355,62 @@ export default function Account() {
               </div>
             </div>
           </div>
+
+          {/* Action alerts & buttons */}
+          {actionError && (
+            <div className="mt-4 p-3 bg-red-50 text-red-700 text-xs rounded-lg border border-red-200">
+              {actionError}
+            </div>
+          )}
+
+          <div className="mt-6 pt-4 border-t border-[#D9E1E8] flex flex-wrap justify-between items-center gap-3">
+            <div>
+              {selectedOrder.status === 'CANCELLED' && (
+                <p className="text-xs text-red-600 font-medium">This order was cancelled. Stock has been returned to inventory.</p>
+              )}
+              {selectedOrder.status === 'RETURN_REQUESTED' && (
+                <p className="text-xs text-orange-600 font-medium">Return request submitted and pending warehouse review.</p>
+              )}
+              {selectedOrder.status === 'RETURN_APPROVED' && (
+                <p className="text-xs text-purple-600 font-medium">Return approved. Please dispatch items for inspection.</p>
+              )}
+              {selectedOrder.status === 'RETURN_REJECTED' && (
+                <p className="text-xs text-rose-600 font-medium">Return request rejected.</p>
+              )}
+              {selectedOrder.status === 'RETURN_COMPLETED' && (
+                <p className="text-xs text-slate-600 font-medium">Return completed and merchandise restocked.</p>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              {['PENDING', 'CONFIRMED', 'PACKED'].includes(selectedOrder.status) && (
+                <button
+                  type="button"
+                  onClick={() => handleCancelOrder(selectedOrder.id)}
+                  disabled={actionLoading}
+                  className="px-4 py-2 text-xs font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50 transition-colors"
+                >
+                  {actionLoading ? "Processing..." : "Cancel Order"}
+                </button>
+              )}
+
+              {selectedOrder.status === 'DELIVERED' && (
+                <button
+                  type="button"
+                  onClick={() => handleRequestReturn(selectedOrder.id)}
+                  disabled={actionLoading}
+                  className="px-4 py-2 text-xs font-semibold text-orange-700 border border-orange-300 rounded-lg hover:bg-orange-50 disabled:opacity-50 transition-colors"
+                >
+                  {actionLoading ? "Processing..." : "Request Return"}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     );
   }
+
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">

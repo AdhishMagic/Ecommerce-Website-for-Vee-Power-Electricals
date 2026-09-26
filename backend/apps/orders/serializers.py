@@ -82,3 +82,13 @@ class CheckoutInputSerializer(serializers.Serializer):
 class OrderStatusUpdateSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=[s.value for s in OrderStatus], required=True)
     reason = serializers.CharField(required=False, allow_blank=True, default='')
+    tracking_number = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class OrderCancelInputSerializer(serializers.Serializer):
+    reason = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class OrderReturnRequestInputSerializer(serializers.Serializer):
+    reason = serializers.CharField(required=True, allow_blank=False, min_length=3, max_length=1000)
+

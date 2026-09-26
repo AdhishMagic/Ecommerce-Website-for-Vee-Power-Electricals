@@ -104,4 +104,15 @@ export const orderService = {
     const detail = await ordersApi.updateOrderStatus(id, status, reason);
     return mapApiDetailToOrder(detail);
   },
+
+  async cancelOrder(id: number | string, reason: string = ''): Promise<Order> {
+    const detail = await ordersApi.cancelOrder(id, reason);
+    return mapApiDetailToOrder(detail);
+  },
+
+  async requestReturn(id: number | string, reason: string): Promise<Order> {
+    const detail = await ordersApi.requestReturn(id, reason);
+    return mapApiDetailToOrder(detail);
+  },
 };
+
