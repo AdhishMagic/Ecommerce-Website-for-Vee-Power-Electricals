@@ -1,4 +1,13 @@
+export interface CanonicalApiError {
+  code: string;
+  message: string;
+  details?: Record<string, any>;
+  request_id?: string;
+}
+
 export interface ApiErrorDetail {
+  success?: boolean;
+  error?: CanonicalApiError;
   detail?: string;
   errors?: Record<string, string[] | string>;
   message?: string;
@@ -9,26 +18,78 @@ export class ApiError extends Error {
   status: number;
   data: ApiErrorDetail;
   fieldErrors: Record<string, string[]>;
+  code: string;
+  requestId?: string;
 
-  constructor(status: number, data: ApiErrorDetail) {
-    const message =
-      data.detail ||
-      data.message ||
-      (data.errors ? Object.values(data.errors).flat().join(' ') : null) ||
-      `Request failed with status ${status}`;
+  constructor(status: number, data: ApiErrorDetail, requestId?: string) {
+    const canonical = data.error;
+    let message = canonical?.message || data.detail || data.message;
+
+    if (!message && data.errors && typeof data.errors === 'object') {
+      message = Object.values(data.errors).flat().join(' ');
+    }
+
+    if (!message) {
+      if (status === 0) message = 'Network connection failed. Please check your network and try again.';
+      else if (status === 400) message = 'Bad request. Please verify the submitted data.';
+      else if (status === 401) message = 'Authentication required. Please log in.';
+      else if (status === 403) message = 'Access denied. You do not have permission to perform this action.';
+      else if (status === 404) message = 'The requested resource was not found.';
+      else if (status === 409) message = 'A data conflict occurred. Please review and try again.';
+      else if (status === 429) message = 'Too many requests. Please slow down and try again.';
+      else if (status >= 500) message = 'An unexpected server error occurred. Please try again later.';
+      else message = `Request failed with status ${status}`;
+    }
 
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.data = data;
+    this.code = canonical?.code || (status === 0 ? 'NETWORK_ERROR' : 'ERROR');
+    this.requestId = canonical?.request_id || requestId;
     this.fieldErrors = {};
 
-    if (data.errors && typeof data.errors === 'object') {
-      for (const [key, val] of Object.entries(data.errors)) {
-        this.fieldErrors[key] = Array.isArray(val) ? val : [String(val)];
+    const rawErrors = canonical?.details || data.errors;
+    if (rawErrors && typeof rawErrors === 'object') {
+      for (const [key, val] of Object.entries(rawErrors)) {
+        this.fieldErrors[key] = Array.isArray(val) ? val.map(String) : [String(val)];
       }
     }
   }
+}
+
+export interface NormalizedError {
+  message: string;
+  code: string;
+  status: number;
+  fieldErrors: Record<string, string[]>;
+  requestId?: string;
+}
+
+export function normalizeApiError(err: unknown): NormalizedError {
+  if (err instanceof ApiError) {
+    return {
+      message: err.message,
+      code: err.code,
+      status: err.status,
+      fieldErrors: err.fieldErrors,
+      requestId: err.requestId,
+    };
+  }
+  if (err instanceof Error) {
+    return {
+      message: err.message || 'An unexpected client error occurred.',
+      code: 'CLIENT_ERROR',
+      status: 0,
+      fieldErrors: {},
+    };
+  }
+  return {
+    message: 'An unknown error occurred.',
+    code: 'UNKNOWN_ERROR',
+    status: 0,
+    fieldErrors: {},
+  };
 }
 
 const getApiBaseUrl = (): string => {
@@ -164,7 +225,14 @@ export async function apiClient<T>(
     body: isFormData ? body : body !== undefined ? JSON.stringify(body) : undefined,
   };
 
-  const response = await fetch(url, config);
+  let response: Response;
+  try {
+    response = await fetch(url, config);
+  } catch (networkErr: any) {
+    throw new ApiError(0, {
+      detail: networkErr?.message || 'Network connection failed. Please check your internet connection.',
+    });
+  }
 
   // Handle 401 Unauthorized for token refresh
   if (response.status === 401 && !skipAuth && !_isRetry) {
@@ -231,7 +299,12 @@ export async function apiClient<T>(
   }
 
   if (!response.ok) {
-    throw new ApiError(response.status, typeof responseData === 'object' ? responseData : { detail: responseData });
+    const requestId = response.headers.get('x-request-id') || (typeof responseData === 'object' && responseData?.error?.request_id) || undefined;
+    throw new ApiError(
+      response.status,
+      typeof responseData === 'object' ? responseData : { detail: responseData },
+      requestId
+    );
   }
 
   return responseData as T;

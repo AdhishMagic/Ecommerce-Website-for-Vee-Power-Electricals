@@ -27,6 +27,7 @@ from .serializers import (
 
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from apps.orders.services import CheckoutService, OrderWorkflowService
 
 
@@ -183,7 +184,7 @@ class AdminOrderStatusUpdateView(APIView):
             return Response(OrderDetailSerializer(updated_order).data, status=status.HTTP_200_OK)
         except DjangoValidationError as e:
             msg = e.message if hasattr(e, 'message') else str(e)
-            return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
+            raise DRFValidationError(msg)
 
 
 class OrderCancelView(APIView):
@@ -228,7 +229,7 @@ class OrderCancelView(APIView):
             return Response(OrderDetailSerializer(updated_order).data, status=status.HTTP_200_OK)
         except DjangoValidationError as e:
             msg = e.message if hasattr(e, 'message') else str(e)
-            return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
+            raise DRFValidationError(msg)
 
 
 class OrderReturnRequestView(APIView):
@@ -283,7 +284,7 @@ class OrderReturnRequestView(APIView):
             return Response(OrderDetailSerializer(updated_order).data, status=status.HTTP_200_OK)
         except DjangoValidationError as e:
             msg = e.message if hasattr(e, 'message') else str(e)
-            return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
+            raise DRFValidationError(msg)
 
 
 class OrderStatusHistoryListView(generics.ListAPIView):

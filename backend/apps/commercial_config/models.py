@@ -358,6 +358,10 @@ class CompanyStoreConfiguration(models.Model):
 
     def clean(self):
         super().clean()
+        if not self.pk and CompanyStoreConfiguration.objects.exists():
+            existing = CompanyStoreConfiguration.objects.first()
+            if existing and existing.pk != self.pk:
+                raise ValidationError("Only one active CompanyStoreConfiguration is permitted.")
         if self.gstin:
             self.gstin = self.gstin.strip().upper()
             if not re.match(r'^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$', self.gstin):

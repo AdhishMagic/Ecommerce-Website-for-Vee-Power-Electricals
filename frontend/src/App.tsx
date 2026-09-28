@@ -46,6 +46,7 @@ const ForgotPassword = lazy(() => import("./pages/auth/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/auth/ResetPassword"));
 
 import VeeElectricalsLoader from "./components/brand/VeeElectricalsLoader";
+import ErrorBoundary from "./components/common/ErrorBoundary";
 
 function PageLoader() {
   return <VeeElectricalsLoader status="submitting" />;
@@ -53,12 +54,13 @@ function PageLoader() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <ScrollToTop />
-      <AuthProvider>
-        <ShopProvider>
-          <CartProvider>
-            <Suspense fallback={<PageLoader />}>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <ScrollToTop />
+        <AuthProvider>
+          <ShopProvider>
+            <CartProvider>
+              <Suspense fallback={<PageLoader />}>
               <Routes>
                 {/* Auth routes */}
                 <Route path="/login" element={<Login />} />
@@ -120,5 +122,6 @@ export default function App() {
         </ShopProvider>
       </AuthProvider>
     </BrowserRouter>
+  </ErrorBoundary>
   );
 }
