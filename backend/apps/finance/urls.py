@@ -6,6 +6,7 @@ from .views import (
     InvoiceViewSet,
     PaymentTransactionViewSet,
     PayoutSettlementViewSet,
+    FinanceSummaryView,
 )
 
 router = DefaultRouter()
@@ -16,5 +17,7 @@ router.register(r'payments', PaymentTransactionViewSet, basename='finance-paymen
 router.register(r'settlements', PayoutSettlementViewSet, basename='finance-settlement')
 
 urlpatterns = [
+    path('summary/', FinanceSummaryView.as_view(), name='finance-summary'),
+    path('dashboard/', FinanceSummaryView.as_view(), name='finance-dashboard'),
     path('', include(router.urls)),
 ]

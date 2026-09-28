@@ -165,6 +165,22 @@ export const financeApi = {
     });
   },
 
+  async recordInvoicePayment(id: number | string, data: { amount: number | string; payment_method?: string; gateway?: string; notes?: string }): Promise<PaymentTransaction> {
+    return apiClient<PaymentTransaction>(`/finance/invoices/${id}/record-payment/`, {
+      method: 'POST',
+      body: data,
+    });
+  },
+
+  async getInvoicePayments(id: number | string): Promise<PaymentTransaction[]> {
+    return apiClient<PaymentTransaction[]>(`/finance/invoices/${id}/payments/`);
+  },
+
+  // Reporting Summary
+  async getFinanceSummary(params?: { filter_type?: string; start_date?: string; end_date?: string }): Promise<any> {
+    return apiClient<any>('/finance/summary/', { params });
+  },
+
   // Payments & Settlements
   async getPayments(params?: { order?: number | string; invoice?: number | string; page?: number }): Promise<PaymentTransaction[]> {
     const res = await apiClient<PaginatedResponse<PaymentTransaction> | PaymentTransaction[]>('/finance/payments/', { params });

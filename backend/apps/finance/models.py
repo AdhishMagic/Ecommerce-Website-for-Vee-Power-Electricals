@@ -364,6 +364,36 @@ class Invoice(TimeStampedModel):
             models.Index(fields=['invoice_date', 'status'], name='idx_inv_date_stat'),
         ]
 
+    @property
+    def paid_amount(self) -> Decimal:
+        """
+        Authoritative total paid amount from confirmed successful payment transactions.
+        """
+        if hasattr(self, '_prefetched_objects_cache') and 'payments' in self._prefetched_objects_cache:
+            success_sum = sum(
+                (p.amount for p in self.payments.all() if p.status == PaymentTxStatus.SUCCESS),
+                Decimal('0.00')
+            )
+        else:
+            from django.db.models import Sum
+            res = self.payments.filter(status=PaymentTxStatus.SUCCESS).aggregate(total=Sum('amount'))['total']
+            success_sum = res if res is not None else Decimal('0.00')
+
+        if self.status == InvoiceStatus.PAID and success_sum == Decimal('0.00'):
+            return self.total_amount
+        return success_sum.quantize(Decimal('0.01'))
+
+    @property
+    def outstanding_amount(self) -> Decimal:
+        """
+        Authoritative outstanding amount = max(0, total_amount - paid_amount).
+        Cancelled or fully Paid invoices have 0.00 outstanding balance.
+        """
+        if self.status in [InvoiceStatus.PAID, InvoiceStatus.CANCELLED]:
+            return Decimal('0.00')
+        paid = self.paid_amount
+        return max(Decimal('0.00'), self.total_amount - paid).quantize(Decimal('0.01'))
+
     def __str__(self):
         return f"{self.invoice_number} ({self.status} - ₹{self.total_amount})"
 
@@ -472,6 +502,22 @@ class PaymentTransaction(TimeStampedModel):
             models.Index(fields=['gateway_transaction_id'], name='idx_pay_gateway_id'),
         ]
 
+    @property
+    def customer_email(self) -> str:
+        if self.order:
+            return self.order.customer_email
+        if self.invoice and self.invoice.client:
+            return self.invoice.client.email
+        return ''
+
+    @property
+    def customer_name(self) -> str:
+        if self.order:
+            return self.order.customer_name
+        if self.invoice and self.invoice.client:
+            return self.invoice.client.company_name
+        return ''
+
     def __str__(self):
         return f"{self.gateway} - ₹{self.amount} ({self.status})"
 
@@ -568,6 +614,14 @@ class PayoutSettlement(TimeStampedModel):
         indexes = [
             models.Index(fields=['settlement_date', 'status'], name='idx_payout_date'),
         ]
+
+    @property
+    def utr(self) -> str:
+        return self.bank_reference or ''
+
+    @utr.setter
+    def utr(self, value: str):
+        self.bank_reference = value
 
     def __str__(self):
         return f"{self.settlement_id} ({self.status} - Net: ₹{self.net_amount})"

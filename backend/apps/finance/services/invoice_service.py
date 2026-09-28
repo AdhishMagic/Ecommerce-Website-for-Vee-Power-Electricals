@@ -1,10 +1,20 @@
+import uuid
 import datetime
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from django.db import transaction
+from django.db.models import Sum
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 
-from apps.finance.models import Invoice, InvoiceItem, InvoiceStatus, Quotation
+from apps.finance.models import (
+    Invoice,
+    InvoiceItem,
+    InvoiceStatus,
+    Quotation,
+    PaymentTransaction,
+    PaymentGateway,
+    PaymentTxStatus,
+)
 from apps.orders.models import Order
 from apps.commercial_config.services.tax_service import TaxService
 
@@ -260,3 +270,147 @@ class InvoiceService:
         CommunicationService.send_invoice_notification(invoice=invoice)
 
         return invoice
+
+    @classmethod
+    def get_invoice_outstanding_balance(cls, invoice: Invoice) -> Decimal:
+        """
+        Authoritative calculation of invoice outstanding balance = max(0, total_amount - paid_amount).
+        """
+        return invoice.outstanding_amount
+
+    @classmethod
+    @transaction.atomic
+    def record_payment(
+        cls,
+        invoice_id: int,
+        amount: Decimal,
+        payment_method: str = 'NEFT_RTGS',
+        gateway: str = PaymentGateway.MANUAL,
+        gateway_transaction_id: str = None,
+        gateway_order_id: str = None,
+        user=None,
+        notes: str = None,
+        status: str = PaymentTxStatus.SUCCESS,
+    ) -> PaymentTransaction:
+        """
+        Record and reconcile an authoritative payment transaction against an invoice.
+        Enforces:
+        - Row-level lock on invoice record.
+        - Non-negative, positive Decimal amount.
+        - Outstanding balance limits (cannot overpay).
+        - Idempotency via gateway_transaction_id.
+        - Automatic invoice status transition to PAID upon full settlement.
+        - Partial settlement tracking.
+        - Failed payments do not reduce balance or corrupt state.
+        """
+        if not isinstance(amount, Decimal):
+            try:
+                amount = Decimal(str(amount))
+            except Exception:
+                raise ValidationError("Invalid payment amount format.")
+
+        amount = amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+        if amount <= Decimal('0.00'):
+            raise ValidationError("Payment amount must be greater than zero.")
+
+        try:
+            invoice = Invoice.objects.select_for_update().get(pk=invoice_id)
+        except Invoice.DoesNotExist:
+            raise ValidationError(f"Invoice with ID {invoice_id} not found.")
+
+        if invoice.status == InvoiceStatus.CANCELLED:
+            raise ValidationError(f"Cannot apply payment to cancelled invoice #{invoice.invoice_number}.")
+
+        # Idempotency check: if gateway_transaction_id already exists
+        if gateway_transaction_id:
+            existing_txn = PaymentTransaction.objects.select_for_update().filter(
+                gateway_transaction_id=gateway_transaction_id
+            ).first()
+
+            if existing_txn:
+                if existing_txn.invoice_id != invoice.id:
+                    raise ValidationError(
+                        f"Payment transaction ID '{gateway_transaction_id}' is already registered to a different record."
+                    )
+                # If existing transaction already marked SUCCESS, return idempotently
+                if existing_txn.status == PaymentTxStatus.SUCCESS:
+                    return existing_txn
+
+                # If existing transaction was INITIATED or FAILED, update it
+                existing_txn.status = status
+                existing_txn.amount = amount
+                existing_txn.payment_method = payment_method or existing_txn.payment_method
+                existing_txn.save()
+                txn = existing_txn
+            else:
+                txn = None
+        else:
+            txn = None
+
+        if not txn:
+            if invoice.status == InvoiceStatus.PAID and status == PaymentTxStatus.SUCCESS:
+                raise ValidationError(f"Invoice #{invoice.invoice_number} is already fully paid.")
+
+            current_outstanding = invoice.outstanding_amount
+            if status == PaymentTxStatus.SUCCESS and amount > current_outstanding:
+                raise ValidationError(
+                    f"Payment amount (₹{amount}) exceeds outstanding invoice balance (₹{current_outstanding})."
+                )
+
+            gen_txn_id = gateway_transaction_id or f"pay_inv_{invoice.id}_{uuid.uuid4().hex[:12]}"
+
+            metadata_dict = {}
+            if notes:
+                metadata_dict['notes'] = notes
+            if user:
+                metadata_dict['recorded_by'] = getattr(user, 'email', str(user))
+
+            txn = PaymentTransaction.objects.create(
+                order=invoice.order,
+                invoice=invoice,
+                gateway=gateway,
+                gateway_transaction_id=gen_txn_id,
+                gateway_order_id=gateway_order_id,
+                payment_method=payment_method,
+                amount=amount,
+                currency='INR',
+                status=status,
+                metadata=metadata_dict,
+            )
+
+        if status == PaymentTxStatus.SUCCESS:
+            all_successful = PaymentTransaction.objects.filter(
+                invoice=invoice,
+                status=PaymentTxStatus.SUCCESS
+            ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+
+            if all_successful >= invoice.total_amount:
+                invoice.status = InvoiceStatus.PAID
+                invoice.payment_status = 'Paid'
+            else:
+                invoice.payment_status = 'Partially Paid'
+            invoice.save(update_fields=['status', 'payment_status', 'updated_at'])
+
+            # Send communication safely without rolling back transaction if delivery fails
+            try:
+                from apps.core.services.communication_service import CommunicationService
+                CommunicationService.send_payment_confirmation(
+                    order=invoice.order,
+                    transaction=txn
+                )
+            except Exception:
+                pass
+
+        elif status == PaymentTxStatus.FAILED:
+            try:
+                from apps.core.services.communication_service import CommunicationService
+                CommunicationService.send_payment_failure(
+                    order=invoice.order,
+                    transaction=txn,
+                    error_message=notes or "Payment transaction failed"
+                )
+            except Exception:
+                pass
+
+        return txn

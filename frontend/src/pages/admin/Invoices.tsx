@@ -83,7 +83,12 @@ export default function InvoicesPage() {
   const handleMarkAsPaid = async (invoice: Invoice & { rawId?: number | string }) => {
     try {
       const targetId = invoice.rawId || invoice.id;
-      await financeApi.updateInvoiceStatus(String(targetId), 'PAID');
+      await financeApi.recordInvoicePayment(String(targetId), {
+        amount: invoice.amount,
+        payment_method: 'MANUAL',
+        gateway: 'MANUAL',
+        notes: 'Admin payment settlement',
+      });
       await fetchInvoices();
     } catch (err: any) {
       console.error("Failed to mark invoice as paid:", err);

@@ -251,6 +251,8 @@ class InvoiceSerializer(serializers.ModelSerializer):
     client_name = serializers.CharField(source='client.company_name', read_only=True, default='')
     order_number = serializers.CharField(source='order.order_number', read_only=True, default='')
     quotation_number = serializers.CharField(source='quotation.quotation_number', read_only=True, default='')
+    paid_amount = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+    outstanding_amount = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
     items = InvoiceItemSerializer(many=True, read_only=True)
 
     class Meta:
@@ -260,11 +262,12 @@ class InvoiceSerializer(serializers.ModelSerializer):
             'order', 'order_number', 'quotation', 'quotation_number',
             'client', 'client_name', 'subtotal', 'discount_amount',
             'taxable_amount', 'cgst_amount', 'sgst_amount', 'igst_amount',
-            'tax_amount', 'shipping_fee', 'total_amount', 'status',
-            'payment_status', 'notes', 'calculation_snapshot', 'items',
+            'tax_amount', 'shipping_fee', 'total_amount',
+            'paid_amount', 'outstanding_amount',
+            'status', 'payment_status', 'notes', 'calculation_snapshot', 'items',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'paid_amount', 'outstanding_amount', 'created_at', 'updated_at']
         extra_kwargs = {
             'invoice_number': {'required': False},
             'invoice_date': {'required': False},
@@ -317,11 +320,14 @@ class InvoiceSerializer(serializers.ModelSerializer):
 class PaymentTransactionSerializer(serializers.ModelSerializer):
     order_number = serializers.CharField(source='order.order_number', read_only=True, default='')
     invoice_number = serializers.CharField(source='invoice.invoice_number', read_only=True, default='')
+    customer_name = serializers.CharField(read_only=True)
+    customer_email = serializers.CharField(read_only=True)
 
     class Meta:
         model = PaymentTransaction
         fields = [
             'id', 'order', 'order_number', 'invoice', 'invoice_number',
+            'customer_name', 'customer_email',
             'gateway', 'gateway_transaction_id', 'gateway_order_id',
             'gateway_signature', 'payment_method', 'amount', 'currency',
             'status', 'error_code', 'error_message', 'metadata',
@@ -331,12 +337,14 @@ class PaymentTransactionSerializer(serializers.ModelSerializer):
 
 
 class PayoutSettlementSerializer(serializers.ModelSerializer):
+    utr = serializers.CharField(source='bank_reference', allow_null=True, required=False)
+
     class Meta:
         model = PayoutSettlement
         fields = [
             'id', 'settlement_id', 'gateway', 'settlement_date',
             'gross_amount', 'gateway_fee', 'tax_on_fee', 'net_amount',
-            'status', 'utr', 'notes', 'created_at', 'updated_at'
+            'status', 'bank_reference', 'utr', 'notes', 'created_at', 'updated_at'
         ]
         read_only_fields = fields
 

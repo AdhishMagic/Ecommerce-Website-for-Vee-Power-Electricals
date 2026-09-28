@@ -369,13 +369,17 @@ export interface Invoice {
   invoice_date: string;
   due_date: string;
   order?: number | null;
+  order_number?: string;
   quotation?: number | null;
+  quotation_number?: string;
   client?: number | null;
   client_name?: string;
   subtotal: number | string;
   tax_amount: number | string;
   shipping_fee: number | string;
   total_amount: number | string;
+  paid_amount?: number | string;
+  outstanding_amount?: number | string;
   status: 'Paid' | 'Unpaid' | 'Overdue' | 'Cancelled';
   payment_status: string;
   notes?: string;
@@ -415,7 +419,11 @@ export interface StockLedgerTransaction {
 export interface PaymentTransaction {
   id: number;
   order?: number | null;
+  order_number?: string;
   invoice?: number | null;
+  invoice_number?: string;
+  customer_name?: string;
+  customer_email?: string;
   gateway: string;
   gateway_transaction_id?: string;
   amount: number | string;
@@ -435,6 +443,7 @@ export interface PayoutSettlement {
   tax_on_fee: number | string;
   net_amount: number | string;
   status: string;
+  bank_reference?: string;
   utr?: string;
   notes?: string;
 }

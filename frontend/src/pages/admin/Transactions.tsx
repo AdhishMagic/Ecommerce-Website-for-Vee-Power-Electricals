@@ -1,54 +1,113 @@
+import { useState, useEffect, useMemo } from "react";
 import { 
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend
 } from "recharts";
-import { CreditCard, Truck, Receipt, TrendingUp } from "lucide-react";
-
-// Mock Data
-const revenueTrend = [
-  { name: 'Mon', revenue: 40000 },
-  { name: 'Tue', revenue: 30000 },
-  { name: 'Wed', revenue: 20000 },
-  { name: 'Thu', revenue: 27800 },
-  { name: 'Fri', revenue: 18900 },
-  { name: 'Sat', revenue: 23900 },
-  { name: 'Sun', revenue: 34900 },
-];
-
-const statusBreakdown = [
-  { name: 'Paid', count: 120 },
-  { name: 'Unpaid', count: 15 },
-  { name: 'Delivered', count: 95 },
-];
-
-const transactions = [
-  { id: "ORD-9381-IN", date: "Sep 18, 2026", time: "10:45 AM", method: "Razorpay (UPI)", paid: "Paid", delivered: "Pending", items: 3, tax: 1800, shipping: 0, total: 12500 },
-  { id: "ORD-9380-IN", date: "Sep 17, 2026", time: "02:20 PM", method: "Credit Card", paid: "Paid", delivered: "Delivered", items: 1, tax: 800, shipping: 150, total: 8900 },
-  { id: "ORD-9379-IN", date: "Sep 16, 2026", time: "09:15 AM", method: "Razorpay (NetBanking)", paid: "Paid", delivered: "Shipped", items: 5, tax: 4500, shipping: 0, total: 45000 },
-  { id: "ORD-9378-IN", date: "Sep 15, 2026", time: "04:30 PM", method: "Cash on Delivery", paid: "Unpaid", delivered: "Pending", items: 2, tax: 350, shipping: 50, total: 3400 },
-];
+import { CreditCard, Receipt, TrendingUp, AlertCircle, RefreshCw, CheckCircle2, Clock, XCircle } from "lucide-react";
+import { financeApi } from "../../api/finance";
+import { PaymentTransaction } from "../../types/api";
 
 const STATUS_COLORS: Record<string, string> = {
-  "Paid": "bg-emerald-100 text-emerald-700",
-  "Unpaid": "bg-amber-100 text-amber-700",
-  "Delivered": "bg-emerald-100 text-emerald-700",
-  "Shipped": "bg-indigo-100 text-indigo-700",
-  "Pending": "bg-slate-100 text-slate-700",
+  "SUCCESS": "bg-emerald-100 text-emerald-700",
+  "FAILED": "bg-red-100 text-red-700",
+  "INITIATED": "bg-amber-100 text-amber-700",
+  "REFUNDED": "bg-indigo-100 text-indigo-700",
 };
 
-export default function Transactions() {
-  const kpis = [
-    { title: "Total Revenue", value: "₹1,24,500", icon: <TrendingUp className="w-5 h-5 text-[#0B3A63]" />, bg: "bg-[#0B3A63]/10" },
-    { title: "Tax Collected", value: "₹14,500", icon: <Receipt className="w-5 h-5 text-amber-600" />, bg: "bg-amber-100" },
-    { title: "Shipping Collected", value: "₹2,450", icon: <Truck className="w-5 h-5 text-indigo-600" />, bg: "bg-indigo-100" },
-    { title: "Avg Order Value", value: "₹4,250", icon: <CreditCard className="w-5 h-5 text-emerald-600" />, bg: "bg-emerald-100" },
-  ];
+export default function TransactionsPage() {
+  const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
+  const [summaryData, setSummaryData] = useState<any>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("All");
+
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [txns, summary] = await Promise.all([
+        financeApi.getPayments(),
+        financeApi.getFinanceSummary({ filter_type: 'current_month' }),
+      ]);
+      setTransactions(txns || []);
+      setSummaryData(summary);
+    } catch (err: any) {
+      console.error("Failed to load transactions:", err);
+      setError(err?.message || "Failed to load transactions.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const filteredTxns = useMemo(() => {
+    if (statusFilter === "All") return transactions;
+    return transactions.filter(t => t.status?.toUpperCase() === statusFilter.toUpperCase());
+  }, [transactions, statusFilter]);
+
+  const kpis = useMemo(() => {
+    const successTxns = transactions.filter(t => t.status === "SUCCESS");
+    const totalCollected = successTxns.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+    const avgValue = successTxns.length > 0 ? totalCollected / successTxns.length : 0;
+    const failedCount = transactions.filter(t => t.status === "FAILED").length;
+
+    return [
+      { title: "Total Collected", value: `₹${totalCollected.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`, icon: <TrendingUp className="w-5 h-5 text-[#0B3A63]" />, bg: "bg-[#0B3A63]/10" },
+      { title: "Avg Transaction Value", value: `₹${avgValue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`, icon: <CreditCard className="w-5 h-5 text-emerald-600" />, bg: "bg-emerald-100" },
+      { title: "Successful Payments", value: `${successTxns.length}`, icon: <CheckCircle2 className="w-5 h-5 text-emerald-600" />, bg: "bg-emerald-100" },
+      { title: "Failed Attempts", value: `${failedCount}`, icon: <XCircle className="w-5 h-5 text-red-600" />, bg: "bg-red-100" },
+    ];
+  }, [transactions]);
+
+  const statusBreakdownData = useMemo(() => {
+    const counts: Record<string, number> = {
+      SUCCESS: 0,
+      FAILED: 0,
+      INITIATED: 0,
+      REFUNDED: 0,
+    };
+    transactions.forEach(t => {
+      const s = t.status?.toUpperCase() || 'INITIATED';
+      counts[s] = (counts[s] || 0) + 1;
+    });
+    return [
+      { name: 'Success', count: counts.SUCCESS || 0 },
+      { name: 'Failed', count: counts.FAILED || 0 },
+      { name: 'Initiated', count: counts.INITIATED || 0 },
+    ];
+  }, [transactions]);
+
+  const trendData = summaryData?.monthly_trend || [];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[#0B3A63]">Transactions & Finance</h1>
-        <p className="text-sm text-slate-500 mt-1">Monitor revenue, taxes, and shipping fees.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-[#0B3A63]">Transactions & Inbound Payments</h1>
+          <p className="text-sm text-slate-500 mt-1">Audit customer payments across orders and tax invoices.</p>
+        </div>
+        <button
+          onClick={fetchData}
+          className="inline-flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-700 text-sm font-semibold transition-colors"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <span>Refresh</span>
+        </button>
       </div>
+
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 flex items-center justify-between text-sm">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button onClick={fetchData} className="px-3 py-1 bg-red-600 text-white rounded text-xs font-bold hover:bg-red-700">
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* KPI Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -56,7 +115,7 @@ export default function Transactions() {
           <div key={idx} className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-slate-500 mb-1">{kpi.title}</p>
-              <p className="text-2xl font-bold text-[#0B3A63]">{kpi.value}</p>
+              <p className="text-2xl font-bold text-[#0B3A63]">{loading ? "..." : kpi.value}</p>
             </div>
             <div className={`w-12 h-12 rounded-full flex items-center justify-center ${kpi.bg}`}>
               {kpi.icon}
@@ -69,29 +128,35 @@ export default function Transactions() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Revenue Line Chart */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-          <h2 className="text-lg font-bold text-[#0B3A63] mb-6">Revenue Trend</h2>
+          <h2 className="text-lg font-bold text-[#0B3A63] mb-6">Revenue Trend (Monthly)</h2>
           <div className="h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={revenueTrend}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748B' }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748B' }} tickFormatter={(val) => `₹${val/1000}k`} />
-                <RechartsTooltip 
-                  contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  formatter={(value: any) => [`₹${Number(value || 0).toLocaleString()}`, 'Revenue']}
-                />
-                <Line type="monotone" dataKey="revenue" stroke="#F2A900" strokeWidth={3} dot={{ r: 4, fill: '#F2A900', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
-              </LineChart>
-            </ResponsiveContainer>
+            {trendData.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-slate-400 text-sm">
+                No trend data available.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={trendData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748B' }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748B' }} tickFormatter={(val) => `₹${val/1000}k`} />
+                  <RechartsTooltip 
+                    contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                    formatter={(value: any) => [`₹${Number(value || 0).toLocaleString("en-IN")}`, 'Revenue']}
+                  />
+                  <Line type="monotone" dataKey="revenue" stroke="#F2A900" strokeWidth={3} dot={{ r: 4, fill: '#F2A900', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
         {/* Order Status Bar Chart */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-          <h2 className="text-lg font-bold text-[#0B3A63] mb-6">Order Status Breakdown</h2>
+          <h2 className="text-lg font-bold text-[#0B3A63] mb-6">Payment Status Breakdown</h2>
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={statusBreakdown} barSize={40}>
+              <BarChart data={statusBreakdownData} barSize={40}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748B' }} dy={10} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748B' }} />
@@ -106,49 +171,79 @@ export default function Transactions() {
         </div>
       </div>
 
-      {/* Transactions Table */}
+      {/* Transactions Table with Filter */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-        <div className="p-5 border-b border-slate-200">
-          <h2 className="font-bold text-[#0B3A63]">Recent Transactions</h2>
+        <div className="p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h2 className="font-bold text-[#0B3A63]">Recent Payment Transactions</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Authoritative transaction records from Razorpay and bank entries.</p>
+          </div>
+          <div className="flex items-center gap-1.5 overflow-x-auto">
+            {["All", "SUCCESS", "FAILED", "INITIATED"].map((st) => (
+              <button
+                key={st}
+                onClick={() => setStatusFilter(st)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                  statusFilter === st
+                    ? "bg-[#0B3A63] text-white"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                {st}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-slate-50/80">
-                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Order ID</th>
-                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Date & Time</th>
+                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Transaction ID</th>
+                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Order / Invoice</th>
                 <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Method</th>
-                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Paid</th>
-                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Delivery</th>
-                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Tax</th>
-                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Shipping</th>
-                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Total</th>
+                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Gateway</th>
+                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Amount</th>
+                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {transactions.map(txn => (
-                <tr key={txn.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-5 py-4 text-sm font-bold text-[#0B3A63]">{txn.id}</td>
-                  <td className="px-5 py-4">
-                    <p className="text-sm font-medium text-slate-700">{txn.date}</p>
-                    <p className="text-xs text-slate-500">{txn.time}</p>
+              {filteredTxns.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-5 py-8 text-center text-sm text-slate-400">
+                    {loading ? "Loading transactions..." : "No payment transactions found."}
                   </td>
-                  <td className="px-5 py-4 text-sm text-slate-600">{txn.method}</td>
-                  <td className="px-5 py-4">
-                    <span className={`inline-flex px-2 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider ${STATUS_COLORS[txn.paid]}`}>
-                      {txn.paid}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4">
-                    <span className={`inline-flex px-2 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider ${STATUS_COLORS[txn.delivered]}`}>
-                      {txn.delivered}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4 text-sm text-slate-500 text-right">₹{txn.tax.toLocaleString("en-IN")}</td>
-                  <td className="px-5 py-4 text-sm text-slate-500 text-right">₹{txn.shipping.toLocaleString("en-IN")}</td>
-                  <td className="px-5 py-4 text-sm font-bold text-[#0B3A63] text-right">₹{txn.total.toLocaleString("en-IN")}</td>
                 </tr>
-              ))}
+              ) : (
+                filteredTxns.map(txn => (
+                  <tr key={txn.id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="px-5 py-4 text-sm font-bold text-[#0B3A63] font-mono">
+                      {txn.gateway_transaction_id || `TXN-${txn.id}`}
+                      <p className="text-xs text-slate-400 font-sans font-normal mt-0.5">
+                        {txn.created_at ? new Date(txn.created_at).toLocaleString("en-IN") : ''}
+                      </p>
+                    </td>
+                    <td className="px-5 py-4 text-sm text-slate-700">
+                      {txn.order_number ? (
+                        <span className="font-semibold text-blue-700">Order #{txn.order_number}</span>
+                      ) : txn.invoice_number ? (
+                        <span className="font-semibold text-purple-700">Invoice #{txn.invoice_number}</span>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-4 text-sm text-slate-600">{txn.payment_method || 'UPI'}</td>
+                    <td className="px-5 py-4 text-sm text-slate-600 font-mono text-xs">{txn.gateway}</td>
+                    <td className="px-5 py-4 text-sm font-bold text-[#0B3A63] text-right">
+                      ₹{Number(txn.amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-5 py-4 text-center">
+                      <span className={`inline-flex px-2 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider ${STATUS_COLORS[txn.status] || "bg-slate-100 text-slate-700"}`}>
+                        {txn.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
