@@ -3,6 +3,8 @@ import {
   StoreProfile,
   DeliveryConfiguration,
   DistanceSlab,
+  TaxConfiguration,
+  AdminConfigAuditLog,
   CouponValidationResult,
   PaginatedResponse,
 } from '../types/api';
@@ -76,6 +78,25 @@ export const configApi = {
     return apiClient<void>(`/config/shipping-rules/${id}/`, {
       method: 'DELETE',
     });
+  },
+
+  // Tax Configuration
+  async getTaxConfig(): Promise<TaxConfiguration[]> {
+    const res = await apiClient<PaginatedResponse<TaxConfiguration> | TaxConfiguration[]>('/config/tax/');
+    return Array.isArray(res) ? res : res.results || [];
+  },
+
+  async updateTaxConfig(id: number | string, data: Partial<TaxConfiguration>): Promise<TaxConfiguration> {
+    return apiClient<TaxConfiguration>(`/config/tax/${id}/`, {
+      method: 'PATCH',
+      body: data,
+    });
+  },
+
+  // Audit Logs
+  async getAuditLogs(): Promise<AdminConfigAuditLog[]> {
+    const res = await apiClient<PaginatedResponse<AdminConfigAuditLog> | AdminConfigAuditLog[]>('/config/audit-logs/');
+    return Array.isArray(res) ? res : res.results || [];
   },
 
   // Coupon Pre-validation

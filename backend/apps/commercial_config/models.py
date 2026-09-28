@@ -1,6 +1,8 @@
 from decimal import Decimal
+import re
 from django.db import models
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from apps.common.models import TimeStampedModel
 
@@ -68,6 +70,30 @@ class TaxConfiguration(TimeStampedModel):
         indexes = [
             models.Index(fields=['is_active', 'effective_from', 'effective_until'], name='idx_tax_lookup'),
         ]
+
+    def clean(self):
+        super().clean()
+        if self.effective_until and self.effective_from and self.effective_until <= self.effective_from:
+            raise ValidationError({"effective_until": "effective_until must be strictly after effective_from."})
+        for field_name in ['default_tax_rate', 'cgst_rate', 'sgst_rate', 'igst_rate']:
+            val = getattr(self, field_name, None)
+            if val is not None and val < Decimal('0.00'):
+                raise ValidationError({field_name: f"{field_name} cannot be negative."})
+
+        # Overlapping period validation for active configurations
+        if self.is_active and self.effective_from:
+            qs = TaxConfiguration.objects.filter(is_active=True)
+            if self.business_state:
+                qs = qs.filter(business_state__iexact=self.business_state.strip())
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+            for other in qs:
+                starts_before_other_ends = (other.effective_until is None) or (self.effective_from < other.effective_until)
+                ends_after_other_starts = (self.effective_until is None) or (self.effective_until > other.effective_from)
+                if starts_before_other_ends and ends_after_other_starts:
+                    raise ValidationError({
+                        "effective_from": f"Active TaxConfiguration effective period overlaps with version {other.version_number}."
+                    })
 
     def __str__(self):
         return f"{self.tax_name} v{self.version_number} ({self.default_tax_rate}% - {self.tax_calculation_mode})"
@@ -157,6 +183,25 @@ class DistanceSlab(TimeStampedModel):
             models.Index(fields=['delivery_config', 'min_distance_km', 'max_distance_km'], name='idx_slabs_config_range'),
         ]
 
+    def clean(self):
+        super().clean()
+        if self.min_distance_km is not None and self.min_distance_km < Decimal('0.00'):
+            raise ValidationError({"min_distance_km": "Minimum distance cannot be negative."})
+        if self.max_distance_km is not None and self.min_distance_km is not None and self.max_distance_km <= self.min_distance_km:
+            raise ValidationError({"max_distance_km": "Maximum distance must be strictly greater than minimum distance."})
+        if self.rate is not None and self.rate < Decimal('0.00'):
+            raise ValidationError({"rate": "Rate cannot be negative."})
+
+        if self.delivery_config_id and self.is_active and self.min_distance_km is not None and self.max_distance_km is not None:
+            qs = DistanceSlab.objects.filter(delivery_config_id=self.delivery_config_id, is_active=True)
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+            for other in qs:
+                if self.min_distance_km < other.max_distance_km and self.max_distance_km > other.min_distance_km:
+                    raise ValidationError({
+                        "min_distance_km": f"Distance slab [{self.min_distance_km}, {self.max_distance_km}) overlaps with existing slab [{other.min_distance_km}, {other.max_distance_km})."
+                    })
+
     def __str__(self):
         return f"[{self.min_distance_km} - {self.max_distance_km} km) -> ₹{self.rate}"
 
@@ -236,6 +281,14 @@ class OrderDiscount(TimeStampedModel):
         super().clean()
         if self.code:
             self.code = self.code.upper().strip()
+        if self.discount_value is not None and self.discount_value <= Decimal('0.00'):
+            raise ValidationError({"discount_value": "Discount value must be greater than zero."})
+        if self.discount_type == DiscountType.PERCENTAGE and self.discount_value is not None and self.discount_value > Decimal('100.00'):
+            raise ValidationError({"discount_value": "Percentage discount cannot exceed 100%."})
+        if self.valid_until and self.valid_from and self.valid_until <= self.valid_from:
+            raise ValidationError({"valid_until": "valid_until must be strictly after valid_from."})
+        if self.min_order_value is not None and self.min_order_value < Decimal('0.00'):
+            raise ValidationError({"min_order_value": "Minimum order value cannot be negative."})
 
     def save(self, *args, **kwargs):
         if self.code:
@@ -302,6 +355,26 @@ class CompanyStoreConfiguration(models.Model):
                 name='chk_cod_limit'
             ),
         ]
+
+    def clean(self):
+        super().clean()
+        if self.gstin:
+            self.gstin = self.gstin.strip().upper()
+            if not re.match(r'^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$', self.gstin):
+                raise ValidationError({"gstin": "Invalid statutory Indian GSTIN format (15 alphanumeric characters)."})
+        if self.pan:
+            self.pan = self.pan.strip().upper()
+            if not re.match(r'^[A-Z]{5}[0-9]{4}[A-Z]{1}$', self.pan):
+                raise ValidationError({"pan": "Invalid Indian PAN format (10 alphanumeric characters)."})
+            if self.gstin and len(self.gstin) == 15 and self.gstin[2:12] != self.pan:
+                raise ValidationError({"gstin": "GSTIN PAN segment (chars 3-12) must match the registered PAN."})
+
+    def save(self, *args, **kwargs):
+        if not self.pk and CompanyStoreConfiguration.objects.exists():
+            existing = CompanyStoreConfiguration.objects.first()
+            if existing and existing.pk != self.pk:
+                raise ValidationError("Only one active CompanyStoreConfiguration is permitted.")
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.legal_company_name} Configuration (GSTIN: {self.gstin})"

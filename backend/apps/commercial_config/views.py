@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.users.permissions import IsAdminUser
+from apps.core.models import AdminConfigAuditLog
 from .models import (
     CompanyStoreConfiguration,
     TaxConfiguration,
@@ -23,7 +24,10 @@ from .serializers import (
     ShippingRuleSerializer,
     OrderDiscountSerializer,
     CouponValidationInputSerializer,
+    AdminConfigAuditLogSerializer,
 )
+from .services.audit_service import log_admin_config_change
+from .services import DiscountService
 
 
 class CompanyStoreConfigView(APIView):
@@ -47,16 +51,38 @@ class CompanyStoreConfigView(APIView):
 
     def put(self, request):
         config = self.get_object()
+        old_data = CompanyStoreConfigurationSerializer(config).data
         serializer = CompanyStoreConfigurationSerializer(config, data=request.data, partial=False)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        log_admin_config_change(
+            domain='store',
+            record_id=config.id,
+            action_type='UPDATE',
+            user=request.user,
+            old_value=old_data,
+            new_value=serializer.data,
+            change_reason=request.data.get('change_reason', 'Updated company store configuration'),
+            ip_address=request.META.get('REMOTE_ADDR'),
+        )
         return Response(serializer.data)
 
     def patch(self, request):
         config = self.get_object()
+        old_data = CompanyStoreConfigurationSerializer(config).data
         serializer = CompanyStoreConfigurationSerializer(config, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        log_admin_config_change(
+            domain='store',
+            record_id=config.id,
+            action_type='UPDATE',
+            user=request.user,
+            old_value=old_data,
+            new_value=serializer.data,
+            change_reason=request.data.get('change_reason', 'Patched company store configuration'),
+            ip_address=request.META.get('REMOTE_ADDR'),
+        )
         return Response(serializer.data)
 
 
@@ -67,6 +93,48 @@ class TaxConfigurationViewSet(viewsets.ModelViewSet):
     queryset = TaxConfiguration.objects.all().order_by('-version_number')
     serializer_class = TaxConfigurationSerializer
     permission_classes = [IsAdminUser]
+
+    def perform_create(self, serializer):
+        instance = serializer.save(created_by=self.request.user)
+        log_admin_config_change(
+            domain='tax',
+            record_id=instance.id,
+            action_type='CREATE',
+            user=self.request.user,
+            old_value=None,
+            new_value=TaxConfigurationSerializer(instance).data,
+            change_reason=self.request.data.get('change_reason', f"Created TaxConfiguration v{instance.version_number}"),
+            ip_address=self.request.META.get('REMOTE_ADDR'),
+        )
+
+    def perform_update(self, serializer):
+        old_data = TaxConfigurationSerializer(serializer.instance).data
+        instance = serializer.save()
+        log_admin_config_change(
+            domain='tax',
+            record_id=instance.id,
+            action_type='UPDATE',
+            user=self.request.user,
+            old_value=old_data,
+            new_value=TaxConfigurationSerializer(instance).data,
+            change_reason=self.request.data.get('change_reason', f"Updated TaxConfiguration v{instance.version_number}"),
+            ip_address=self.request.META.get('REMOTE_ADDR'),
+        )
+
+    def perform_destroy(self, instance):
+        old_data = TaxConfigurationSerializer(instance).data
+        rec_id = instance.id
+        instance.delete()
+        log_admin_config_change(
+            domain='tax',
+            record_id=rec_id,
+            action_type='DELETE',
+            user=self.request.user,
+            old_value=old_data,
+            new_value={},
+            change_reason=self.request.data.get('change_reason', f"Deleted TaxConfiguration #{rec_id}"),
+            ip_address=self.request.META.get('REMOTE_ADDR'),
+        )
 
 
 class DeliveryConfigurationViewSet(viewsets.ModelViewSet):
@@ -87,6 +155,48 @@ class DeliveryConfigurationViewSet(viewsets.ModelViewSet):
             qs = qs.filter(is_active=True)
         return qs
 
+    def perform_create(self, serializer):
+        instance = serializer.save(created_by=self.request.user)
+        log_admin_config_change(
+            domain='delivery',
+            record_id=instance.id,
+            action_type='CREATE',
+            user=self.request.user,
+            old_value=None,
+            new_value=DeliveryConfigurationSerializer(instance).data,
+            change_reason=self.request.data.get('change_reason', f"Created DeliveryConfiguration v{instance.version_number}"),
+            ip_address=self.request.META.get('REMOTE_ADDR'),
+        )
+
+    def perform_update(self, serializer):
+        old_data = DeliveryConfigurationSerializer(serializer.instance).data
+        instance = serializer.save()
+        log_admin_config_change(
+            domain='delivery',
+            record_id=instance.id,
+            action_type='UPDATE',
+            user=self.request.user,
+            old_value=old_data,
+            new_value=DeliveryConfigurationSerializer(instance).data,
+            change_reason=self.request.data.get('change_reason', f"Updated DeliveryConfiguration v{instance.version_number}"),
+            ip_address=self.request.META.get('REMOTE_ADDR'),
+        )
+
+    def perform_destroy(self, instance):
+        old_data = DeliveryConfigurationSerializer(instance).data
+        rec_id = instance.id
+        instance.delete()
+        log_admin_config_change(
+            domain='delivery',
+            record_id=rec_id,
+            action_type='DELETE',
+            user=self.request.user,
+            old_value=old_data,
+            new_value={},
+            change_reason=self.request.data.get('change_reason', f"Deleted DeliveryConfiguration #{rec_id}"),
+            ip_address=self.request.META.get('REMOTE_ADDR'),
+        )
+
 
 class DistanceSlabViewSet(viewsets.ModelViewSet):
     """
@@ -105,6 +215,48 @@ class DistanceSlabViewSet(viewsets.ModelViewSet):
         if not (self.request.user and self.request.user.is_authenticated and (self.request.user.is_staff or getattr(self.request.user, 'role', '') == 'admin')):
             qs = qs.filter(is_active=True)
         return qs
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        log_admin_config_change(
+            domain='slabs',
+            record_id=instance.id,
+            action_type='CREATE',
+            user=self.request.user,
+            old_value=None,
+            new_value=DistanceSlabSerializer(instance).data,
+            change_reason=self.request.data.get('change_reason', f"Created DistanceSlab [{instance.min_distance_km}-{instance.max_distance_km}km)"),
+            ip_address=self.request.META.get('REMOTE_ADDR'),
+        )
+
+    def perform_update(self, serializer):
+        old_data = DistanceSlabSerializer(serializer.instance).data
+        instance = serializer.save()
+        log_admin_config_change(
+            domain='slabs',
+            record_id=instance.id,
+            action_type='UPDATE',
+            user=self.request.user,
+            old_value=old_data,
+            new_value=DistanceSlabSerializer(instance).data,
+            change_reason=self.request.data.get('change_reason', f"Updated DistanceSlab [{instance.min_distance_km}-{instance.max_distance_km}km)"),
+            ip_address=self.request.META.get('REMOTE_ADDR'),
+        )
+
+    def perform_destroy(self, instance):
+        old_data = DistanceSlabSerializer(instance).data
+        rec_id = instance.id
+        instance.delete()
+        log_admin_config_change(
+            domain='slabs',
+            record_id=rec_id,
+            action_type='DELETE',
+            user=self.request.user,
+            old_value=old_data,
+            new_value={},
+            change_reason=self.request.data.get('change_reason', f"Deleted DistanceSlab #{rec_id}"),
+            ip_address=self.request.META.get('REMOTE_ADDR'),
+        )
 
 
 class ShippingRuleViewSet(viewsets.ModelViewSet):
@@ -125,6 +277,48 @@ class ShippingRuleViewSet(viewsets.ModelViewSet):
             qs = qs.filter(is_active=True)
         return qs
 
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        log_admin_config_change(
+            domain='shipping-rules',
+            record_id=instance.id,
+            action_type='CREATE',
+            user=self.request.user,
+            old_value=None,
+            new_value=ShippingRuleSerializer(instance).data,
+            change_reason=self.request.data.get('change_reason', f"Created ShippingRule for {instance.state}"),
+            ip_address=self.request.META.get('REMOTE_ADDR'),
+        )
+
+    def perform_update(self, serializer):
+        old_data = ShippingRuleSerializer(serializer.instance).data
+        instance = serializer.save()
+        log_admin_config_change(
+            domain='shipping-rules',
+            record_id=instance.id,
+            action_type='UPDATE',
+            user=self.request.user,
+            old_value=old_data,
+            new_value=ShippingRuleSerializer(instance).data,
+            change_reason=self.request.data.get('change_reason', f"Updated ShippingRule for {instance.state}"),
+            ip_address=self.request.META.get('REMOTE_ADDR'),
+        )
+
+    def perform_destroy(self, instance):
+        old_data = ShippingRuleSerializer(instance).data
+        rec_id = instance.id
+        instance.delete()
+        log_admin_config_change(
+            domain='shipping-rules',
+            record_id=rec_id,
+            action_type='DELETE',
+            user=self.request.user,
+            old_value=old_data,
+            new_value={},
+            change_reason=self.request.data.get('change_reason', f"Deleted ShippingRule #{rec_id}"),
+            ip_address=self.request.META.get('REMOTE_ADDR'),
+        )
+
 
 class OrderDiscountViewSet(viewsets.ModelViewSet):
     """
@@ -134,8 +328,58 @@ class OrderDiscountViewSet(viewsets.ModelViewSet):
     serializer_class = OrderDiscountSerializer
     permission_classes = [IsAdminUser]
 
+    def perform_create(self, serializer):
+        instance = serializer.save(created_by=self.request.user)
+        log_admin_config_change(
+            domain='discounts',
+            record_id=instance.id,
+            action_type='CREATE',
+            user=self.request.user,
+            old_value=None,
+            new_value=OrderDiscountSerializer(instance).data,
+            change_reason=self.request.data.get('change_reason', f"Created OrderDiscount '{instance.code}'"),
+            ip_address=self.request.META.get('REMOTE_ADDR'),
+        )
 
-from apps.commercial_config.services import DiscountService
+    def perform_update(self, serializer):
+        old_data = OrderDiscountSerializer(serializer.instance).data
+        instance = serializer.save()
+        log_admin_config_change(
+            domain='discounts',
+            record_id=instance.id,
+            action_type='UPDATE',
+            user=self.request.user,
+            old_value=old_data,
+            new_value=OrderDiscountSerializer(instance).data,
+            change_reason=self.request.data.get('change_reason', f"Updated OrderDiscount '{instance.code}'"),
+            ip_address=self.request.META.get('REMOTE_ADDR'),
+        )
+
+    def perform_destroy(self, instance):
+        old_data = OrderDiscountSerializer(instance).data
+        rec_id = instance.id
+        code = instance.code
+        instance.delete()
+        log_admin_config_change(
+            domain='discounts',
+            record_id=rec_id,
+            action_type='DELETE',
+            user=self.request.user,
+            old_value=old_data,
+            new_value={},
+            change_reason=self.request.data.get('change_reason', f"Deleted OrderDiscount '{code}'"),
+            ip_address=self.request.META.get('REMOTE_ADDR'),
+        )
+
+
+class AdminConfigAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    GET /api/v1/config/audit-logs/ (Admin only)
+    Append-only audit trail recording administrative configuration changes.
+    """
+    queryset = AdminConfigAuditLog.objects.all().order_by('-created_at')
+    serializer_class = AdminConfigAuditLogSerializer
+    permission_classes = [IsAdminUser]
 
 
 class CouponValidationView(APIView):

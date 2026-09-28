@@ -38,6 +38,17 @@ class DiscountService:
         if not isinstance(order_amount, Decimal):
             order_amount = Decimal(str(order_amount))
 
+        if order_amount < Decimal('0.00'):
+            return DiscountCalculationResult(
+                is_valid=False,
+                code=code or '',
+                discount_type='',
+                discount_value=Decimal('0.00'),
+                calculated_discount=Decimal('0.00'),
+                description='',
+                error_message='Order amount cannot be negative.'
+            )
+
         if not code or not code.strip():
             return DiscountCalculationResult(
                 is_valid=False,

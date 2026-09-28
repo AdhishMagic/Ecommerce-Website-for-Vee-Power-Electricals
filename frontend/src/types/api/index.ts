@@ -283,6 +283,35 @@ export interface CouponValidationResult {
   detail?: string;
 }
 
+export interface TaxConfiguration {
+  id: number;
+  tax_name: string;
+  default_tax_rate: number | string;
+  cgst_rate: number | string;
+  sgst_rate: number | string;
+  igst_rate: number | string;
+  tax_calculation_mode: 'TAX_EXCLUSIVE' | 'TAX_INCLUSIVE';
+  business_state: string;
+  effective_from: string;
+  effective_until?: string | null;
+  version_number: number;
+  is_active: boolean;
+}
+
+export interface AdminConfigAuditLog {
+  id: number;
+  admin_user?: number | null;
+  admin_email?: string;
+  domain: string;
+  record_id: number;
+  action_type: 'CREATE' | 'UPDATE' | 'DEACTIVATE' | 'DELETE';
+  old_value?: Record<string, any> | null;
+  new_value: Record<string, any>;
+  change_reason: string;
+  ip_address?: string | null;
+  created_at: string;
+}
+
 export interface InquiryPayload {
   name: string;
   email: string;

@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Optional
+from typing import Optional, Any
 
+from django.db import models
 from apps.commercial_config.models import TaxConfiguration, CompanyStoreConfiguration
 
 
@@ -40,14 +41,24 @@ class TaxService:
     DEFAULT_GST_RATE = Decimal('18.00')
 
     @classmethod
-    def get_active_tax_configuration(cls) -> Optional[TaxConfiguration]:
-        return TaxConfiguration.objects.filter(is_active=True).order_by('-version_number').first()
+    def get_active_tax_configuration(cls, target_date: Optional[Any] = None) -> Optional[TaxConfiguration]:
+        qs = TaxConfiguration.objects.filter(is_active=True)
+        if target_date is not None:
+            date_qs = qs.filter(effective_from__lte=target_date).filter(
+                models.Q(effective_until__isnull=True) | models.Q(effective_until__gte=target_date)
+            )
+            config = date_qs.order_by('-version_number').first()
+            if config:
+                return config
+        return qs.order_by('-version_number').first()
 
     @classmethod
-    def get_origin_state(cls) -> str:
-        tax_config = cls.get_active_tax_configuration()
+    def get_origin_state(cls, tax_config: Optional[TaxConfiguration] = None) -> str:
         if tax_config and tax_config.business_state:
             return tax_config.business_state.strip()
+        active_config = cls.get_active_tax_configuration()
+        if active_config and active_config.business_state:
+            return active_config.business_state.strip()
         return cls.DEFAULT_ORIGIN_STATE
 
     @classmethod
@@ -56,7 +67,8 @@ class TaxService:
         amount: Decimal,
         destination_state: str,
         tax_config: Optional[TaxConfiguration] = None,
-        override_tax_mode: Optional[str] = None
+        override_tax_mode: Optional[str] = None,
+        target_date: Optional[Any] = None,
     ) -> TaxCalculationResult:
         """
         Calculate statutory GST components for a given taxable or gross supply amount.
@@ -68,7 +80,7 @@ class TaxService:
             raise ValueError("Tax calculation amount cannot be negative.")
 
         if tax_config is None:
-            tax_config = cls.get_active_tax_configuration()
+            tax_config = cls.get_active_tax_configuration(target_date=target_date)
 
         tax_mode = override_tax_mode or (tax_config.tax_calculation_mode if tax_config else 'TAX_EXCLUSIVE')
         origin_state = cls.get_origin_state()

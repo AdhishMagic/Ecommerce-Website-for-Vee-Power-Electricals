@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 import math
-from typing import Optional
+from typing import Optional, Any
 
+from django.db import models
 from apps.commercial_config.models import (
     DeliveryConfiguration,
     DistanceSlab,
@@ -39,8 +40,16 @@ class DeliveryService:
     DEFAULT_FREE_THRESHOLD = Decimal('999.00')
 
     @classmethod
-    def get_active_delivery_configuration(cls) -> Optional[DeliveryConfiguration]:
-        return DeliveryConfiguration.objects.filter(is_active=True).order_by('-version_number').first()
+    def get_active_delivery_configuration(cls, target_date: Optional[Any] = None) -> Optional[DeliveryConfiguration]:
+        qs = DeliveryConfiguration.objects.filter(is_active=True)
+        if target_date is not None:
+            date_qs = qs.filter(effective_from__lte=target_date).filter(
+                models.Q(effective_until__isnull=True) | models.Q(effective_until__gte=target_date)
+            )
+            config = date_qs.order_by('-version_number').first()
+            if config:
+                return config
+        return qs.order_by('-version_number').first()
 
     @classmethod
     def calculate_delivery(
@@ -51,6 +60,7 @@ class DeliveryService:
         delivery_config: Optional[DeliveryConfiguration] = None,
         subtotal: Optional[Decimal] = None,
         state: Optional[str] = None,
+        target_date: Optional[Any] = None,
     ) -> DeliveryCalculationResult:
         """
         Compute delivery tariff based on Distance Slabs, State Rules, or Base Charge.
@@ -65,7 +75,7 @@ class DeliveryService:
             distance_km = Decimal(str(distance_km))
 
         if delivery_config is None:
-            delivery_config = cls.get_active_delivery_configuration()
+            delivery_config = cls.get_active_delivery_configuration(target_date=target_date)
 
         base_charge = delivery_config.base_delivery_charge if delivery_config else cls.DEFAULT_BASE_FEE
         free_threshold = delivery_config.free_delivery_threshold if delivery_config else cls.DEFAULT_FREE_THRESHOLD

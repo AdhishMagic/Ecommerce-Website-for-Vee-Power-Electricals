@@ -8,6 +8,7 @@ from .views import (
     ShippingRuleViewSet,
     OrderDiscountViewSet,
     CouponValidationView,
+    AdminConfigAuditLogViewSet,
 )
 
 router = DefaultRouter()
@@ -16,6 +17,7 @@ router.register(r'delivery', DeliveryConfigurationViewSet, basename='config-deli
 router.register(r'slabs', DistanceSlabViewSet, basename='config-slabs')
 router.register(r'shipping-rules', ShippingRuleViewSet, basename='config-shipping-rules')
 router.register(r'discounts', OrderDiscountViewSet, basename='config-discounts')
+router.register(r'audit-logs', AdminConfigAuditLogViewSet, basename='config-audit-logs')
 
 urlpatterns = [
     path('store/', CompanyStoreConfigView.as_view(), name='config-store'),
