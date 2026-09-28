@@ -1,7 +1,7 @@
 from decimal import Decimal
 from django.db import transaction
 from django.core.exceptions import ValidationError
-from apps.finance.models import Client, Invoice, InvoiceStatus, PaymentTxStatus
+from apps.finance.models import Client, Invoice, InvoiceStatus, PaymentTxStatus, PaymentTransaction
 
 
 class CreditService:
@@ -17,16 +17,46 @@ class CreditService:
         Deducts confirmed successful payment transactions against those invoices.
         Paid, cancelled, or refunded invoices/records do not contribute to exposure.
         """
-        qs = Invoice.objects.filter(
-            client=client,
-            status__in=[InvoiceStatus.UNPAID, InvoiceStatus.OVERDUE]
-        )
         if lock:
             # Force locking read to guarantee current committed data under repeatable read
-            inv_ids = list(qs.select_for_update().values_list('id', flat=True))
-            invoices = Invoice.objects.filter(id__in=inv_ids).prefetch_related('payments')
+            invoices = list(Invoice.objects.select_for_update().filter(
+                client=client,
+                status__in=[InvoiceStatus.UNPAID, InvoiceStatus.OVERDUE]
+            ))
+            inv_ids = [inv.id for inv in invoices]
+            payments = PaymentTransaction.objects.filter(
+                invoice_id__in=inv_ids,
+                status=PaymentTxStatus.SUCCESS
+            )
+            payments_by_inv = {}
+            for p in payments:
+                payments_by_inv.setdefault(p.invoice_id, []).append(p)
+
+            total_exposure = Decimal('0.00')
+            for inv in invoices:
+                successful_payments = sum(
+                    (p.amount for p in payments_by_inv.get(inv.id, [])),
+                    Decimal('0.00')
+                )
+                unpaid_balance = max(Decimal('0.00'), inv.total_amount - successful_payments)
+                total_exposure += unpaid_balance
+
+            return total_exposure.quantize(Decimal('0.01'))
+
+        # Non-locking path: check if prefetched
+        if hasattr(client, '_unpaid_invoices_with_payments'):
+            invoices = client._unpaid_invoices_with_payments
         else:
-            invoices = qs.prefetch_related('payments')
+            from django.db.models import Prefetch
+            invoices = Invoice.objects.filter(
+                client=client,
+                status__in=[InvoiceStatus.UNPAID, InvoiceStatus.OVERDUE]
+            ).prefetch_related(
+                Prefetch(
+                    'payments',
+                    queryset=PaymentTransaction.objects.filter(status=PaymentTxStatus.SUCCESS)
+                )
+            )
 
         total_exposure = Decimal('0.00')
         for inv in invoices:

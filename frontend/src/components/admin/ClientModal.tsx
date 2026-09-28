@@ -3,13 +3,22 @@ import { X } from "lucide-react";
 
 export type Client = {
   id: string;
+  rawId?: number | string;
+  clientCode?: string;
   companyName: string;
   contactPerson: string;
   gstin: string;
+  pan?: string;
+  state?: string;
   email: string;
   phone: string;
   creditLimit: number;
+  creditExposure?: number;
+  availableCredit?: number;
   totalInvoiced: number;
+  address?: string;
+  isActive?: boolean;
+  reason?: string;
 };
 
 interface ClientModalProps {
@@ -27,6 +36,8 @@ export default function ClientModal({ isOpen, onClose, onSubmit, initialData }: 
     email: "",
     phone: "",
     creditLimit: 0,
+    address: "",
+    reason: "",
   });
 
   useEffect(() => {
@@ -39,6 +50,8 @@ export default function ClientModal({ isOpen, onClose, onSubmit, initialData }: 
           email: initialData.email || "",
           phone: initialData.phone || "",
           creditLimit: initialData.creditLimit || 0,
+          address: initialData.address || "",
+          reason: "",
         });
       } else {
         setFormData({
@@ -48,6 +61,8 @@ export default function ClientModal({ isOpen, onClose, onSubmit, initialData }: 
           email: "",
           phone: "",
           creditLimit: 0,
+          address: "",
+          reason: "",
         });
       }
     }
@@ -55,7 +70,7 @@ export default function ClientModal({ isOpen, onClose, onSubmit, initialData }: 
 
   if (!isOpen) return null;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: name === "creditLimit" ? Number(value) : value }));
   };
@@ -143,6 +158,18 @@ export default function ClientModal({ isOpen, onClose, onSubmit, initialData }: 
               />
             </div>
 
+            <div className="md:col-span-2">
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Billing / Shipping Address</label>
+              <textarea 
+                name="address"
+                rows={2}
+                value={formData.address} 
+                onChange={handleChange}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-[#0A2540] text-sm"
+                placeholder="Full operational and registered office address"
+              />
+            </div>
+
             <div className="md:col-span-2 border-t border-slate-200 pt-6">
               <label className="block text-sm font-semibold text-slate-700 mb-2">Credit Limit (₹)</label>
               <input 
@@ -154,9 +181,22 @@ export default function ClientModal({ isOpen, onClose, onSubmit, initialData }: 
                 onChange={handleChange}
                 className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-[#0A2540] text-sm font-bold text-[#0A2540]"
               />
-              <p className="text-xs text-slate-500 mt-1">Maximum allowable credit line for this client.</p>
+              <p className="text-xs text-slate-500 mt-1">Maximum allowable server-enforced credit line for this client.</p>
             </div>
-            
+
+            {initialData && (
+              <div className="md:col-span-2">
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Change Reason / Audit Note</label>
+                <input 
+                  type="text" 
+                  name="reason"
+                  value={formData.reason} 
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-[#0A2540] text-sm"
+                  placeholder="Document reason for modification (logged in audit history)"
+                />
+              </div>
+            )}
           </div>
 
           <div className="pt-4 flex justify-end gap-3 border-t border-slate-200">

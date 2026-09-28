@@ -157,13 +157,19 @@ class Client(TimeStampedModel):
 
     @property
     def credit_exposure(self) -> Decimal:
-        from apps.finance.services.credit_service import CreditService
-        return CreditService.get_outstanding_exposure(self)
+        if not hasattr(self, '_cached_exposure'):
+            from apps.finance.services.credit_service import CreditService
+            self._cached_exposure = CreditService.get_outstanding_exposure(self)
+        return self._cached_exposure
 
     @property
     def available_credit(self) -> Decimal:
-        from apps.finance.services.credit_service import CreditService
-        return CreditService.get_available_credit(self)
+        exposure = self.credit_exposure
+        return max(Decimal('0.00'), self.credit_limit - exposure).quantize(Decimal('0.01'))
+
+    @property
+    def outstanding_balance(self) -> Decimal:
+        return self.credit_exposure
 
     def clean(self):
         super().clean()
@@ -185,6 +191,7 @@ class Client(TimeStampedModel):
             self.company_name = self.company_name.strip()
         if self.contact_person:
             self.contact_person = self.contact_person.strip()
+        self.clean()
         super().save(*args, **kwargs)
 
     def __str__(self):

@@ -28,6 +28,7 @@ class ClientSerializer(serializers.ModelSerializer):
     shipping_address = serializers.CharField(source='address', read_only=True)
     credit_exposure = serializers.SerializerMethodField()
     available_credit = serializers.SerializerMethodField()
+    outstanding_balance = serializers.SerializerMethodField()
     total_invoiced = serializers.SerializerMethodField()
 
     class Meta:
@@ -36,28 +37,31 @@ class ClientSerializer(serializers.ModelSerializer):
             'id', 'client_code', 'company_name', 'contact_person',
             'gstin', 'pan', 'state', 'state_code', 'customer_type',
             'email', 'phone', 'credit_limit', 'credit_exposure',
-            'available_credit', 'total_invoiced', 'address',
-            'billing_address', 'shipping_address', 'is_active',
+            'available_credit', 'outstanding_balance', 'total_invoiced',
+            'address', 'billing_address', 'shipping_address', 'is_active',
             'created_at', 'updated_at'
         ]
         read_only_fields = [
             'id', 'pan', 'state', 'state_code', 'customer_type',
-            'credit_exposure', 'available_credit', 'total_invoiced',
-            'shipping_address', 'created_at', 'updated_at'
+            'credit_exposure', 'available_credit', 'outstanding_balance',
+            'total_invoiced', 'shipping_address', 'created_at', 'updated_at'
         ]
         extra_kwargs = {
             'client_code': {'required': False},
         }
 
     def get_credit_exposure(self, obj) -> str:
-        from apps.finance.services.credit_service import CreditService
-        return str(CreditService.get_outstanding_exposure(obj))
+        return str(obj.credit_exposure)
 
     def get_available_credit(self, obj) -> str:
-        from apps.finance.services.credit_service import CreditService
-        return str(CreditService.get_available_credit(obj))
+        return str(obj.available_credit)
+
+    def get_outstanding_balance(self, obj) -> str:
+        return str(obj.outstanding_balance)
 
     def get_total_invoiced(self, obj) -> str:
+        if hasattr(obj, 'annotated_total_invoiced') and obj.annotated_total_invoiced is not None:
+            return str(Decimal(str(obj.annotated_total_invoiced)).quantize(Decimal('0.01')))
         from django.db.models import Sum
         total = obj.invoices.exclude(status=InvoiceStatus.CANCELLED).aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
         return str(total.quantize(Decimal('0.01')))

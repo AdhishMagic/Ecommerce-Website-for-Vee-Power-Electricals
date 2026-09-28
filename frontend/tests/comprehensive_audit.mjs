@@ -394,7 +394,7 @@ async function runComprehensiveAudit() {
   results.finance.passed++;
   console.log(`✔ 6.1 B2B Client Created: ID ${clientId} (${clientRes.data.company_name})`);
 
-  // 6.2 Create Quotation
+  // 6.2 Create Quotation with line items for isolated test client
   const quoteRes = await req('/finance/quotations/', {
     method: 'POST',
     headers: { Authorization: `Bearer ${adminToken}` },
@@ -404,8 +404,16 @@ async function runComprehensiveAudit() {
       quotation_date: '2026-09-25',
       expiry_date: '2026-12-31',
       total_value: '2500.00',
-      status: 'Draft',
+      status: 'Sent',
       notes: 'Phase 9 Audit B2B Quotation',
+      items: [
+        {
+          product: testProd.id,
+          item_name: testProd.name,
+          quantity: 10,
+          unit_price: '250.00',
+        },
+      ],
     }),
   });
   if (!quoteRes.ok) {
@@ -416,8 +424,8 @@ async function runComprehensiveAudit() {
   results.finance.passed++;
   console.log(`✔ 6.2 Quotation Created: ID ${quoteId} (Total: ₹${quoteRes.data.total_value})`);
 
-  // 6.3 Approve Quotation (PATCH /status/) on quotation 1 (which has items)
-  const approveRes = await req('/finance/quotations/1/status/', {
+  // 6.3 Approve Quotation (PATCH /status/)
+  const approveRes = await req(`/finance/quotations/${quoteId}/status/`, {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${adminToken}` },
     body: JSON.stringify({ status: 'Approved' }),
@@ -428,7 +436,7 @@ async function runComprehensiveAudit() {
   console.log('✔ 6.3 Quotation Approved: Status Approved');
 
   // 6.4 Convert Quotation to Invoice (POST /convert/)
-  const convertRes = await req('/finance/quotations/1/convert/', {
+  const convertRes = await req(`/finance/quotations/${quoteId}/convert/`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${adminToken}` },
     body: JSON.stringify({ notes: 'Converted during Phase 9 audit' }),
@@ -442,7 +450,7 @@ async function runComprehensiveAudit() {
   console.log(`✔ 6.4 Quotation Converted to Invoice: ID ${invoiceId} (Number: ${convertRes.data.invoice_number})`);
 
   // 6.5 Duplicate Conversion Rejection
-  const dupConvertRes = await req('/finance/quotations/1/convert/', {
+  const dupConvertRes = await req(`/finance/quotations/${quoteId}/convert/`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${adminToken}` },
   });

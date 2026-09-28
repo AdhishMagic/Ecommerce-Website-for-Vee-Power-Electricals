@@ -11,7 +11,7 @@ import {
 
 export const financeApi = {
   // Clients
-  async getClients(params?: { search?: string; q?: string; page?: number }): Promise<ClientItem[]> {
+  async getClients(params?: { search?: string; q?: string; is_active?: boolean | string; page?: number }): Promise<ClientItem[]> {
     const res = await apiClient<PaginatedResponse<ClientItem> | ClientItem[]>('/finance/clients/', { params });
     return Array.isArray(res) ? res : res.results || [];
   },
@@ -38,6 +38,50 @@ export const financeApi = {
     return apiClient<void>(`/finance/clients/${id}/`, {
       method: 'DELETE',
     });
+  },
+
+  async getClientCredit(id: number | string): Promise<any> {
+    return apiClient<any>(`/finance/clients/${id}/credit/`);
+  },
+
+  async adjustCreditLimit(id: number | string, credit_limit: number | string, reason?: string): Promise<ClientItem> {
+    return apiClient<ClientItem>(`/finance/clients/${id}/credit-limit/`, {
+      method: 'PATCH',
+      body: { credit_limit, reason },
+    });
+  },
+
+  async activateClient(id: number | string, reason?: string): Promise<ClientItem> {
+    return apiClient<ClientItem>(`/finance/clients/${id}/activate/`, {
+      method: 'POST',
+      body: { reason },
+    });
+  },
+
+  async deactivateClient(id: number | string, reason?: string): Promise<ClientItem> {
+    return apiClient<ClientItem>(`/finance/clients/${id}/deactivate/`, {
+      method: 'POST',
+      body: { reason },
+    });
+  },
+
+  async getClientQuotations(id: number | string): Promise<Quotation[]> {
+    const res = await apiClient<PaginatedResponse<Quotation> | Quotation[]>(`/finance/clients/${id}/quotations/`);
+    return Array.isArray(res) ? res : res.results || [];
+  },
+
+  async getClientInvoices(id: number | string): Promise<Invoice[]> {
+    const res = await apiClient<PaginatedResponse<Invoice> | Invoice[]>(`/finance/clients/${id}/invoices/`);
+    return Array.isArray(res) ? res : res.results || [];
+  },
+
+  async getClientPayments(id: number | string): Promise<PaymentTransaction[]> {
+    const res = await apiClient<PaginatedResponse<PaymentTransaction> | PaymentTransaction[]>(`/finance/clients/${id}/payments/`);
+    return Array.isArray(res) ? res : res.results || [];
+  },
+
+  async getClientAuditHistory(id: number | string): Promise<any[]> {
+    return apiClient<any[]>(`/finance/clients/${id}/audit-history/`);
   },
 
   // Quotations

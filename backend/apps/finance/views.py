@@ -34,7 +34,35 @@ class ClientViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminUser]
 
     def get_queryset(self):
-        qs = Client.objects.prefetch_related('invoices', 'quotations').all().order_by('company_name', 'id')
+        from decimal import Decimal
+        from django.db.models import Prefetch, Sum, Value, DecimalField
+        from django.db.models.functions import Coalesce
+        from .models import Invoice, InvoiceStatus, PaymentTransaction, PaymentTxStatus
+
+        unpaid_invoices_prefetch = Prefetch(
+            'invoices',
+            queryset=Invoice.objects.filter(
+                status__in=[InvoiceStatus.UNPAID, InvoiceStatus.OVERDUE]
+            ).prefetch_related(
+                Prefetch(
+                    'payments',
+                    queryset=PaymentTransaction.objects.filter(status=PaymentTxStatus.SUCCESS)
+                )
+            ),
+            to_attr='_unpaid_invoices_with_payments'
+        )
+
+        qs = Client.objects.prefetch_related(
+            unpaid_invoices_prefetch,
+            'quotations'
+        ).annotate(
+            annotated_total_invoiced=Coalesce(
+                Sum('invoices__total_amount', filter=~Q(invoices__status=InvoiceStatus.CANCELLED)),
+                Value(Decimal('0.00')),
+                output_field=DecimalField(max_digits=14, decimal_places=2)
+            )
+        ).order_by('company_name', 'id')
+
         search = self.request.query_params.get('search') or self.request.query_params.get('q')
         if search:
             search = search.strip()

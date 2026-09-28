@@ -309,13 +309,23 @@ export interface ClientItem {
   company_name: string;
   contact_person: string;
   gstin: string;
+  pan?: string;
+  state?: string;
+  state_code?: string;
+  customer_type?: string;
   email: string;
   phone: string;
   credit_limit: number | string;
+  credit_exposure?: number | string;
+  available_credit?: number | string;
+  outstanding_balance?: number | string;
   address?: string;
+  billing_address?: string;
+  shipping_address?: string;
   is_active: boolean;
   total_invoiced?: number | string;
   created_at?: string;
+  updated_at?: string;
 }
 
 export interface QuotationItem {

@@ -1,35 +1,46 @@
 import { useState, useEffect } from "react";
-import { Users, Building2, IndianRupee, Search, Plus, Eye, Edit } from "lucide-react";
+import { 
+  Users, Building2, IndianRupee, Search, Plus, Eye, Edit, 
+  ShieldCheck, ShieldAlert, CheckCircle, Ban, AlertCircle, RefreshCw 
+} from "lucide-react";
 import ClientModal, { Client } from "../../components/admin/ClientModal";
 import ClientViewModal from "../../components/admin/ClientViewModal";
 import { financeApi } from "../../api/finance";
 import { ClientItem } from "../../types/api";
 
 export default function ClientsPage() {
-  const [clients, setClients] = useState<(Client & { rawId?: number | string })[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [selectedClient, setSelectedClient] = useState<(Client & { rawId?: number | string }) | null>(null);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
   const fetchClients = async () => {
     setLoading(true);
     setError(null);
     try {
       const data = await financeApi.getClients();
-      const mapped = data.map((c: ClientItem) => ({
+      const mapped: Client[] = data.map((c: ClientItem) => ({
         id: String(c.client_code || `CLI-${c.id}`),
         rawId: c.id,
+        clientCode: c.client_code,
         companyName: c.company_name,
         contactPerson: c.contact_person,
         gstin: c.gstin,
+        pan: c.pan || (c.gstin ? c.gstin.slice(2, 12) : ''),
+        state: c.state,
         email: c.email,
         phone: c.phone,
         creditLimit: Number(c.credit_limit || 0),
-        totalInvoiced: 0,
+        creditExposure: Number(c.credit_exposure || 0),
+        availableCredit: Number(c.available_credit ?? Math.max(0, Number(c.credit_limit || 0) - Number(c.credit_exposure || 0))),
+        totalInvoiced: Number(c.total_invoiced || 0),
+        address: c.address || c.billing_address || '',
+        isActive: c.is_active,
       }));
       setClients(mapped);
     } catch (err: any) {
@@ -49,14 +60,29 @@ export default function ClientsPage() {
     setIsEditModalOpen(true);
   };
 
-  const handleEditClient = (client: Client & { rawId?: number | string }) => {
+  const handleEditClient = (client: Client) => {
     setSelectedClient(client);
     setIsEditModalOpen(true);
   };
 
-  const handleViewClient = (client: Client & { rawId?: number | string }) => {
+  const handleViewClient = (client: Client) => {
     setSelectedClient(client);
     setIsViewModalOpen(true);
+  };
+
+  const handleToggleActive = async (client: Client, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!client.rawId) return;
+    try {
+      if (client.isActive) {
+        await financeApi.deactivateClient(client.rawId, "Quick deactivation from directory");
+      } else {
+        await financeApi.activateClient(client.rawId, "Quick activation from directory");
+      }
+      await fetchClients();
+    } catch (err: any) {
+      alert(err?.message || "Failed to toggle client status.");
+    }
   };
 
   const handleModalSubmit = async (data: Partial<Client>) => {
@@ -69,7 +95,13 @@ export default function ClientsPage() {
           email: data.email,
           phone: data.phone,
           credit_limit: data.creditLimit,
+          address: data.address,
         });
+
+        // If credit limit changed and reason provided, adjust through dedicated audited endpoint
+        if (data.creditLimit !== undefined && data.creditLimit !== selectedClient.creditLimit) {
+          await financeApi.adjustCreditLimit(selectedClient.rawId, data.creditLimit, data.reason || "Credit limit adjusted via Admin UI");
+        }
       } else {
         await financeApi.createClient({
           company_name: data.companyName,
@@ -78,123 +110,252 @@ export default function ClientsPage() {
           email: data.email,
           phone: data.phone,
           credit_limit: data.creditLimit || 0,
+          address: data.address || '',
         });
       }
+      setIsEditModalOpen(false);
       await fetchClients();
     } catch (err: any) {
       console.error("Failed to save client:", err);
       alert(err?.message || "Failed to save client to backend API.");
-    } finally {
-      setIsEditModalOpen(false);
     }
   };
 
-  const filteredClients = clients.filter(c => 
-    c.companyName.toLowerCase().includes(search.toLowerCase()) || 
-    c.contactPerson.toLowerCase().includes(search.toLowerCase()) ||
-    c.gstin.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredClients = clients.filter(c => {
+    const matchesSearch = 
+      c.companyName.toLowerCase().includes(search.toLowerCase()) || 
+      c.contactPerson.toLowerCase().includes(search.toLowerCase()) ||
+      c.gstin.toLowerCase().includes(search.toLowerCase()) ||
+      c.id.toLowerCase().includes(search.toLowerCase());
 
-  const totalCreditLimit = clients.reduce((sum, c) => sum + c.creditLimit, 0);
+    if (!matchesSearch) return false;
+    if (statusFilter === 'active') return c.isActive;
+    if (statusFilter === 'inactive') return !c.isActive;
+    return true;
+  });
+
+  const totalCreditLimit = clients.reduce((sum, c) => sum + (c.creditLimit || 0), 0);
+  const totalExposure = clients.reduce((sum, c) => sum + (c.creditExposure || 0), 0);
+  const activeCount = clients.filter(c => c.isActive).length;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[#0A2540]">Clients Directory</h1>
-        <p className="text-sm text-slate-500 mt-1">Manage B2B corporate buyers and their credit limits.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-[#0A2540]">Clients Directory</h1>
+          <p className="text-sm text-slate-500 mt-1">Manage B2B corporate buyers, legal GSTIN registration, and authoritative credit headroom.</p>
+        </div>
+        <button 
+          onClick={handleCreateNew} 
+          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#F2A900] text-[#0A2540] text-sm font-bold rounded-lg hover:bg-[#e09b00] transition-colors shadow-sm whitespace-nowrap self-start sm:self-auto"
+        >
+          <Plus className="w-4 h-4" />
+          Add New Client
+        </button>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[
-          { title: "Total Clients", value: clients.length.toString(), icon: <Users className="w-6 h-6 text-blue-600" />, bg: "bg-blue-100" },
-          { title: "Active B2B Accounts", value: clients.length.toString(), icon: <Building2 className="w-6 h-6 text-emerald-600" />, bg: "bg-emerald-100" },
-          { title: "Total Outstanding Credit", value: `₹${totalCreditLimit.toLocaleString("en-IN")}`, icon: <IndianRupee className="w-6 h-6 text-amber-600" />, bg: "bg-amber-100" },
-        ].map((kpi, idx) => (
-          <div key={idx} className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-slate-500 mb-1">{kpi.title}</p>
-              <p className="text-2xl font-bold text-[#0A2540]">{kpi.value}</p>
-            </div>
-            <div className={`w-14 h-14 rounded-full flex items-center justify-center ${kpi.bg}`}>
-              {kpi.icon}
-            </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Total Clients</p>
+            <p className="text-2xl font-bold text-[#0A2540]">{clients.length}</p>
+            <p className="text-xs text-slate-400 mt-1">{activeCount} active corporate accounts</p>
           </div>
-        ))}
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-blue-50 text-blue-600">
+            <Users className="w-6 h-6" />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Active Accounts</p>
+            <p className="text-2xl font-bold text-emerald-600">{activeCount}</p>
+            <p className="text-xs text-slate-400 mt-1">{clients.length - activeCount} accounts deactivated</p>
+          </div>
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-emerald-50 text-emerald-600">
+            <Building2 className="w-6 h-6" />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Total Credit Facility</p>
+            <p className="text-2xl font-bold text-[#0A2540]">₹{totalCreditLimit.toLocaleString("en-IN")}</p>
+            <p className="text-xs text-slate-400 mt-1">Aggregated approved ceiling</p>
+          </div>
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-indigo-50 text-indigo-600">
+            <IndianRupee className="w-6 h-6" />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Outstanding Exposure</p>
+            <p className="text-2xl font-bold text-amber-600">₹{totalExposure.toLocaleString("en-IN")}</p>
+            <p className="text-xs text-slate-400 mt-1">Real-time unpaid invoices</p>
+          </div>
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-amber-50 text-amber-600">
+            <IndianRupee className="w-6 h-6" />
+          </div>
+        </div>
       </div>
 
-      {/* Action Header & Table */}
+      {/* Main Content Card */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-        <div className="p-5 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h2 className="font-bold text-[#0A2540]">Client List</h2>
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            <div className="relative flex-1 sm:w-64">
+        {/* Controls Header */}
+        <div className="p-5 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex items-center gap-2">
+            {(['all', 'active', 'inactive'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setStatusFilter(tab)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-colors ${
+                  statusFilter === tab
+                    ? 'bg-[#0A2540] text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {tab} ({tab === 'all' ? clients.length : tab === 'active' ? activeCount : clients.length - activeCount})
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="relative flex-1 md:w-72">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input 
                 type="text" 
-                placeholder="Search clients..." 
+                placeholder="Search company, code, GSTIN..." 
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg outline-none focus:border-[#0A2540] text-sm"
               />
             </div>
-            <button onClick={handleCreateNew} className="flex items-center justify-center gap-2 px-4 py-2 bg-[#F2A900] text-[#0A2540] text-sm font-bold rounded-lg hover:bg-[#e09b00] transition-colors shadow-sm whitespace-nowrap">
-              <Plus className="w-4 h-4" />
-              Add New Client
+            <button 
+              onClick={fetchClients} 
+              className="p-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors"
+              title="Refresh Directory"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>
+
+        {/* Error Notification */}
+        {error && (
+          <div className="m-5 p-4 bg-rose-50 border border-rose-200 rounded-lg flex items-center justify-between text-rose-700 text-sm">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              <span>{error}</span>
+            </div>
+            <button onClick={fetchClients} className="text-xs font-bold underline hover:no-underline">
+              Retry
+            </button>
+          </div>
+        )}
         
+        {/* Table View */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[1000px]">
+          <table className="w-full text-left border-collapse min-w-[1050px]">
             <thead>
-              <tr className="bg-slate-50/80">
-                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase">Company Name</th>
+              <tr className="bg-slate-50/80 border-b border-slate-200">
+                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase">Company & Code</th>
                 <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase">Contact Person</th>
-                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase">GSTIN</th>
-                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase">Contact Info</th>
-                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase text-right">Credit Limit (₹)</th>
-                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase text-right">Total Invoiced (₹)</th>
-                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase text-center">Action</th>
+                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase">GSTIN / State</th>
+                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase text-right">Credit Limit</th>
+                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase text-right">Outstanding</th>
+                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase text-right">Available Credit</th>
+                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase text-center">Status</th>
+                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredClients.map(client => (
-                <tr key={client.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-5 py-4">
-                    <p className="text-sm font-bold text-[#0A2540]">{client.companyName}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{client.id}</p>
-                  </td>
-                  <td className="px-5 py-4 text-sm font-medium text-slate-700">{client.contactPerson}</td>
-                  <td className="px-5 py-4 text-sm font-mono text-slate-600">{client.gstin}</td>
-                  <td className="px-5 py-4">
-                    <p className="text-sm text-slate-700">{client.email}</p>
-                    <p className="text-xs text-slate-500">{client.phone}</p>
-                  </td>
-                  <td className="px-5 py-4 text-sm font-bold text-[#0A2540] text-right">₹{client.creditLimit.toLocaleString("en-IN")}</td>
-                  <td className="px-5 py-4 text-sm font-bold text-emerald-600 text-right">₹{client.totalInvoiced.toLocaleString("en-IN")}</td>
-                  <td className="px-5 py-4 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <button onClick={() => handleViewClient(client)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="View Details">
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => handleEditClient(client)} className="p-1.5 text-slate-400 hover:text-[#0A2540] hover:bg-slate-100 rounded transition-colors" title="Edit Client">
-                        <Edit className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {filteredClients.length === 0 && (
+              {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-8 text-center text-slate-500">No clients found matching your search.</td>
+                  <td colSpan={8} className="px-5 py-12 text-center text-slate-400">
+                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-[#0A2540]" />
+                    <p className="text-sm font-medium">Loading authoritative B2B client records...</p>
+                  </td>
                 </tr>
+              ) : filteredClients.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-5 py-12 text-center text-slate-500">
+                    No clients found matching current filter criteria.
+                  </td>
+                </tr>
+              ) : (
+                filteredClients.map(client => (
+                  <tr key={client.id} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="px-5 py-4">
+                      <p className="text-sm font-bold text-[#0A2540]">{client.companyName}</p>
+                      <p className="text-xs font-mono text-slate-400 mt-0.5">{client.clientCode || client.id}</p>
+                    </td>
+                    <td className="px-5 py-4">
+                      <p className="text-sm font-medium text-slate-800">{client.contactPerson}</p>
+                      <p className="text-xs text-slate-500">{client.email}</p>
+                    </td>
+                    <td className="px-5 py-4">
+                      <p className="text-sm font-mono text-slate-700 font-semibold">{client.gstin}</p>
+                      <p className="text-xs text-slate-400">{client.state || "State Registered"}</p>
+                    </td>
+                    <td className="px-5 py-4 text-sm font-bold text-[#0A2540] text-right">
+                      ₹{(client.creditLimit || 0).toLocaleString("en-IN")}
+                    </td>
+                    <td className="px-5 py-4 text-sm font-bold text-amber-700 text-right">
+                      ₹{(client.creditExposure || 0).toLocaleString("en-IN")}
+                    </td>
+                    <td className="px-5 py-4 text-sm font-bold text-emerald-700 text-right">
+                      ₹{(client.availableCredit ?? 0).toLocaleString("en-IN")}
+                    </td>
+                    <td className="px-5 py-4 text-center">
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                        client.isActive
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-rose-100 text-rose-800'
+                      }`}>
+                        {client.isActive ? <ShieldCheck className="w-3 h-3" /> : <ShieldAlert className="w-3 h-3" />}
+                        {client.isActive ? 'Active' : 'Frozen'}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button 
+                          onClick={() => handleViewClient(client)} 
+                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" 
+                          title="View Ledger & Profile"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleEditClient(client)} 
+                          className="p-1.5 text-slate-400 hover:text-[#0A2540] hover:bg-slate-100 rounded transition-colors" 
+                          title="Edit Client Terms"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={(e) => handleToggleActive(client, e)} 
+                          className={`p-1.5 rounded transition-colors ${
+                            client.isActive 
+                              ? 'text-slate-400 hover:text-rose-600 hover:bg-rose-50' 
+                              : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'
+                          }`}
+                          title={client.isActive ? "Freeze / Deactivate" : "Activate Client"}
+                        >
+                          {client.isActive ? <Ban className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
         </div>
       </div>
       
+      {/* Edit / Create Modal */}
       <ClientModal 
         isOpen={isEditModalOpen} 
         onClose={() => setIsEditModalOpen(false)} 
@@ -202,10 +363,12 @@ export default function ClientsPage() {
         initialData={selectedClient} 
       />
 
+      {/* Detail Profile Modal */}
       <ClientViewModal 
         isOpen={isViewModalOpen} 
         onClose={() => setIsViewModalOpen(false)} 
-        client={selectedClient} 
+        client={selectedClient}
+        onClientUpdated={fetchClients}
       />
     </div>
   );
