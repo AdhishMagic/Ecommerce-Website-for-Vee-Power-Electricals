@@ -72,3 +72,27 @@ class RequestIdMiddleware(MiddlewareMixin):
         if request_id and request_id != '-':
             set_current_request_id(request_id)
         return None
+
+
+class SecurityHeadersMiddleware(MiddlewareMixin):
+    """
+    Middleware that enforces canonical HTTP security response headers across all responses:
+    - X-Content-Type-Options: nosniff
+    - X-Frame-Options: DENY
+    - Referrer-Policy: strict-origin-when-cross-origin
+    - Cross-Origin-Opener-Policy: same-origin
+    - Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(self), usb=()
+    """
+    def process_response(self, request, response):
+        if 'X-Content-Type-Options' not in response:
+            response['X-Content-Type-Options'] = 'nosniff'
+        if 'X-Frame-Options' not in response:
+            response['X-Frame-Options'] = 'DENY'
+        if 'Referrer-Policy' not in response:
+            response['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        if 'Cross-Origin-Opener-Policy' not in response:
+            response['Cross-Origin-Opener-Policy'] = 'same-origin'
+        if 'Permissions-Policy' not in response:
+            response['Permissions-Policy'] = 'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(self), usb=()'
+        return response
+

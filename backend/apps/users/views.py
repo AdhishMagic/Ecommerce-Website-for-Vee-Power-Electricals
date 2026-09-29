@@ -6,6 +6,7 @@ from django.utils.http import urlsafe_base64_encode
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -31,6 +32,8 @@ class RegisterView(APIView):
     Customer account registration with automated role assignment and JWT generation.
     """
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
 
     def post(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
@@ -65,6 +68,8 @@ class LoginView(APIView):
     Customer/Staff authentication returning access & refresh JWT tokens.
     """
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
 
     def post(self, request):
         serializer = UserLoginSerializer(data=request.data)
@@ -167,6 +172,8 @@ class PasswordResetView(APIView):
     Also supports unified reset confirmation if token and new_password are provided.
     """
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
 
     def post(self, request):
         # Support unified endpoint if confirmation payload is provided
@@ -202,6 +209,8 @@ class PasswordResetConfirmView(APIView):
     Cryptographically validates reset token, checks password policy, and updates password.
     """
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
 
     def post(self, request):
         serializer = PasswordResetConfirmSerializer(data=request.data)

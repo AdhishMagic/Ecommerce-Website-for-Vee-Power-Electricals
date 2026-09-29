@@ -46,6 +46,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'apps.common.middleware.RequestIdMiddleware',
+    'apps.common.middleware.SecurityHeadersMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -128,6 +129,15 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    'DEFAULT_THROTTLE_CLASSES': (
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ),
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': os.getenv('THROTTLE_RATE_ANON', '120/minute'),
+        'user': os.getenv('THROTTLE_RATE_USER', '1000/minute'),
+        'auth': os.getenv('THROTTLE_RATE_AUTH', '100/minute'),
+    },
     'DEFAULT_PAGINATION_CLASS': 'apps.common.pagination.StandardResultsSetPagination',
     'PAGE_SIZE': 20,
     'EXCEPTION_HANDLER': 'apps.common.exceptions.custom_exception_handler',
@@ -176,8 +186,42 @@ EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', 10))
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'Vee Power Electricals <noreply@veepower.in>')
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS Configuration (Strict allowlisting; no wildcard credentials)
+CORS_ALLOW_ALL_ORIGINS = False
+raw_cors = os.getenv('CORS_ALLOWED_ORIGINS', '')
+CORS_ALLOWED_ORIGINS = [c.strip() for c in raw_cors.split(',') if c.strip()] if raw_cors else [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:80',
+    'http://localhost',
+    'http://127.0.0.1:80',
+    'http://127.0.0.1',
+]
 CORS_ALLOW_CREDENTIALS = True
+
+# CSRF Trusted Origins
+raw_csrf = os.getenv('CSRF_TRUSTED_ORIGINS', '')
+CSRF_TRUSTED_ORIGINS = [c.strip() for c in raw_csrf.split(',') if c.strip()] if raw_csrf else [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:80',
+    'http://localhost',
+    'http://127.0.0.1:80',
+    'http://127.0.0.1',
+]
+
+# Security Headers & Cookie Policies
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
 
 # Payment Gateway Configuration (Razorpay)
 RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID', 'rzp_test_mock_veepower_key')
