@@ -115,57 +115,38 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   // ==============================
   const addProduct = useCallback(async (product: Omit<Product, "id">) => {
     if (product.price < 0 || product.stock < 0) {
-      console.error("Validation Error: Price and stock cannot be negative.");
-      return;
+      throw new Error("Validation Error: Price and stock cannot be negative.");
     }
 
-    try {
-      await catalogApi.createProduct({
-        name: product.name,
-        sku: product.sku,
-        price: product.price,
-        mrp: product.price,
-        stock: product.stock,
-        low_stock_threshold: product.lowStockThreshold || 5,
-        active: product.active,
-        description: product.description || '',
-      });
-      await refreshProducts();
-    } catch (err) {
-      console.error("Error creating product via API:", err);
-      // Optimistic fallback for UI responsiveness
-      const newProduct: Product = { ...product, id: crypto.randomUUID() };
-      setProducts((prev) => [...prev, newProduct]);
-    }
+    await catalogApi.createProduct({
+      name: product.name,
+      sku: product.sku,
+      price: product.price,
+      mrp: product.price,
+      stock: product.stock,
+      low_stock_threshold: product.lowStockThreshold || 5,
+      active: product.active,
+      description: product.description || '',
+    });
+    await refreshProducts();
   }, [refreshProducts]);
 
   const updateProduct = useCallback(async (id: string, updates: Partial<Product>) => {
-    try {
-      const payload: any = {};
-      if (updates.name !== undefined) payload.name = updates.name;
-      if (updates.sku !== undefined) payload.sku = updates.sku;
-      if (updates.price !== undefined) {
-        payload.price = updates.price;
-        payload.mrp = updates.price;
-      }
-      if (updates.stock !== undefined) payload.stock = updates.stock;
-      if (updates.active !== undefined) payload.active = updates.active;
-      if (updates.description !== undefined) payload.description = updates.description;
-
-      if (!id.includes('-') && !isNaN(Number(id))) {
-        await catalogApi.updateProduct(id, payload);
-        await refreshProducts();
-      } else {
-        setProducts((prev) =>
-          prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
-        );
-      }
-    } catch (err) {
-      console.error("Error updating product:", err);
-      setProducts((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
-      );
+    const payload: any = {};
+    if (updates.name !== undefined) payload.name = updates.name;
+    if (updates.sku !== undefined) payload.sku = updates.sku;
+    if (updates.price !== undefined) {
+      payload.price = updates.price;
+      payload.mrp = updates.price;
     }
+    if (updates.stock !== undefined) payload.stock = updates.stock;
+    if (updates.active !== undefined) payload.active = updates.active;
+    if (updates.description !== undefined) payload.description = updates.description;
+
+    if (!id.includes('-') && !isNaN(Number(id))) {
+      await catalogApi.updateProduct(id, payload);
+    }
+    await refreshProducts();
   }, [refreshProducts]);
 
   const updateStock = useCallback(async (productId: string, newStock: number) => {

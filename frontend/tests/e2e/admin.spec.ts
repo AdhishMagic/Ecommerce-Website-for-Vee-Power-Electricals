@@ -13,7 +13,7 @@ test.describe('Admin Workflows E2E Flows', () => {
   test('1. Admin Dashboard loads with key metrics and KPI cards', async ({ page }) => {
     await expect(page.locator('text=Total Sales').first()).toBeVisible({ timeout: 15000 });
     await expect(page.locator('text=Open Orders').first()).toBeVisible();
-    await expect(page.locator('text=Conversion Rate').first()).toBeVisible();
+    await expect(page.locator('text=/Total Invoiced|Total Outstanding/i').first()).toBeVisible();
   });
 
   test('2. Admin Order Management loads orders list and supports filtering', async ({ page }) => {

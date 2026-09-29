@@ -36,16 +36,32 @@ export class ApiError extends Error {
       else if (status === 403) message = 'Access denied. You do not have permission to perform this action.';
       else if (status === 404) message = 'The requested resource was not found.';
       else if (status === 409) message = 'A data conflict occurred. Please review and try again.';
+      else if (status === 422) message = 'Validation failed. Please verify the submitted data.';
       else if (status === 429) message = 'Too many requests. Please slow down and try again.';
+      else if (status === 503) message = 'Service temporarily unavailable. Please try again later.';
       else if (status >= 500) message = 'An unexpected server error occurred. Please try again later.';
       else message = `Request failed with status ${status}`;
     }
+
+    const getDefaultCode = (codeStatus: number): string => {
+      if (codeStatus === 0) return 'NETWORK_ERROR';
+      if (codeStatus === 400) return 'BAD_REQUEST';
+      if (codeStatus === 401) return 'UNAUTHORIZED';
+      if (codeStatus === 403) return 'FORBIDDEN';
+      if (codeStatus === 404) return 'NOT_FOUND';
+      if (codeStatus === 409) return 'CONFLICT';
+      if (codeStatus === 422) return 'VALIDATION_ERROR';
+      if (codeStatus === 429) return 'RATE_LIMITED';
+      if (codeStatus === 503) return 'SERVICE_UNAVAILABLE';
+      if (codeStatus >= 500) return 'SERVER_ERROR';
+      return 'ERROR';
+    };
 
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.data = data;
-    this.code = canonical?.code || (status === 0 ? 'NETWORK_ERROR' : 'ERROR');
+    this.code = canonical?.code || getDefaultCode(status);
     this.requestId = canonical?.request_id || requestId;
     this.fieldErrors = {};
 
@@ -168,10 +184,11 @@ const onRefreshFailed = () => {
   window.dispatchEvent(new CustomEvent('auth_session_expired'));
 };
 
-interface RequestOptions extends Omit<RequestInit, 'body'> {
+export interface RequestOptions extends Omit<RequestInit, 'body'> {
   params?: Record<string, any>;
   body?: any;
   skipAuth?: boolean;
+  timeoutMs?: number;
   _isRetry?: boolean;
 }
 
@@ -179,7 +196,7 @@ export async function apiClient<T>(
   endpoint: string,
   options: RequestOptions = {}
 ): Promise<T> {
-  const { params, body, headers = {}, skipAuth = false, _isRetry = false, ...restOptions } = options;
+  const { params, body, headers = {}, skipAuth = false, timeoutMs = 30000, _isRetry = false, ...restOptions } = options;
 
   let url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
 
@@ -216,12 +233,25 @@ export async function apiClient<T>(
     }
   }
 
+  // Ensure request ID is present for tracing
+  if (!reqHeaders['X-Request-ID'] && !(headers as Record<string, string>)['X-Request-ID']) {
+    reqHeaders['X-Request-ID'] = `req_fe_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
+  }
+
   // Merge custom headers
   Object.assign(reqHeaders, headers);
+
+  // Setup abort controller for timeout
+  const controller = new AbortController();
+  const timeoutId = timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  if (restOptions.signal) {
+    restOptions.signal.addEventListener('abort', () => controller.abort());
+  }
 
   const config: RequestInit = {
     ...restOptions,
     headers: reqHeaders,
+    signal: controller.signal,
     body: isFormData ? body : body !== undefined ? JSON.stringify(body) : undefined,
   };
 
@@ -229,9 +259,18 @@ export async function apiClient<T>(
   try {
     response = await fetch(url, config);
   } catch (networkErr: any) {
+    if (controller.signal.aborted) {
+      const err = new ApiError(0, {
+        detail: `Request timed out after ${timeoutMs / 1000}s. Please check your network and try again.`,
+      });
+      err.code = 'TIMEOUT_ERROR';
+      throw err;
+    }
     throw new ApiError(0, {
       detail: networkErr?.message || 'Network connection failed. Please check your internet connection.',
     });
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
   }
 
   // Handle 401 Unauthorized for token refresh

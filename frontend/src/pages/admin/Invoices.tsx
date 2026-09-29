@@ -37,7 +37,7 @@ export default function InvoicesPage() {
         amount: Number(inv.total_amount || 0),
         subtotal: Number(inv.subtotal || 0),
         taxAmount: Number(inv.tax_amount || 0),
-        status: (inv.status === 'PAID' ? 'Paid' : inv.status === 'OVERDUE' ? 'Overdue' : inv.status === 'CANCELLED' ? 'Cancelled' : 'Unpaid') as any,
+        status: (String(inv.status || '').toUpperCase() === 'PAID' ? 'Paid' : String(inv.status || '').toUpperCase() === 'OVERDUE' ? 'Overdue' : String(inv.status || '').toUpperCase() === 'CANCELLED' ? 'Cancelled' : 'Unpaid') as any,
         items: (inv.items || []).map((it: any) => ({
           id: String(it.id),
           product: it.item_name || 'Item',

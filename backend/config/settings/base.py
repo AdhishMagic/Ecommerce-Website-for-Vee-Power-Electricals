@@ -200,6 +200,10 @@ CORS_ALLOWED_ORIGINS = [c.strip() for c in raw_cors.split(',') if c.strip()] if 
     'http://127.0.0.1',
 ]
 CORS_ALLOW_CREDENTIALS = True
+from corsheaders.defaults import default_headers
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'x-request-id',
+]
 
 # CSRF Trusted Origins
 raw_csrf = os.getenv('CSRF_TRUSTED_ORIGINS', '')

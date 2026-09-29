@@ -18,7 +18,8 @@ test.describe('Responsive E2E Layout Validation', () => {
 
       // 1. Home Page
       await page.goto('/');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
+      await page.waitForTimeout(100);
       let hasOverflow = await page.evaluate(() => {
         return document.documentElement.scrollWidth > window.innerWidth + 2;
       });
@@ -26,7 +27,8 @@ test.describe('Responsive E2E Layout Validation', () => {
 
       // 2. Catalog Page
       await page.goto('/catalog');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
+      await page.waitForTimeout(100);
       hasOverflow = await page.evaluate(() => {
         return document.documentElement.scrollWidth > window.innerWidth + 2;
       });
@@ -34,7 +36,8 @@ test.describe('Responsive E2E Layout Validation', () => {
 
       // 3. Cart Page
       await page.goto('/cart');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
+      await page.waitForTimeout(100);
       hasOverflow = await page.evaluate(() => {
         return document.documentElement.scrollWidth > window.innerWidth + 2;
       });

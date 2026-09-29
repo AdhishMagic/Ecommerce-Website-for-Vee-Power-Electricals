@@ -525,3 +525,30 @@ export interface PaymentVerifyResponse {
   order_status: OrderStatus;
 }
 
+export interface FinanceSummary {
+  kpis: {
+    total_invoiced: number;
+    total_paid: number;
+    total_outstanding: number;
+    b2b_outstanding: number;
+    total_expenses: number;
+    net_profit: number;
+    overdue_invoices_count: number;
+  };
+  monthly_trend: Array<{
+    month: string;
+    revenue: number;
+    expenses: number;
+    net: number;
+  }>;
+  recent_transactions?: Array<{
+    id: number;
+    date: string;
+    type: 'INVOICE' | 'EXPENSE';
+    description: string;
+    amount: number;
+    status: string;
+  }>;
+}
+
+

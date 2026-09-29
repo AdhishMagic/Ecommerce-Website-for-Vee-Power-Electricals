@@ -33,8 +33,21 @@ export default function OrderSuccess() {
           </div>
           {totalAmount && (
             <div className="flex justify-between items-center mb-3">
-              <span className="text-sm font-semibold text-[#17212B]">Total Paid</span>
-              <span className="text-sm font-bold text-[#0B3A63]">₹{totalAmount}</span>
+              <span className="text-sm font-semibold text-[#17212B]">
+                {order?.payment_status === 'COMPLETED' || order?.payment_status === 'PAID' ? 'Total Paid' : 'Total Payable'}
+              </span>
+              <div className="text-right">
+                <span className="text-sm font-bold text-[#0B3A63]">₹{totalAmount}</span>
+                {order?.payment_status && (
+                  <span className={`ml-2 text-xs px-2 py-0.5 rounded font-semibold ${
+                    order.payment_status === 'COMPLETED' || order.payment_status === 'PAID'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-amber-100 text-amber-800'
+                  }`}>
+                    {order.payment_status}
+                  </span>
+                )}
+              </div>
             </div>
           )}
           <div className="flex justify-between items-center mb-3">

@@ -37,7 +37,7 @@ export default function ClientsPage() {
         phone: c.phone,
         creditLimit: Number(c.credit_limit || 0),
         creditExposure: Number(c.credit_exposure || 0),
-        availableCredit: Number(c.available_credit ?? Math.max(0, Number(c.credit_limit || 0) - Number(c.credit_exposure || 0))),
+        availableCredit: Number(c.available_credit ?? 0),
         totalInvoiced: Number(c.total_invoiced || 0),
         address: c.address || c.billing_address || '',
         isActive: c.is_active,

@@ -9,6 +9,7 @@ export default function ProductForm() {
 
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
   const [saved, setSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -90,7 +91,7 @@ export default function ProductForm() {
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateCurrentSection()) return;
 
@@ -101,14 +102,22 @@ export default function ProductForm() {
       lowStockThreshold: parseInt(formData.lowStockThreshold) || 10,
     };
 
-    if (id) {
-      updateProduct(id, submitData);
-    } else {
-      addProduct(submitData);
+    setIsSaving(true);
+    setErrorMsg("");
+    try {
+      if (id) {
+        await updateProduct(id, submitData);
+      } else {
+        await addProduct(submitData);
+      }
+      setSaved(true);
+      setTimeout(() => { setSaved(false); navigate("/admin/products"); }, 1500);
+    } catch (err: any) {
+      console.error("Failed to save product:", err);
+      setErrorMsg(err?.message || "Failed to save product to backend API.");
+    } finally {
+      setIsSaving(false);
     }
-
-    setSaved(true);
-    setTimeout(() => { setSaved(false); navigate("/admin/products"); }, 1500);
   };
 
   return (
@@ -299,8 +308,18 @@ export default function ProductForm() {
                   Next Step
                 </button>
               ) : (
-                <button type="submit" className={`flex-1 py-3 font-semibold rounded-lg transition-colors ${saved ? "bg-[#12773D] text-white" : "bg-[#F2A900] hover:bg-[#e09b00] text-[#0A2540]"}`}>
-                  {saved ? "✓ Saved!" : (id ? "Update Product" : "Save Product")}
+                <button 
+                  type="submit" 
+                  disabled={isSaving}
+                  className={`flex-1 py-3 font-semibold rounded-lg transition-colors ${
+                    isSaving 
+                      ? "opacity-60 cursor-not-allowed bg-[#F2A900] text-[#0A2540]" 
+                      : saved 
+                        ? "bg-[#12773D] text-white" 
+                        : "bg-[#F2A900] hover:bg-[#e09b00] text-[#0A2540]"
+                  }`}
+                >
+                  {isSaving ? "Saving..." : saved ? "✓ Saved!" : (id ? "Update Product" : "Save Product")}
                 </button>
               )}
             </div>
