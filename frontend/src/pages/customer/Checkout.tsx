@@ -335,7 +335,7 @@ export default function Checkout() {
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Step Content */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 min-w-0">
           {validationError && (
             <div className="bg-[#FEF2F2] border border-[#FCA5A5] text-[#C0392B] px-4 py-3 rounded-lg mb-6 text-sm font-medium flex gap-2 items-center">
               <span>⚠️</span> {validationError}
@@ -612,7 +612,7 @@ export default function Checkout() {
         </div>
 
         {/* Order summary sidebar */}
-        <div className="bg-white border border-[#D9E1E8] rounded-xl p-5 h-fit sticky top-24 shadow-sm">
+        <div className="bg-white border border-[#D9E1E8] rounded-xl p-5 h-fit sticky top-24 shadow-sm min-w-0">
           <h3 className="font-bold text-[#0B3A63] mb-4">Estimated Order Summary</h3>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between text-[#667085]">

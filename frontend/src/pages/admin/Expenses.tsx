@@ -303,7 +303,7 @@ export default function ExpensesPage() {
       {/* Add/Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0A2540]/40 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto flex flex-col">
             <div className="p-5 border-b border-slate-200 flex justify-between items-center bg-slate-50">
               <h3 className="font-bold text-[#0A2540]">{editingExpense ? "Edit Expense" : "Add New Expense"}</h3>
               <button onClick={handleCloseModal} className="text-slate-400 hover:text-slate-600 transition-colors">

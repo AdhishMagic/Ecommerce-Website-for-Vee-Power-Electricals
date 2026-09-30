@@ -191,7 +191,7 @@ export default function AdminInventory() {
       {/* 5. Interactive Stock Adjustment Modal */}
       {adjustingItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0A2540]/40 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden flex flex-col">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm max-h-[90vh] overflow-y-auto flex flex-col">
             <div className="p-5 border-b border-slate-200 flex justify-between items-center bg-slate-50">
               <h3 className="font-bold text-[#0A2540]">Adjust Stock</h3>
               <button onClick={handleCloseAdjust} className="text-slate-400 hover:text-slate-600 transition-colors">
