@@ -186,6 +186,12 @@ class QuotationSerializer(serializers.ModelSerializer):
             'expiry_date': {'required': False},
         }
 
+    def validate(self, data):
+        client = data.get('client')
+        if client and not client.is_active:
+            raise serializers.ValidationError({"client": f"Cannot create quotation for inactive client '{client.company_name}'."})
+        return data
+
     def create(self, validated_data):
         from django.utils import timezone
         import datetime
