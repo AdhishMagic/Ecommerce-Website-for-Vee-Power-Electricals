@@ -172,6 +172,11 @@ The system adheres to the principle of **Server Authority**: no financial, inven
 2. **Scoped Authentication Throttling**:
    - `LoginView`, `RegisterView`, `PasswordResetView`, `PasswordResetConfirmView` enforce `ScopedRateThrottle` with `throttle_scope = 'auth'`.
    - Exceeding the rate limit immediately returns HTTP 429 (`TOO_MANY_REQUESTS`) with canonical machine-readable error payload.
+3. **Limitation (documented, not solved):** throttling counters live in
+   Django's cache — **in-memory (LocMem) in the default development setup**.
+   Multi-worker production deployments must configure **Redis** (or another
+   shared cache) or limits apply per-process and are effectively multiplied by
+   worker count.
 
 ---
 

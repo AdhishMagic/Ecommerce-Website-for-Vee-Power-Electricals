@@ -1,6 +1,38 @@
 # ⚡ Vee Power Electricals — Full-Stack E-Commerce Application
 
-An enterprise-ready, full-stack e-commerce web application designed for **Vee Power Electricals**, featuring a modern React frontend, Django REST Framework backend API, multi-database support (SQLite / MySQL), and containerized Docker setup.
+An enterprise-ready, full-stack e-commerce web application designed for **Vee Power Electricals**, featuring a modern React frontend, Django REST Framework backend API, MySQL database (SQLite for quick local starts), and a containerized Docker setup.
+
+**Validated state:** 595 backend tests, 171 Playwright E2E tests, 44-check live database audit and the full quality gate pass at commit `d0a62a3` — see [docs/testing/README.md](docs/testing/README.md).
+
+---
+
+## ✨ Main Capabilities
+
+- **Storefront:** catalog browsing/search/filtering, product detail, client-side cart, backend-authoritative checkout (GST + delivery + discounts computed server-side), online payments (Razorpay) & Cash on Delivery, order tracking, returns.
+- **Admin panel:** dashboard analytics, product/category management & CSV import, inventory with append-only stock ledger, order fulfilment state machine, returns processing, payment transactions, finance (invoices, expenses, settlements, P&L summary), B2B quotations → invoices, B2B clients with credit limits, configuration with audit trail.
+- **Platform:** JWT auth with rotation/blacklist, RBAC (customer/admin), IDOR-safe ownership scoping, rate limiting, canonical error envelope, security headers, communication/email hooks with idempotent logging, Docker health checks.
+
+---
+
+## 🏗️ Architecture & Technology Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 19, TypeScript 5, Vite 8, Tailwind CSS 4, React Router 7 (lazy routes), Recharts |
+| Backend | Python/Django 5, Django REST Framework, SimpleJWT, MySQL client |
+| Database | MySQL 8.0 (SQLite fallback for local dev) |
+| Infrastructure | Docker Compose (dev + prod overlay), gunicorn in production |
+| Payments | Razorpay (test/live via env) |
+
+```text
+Browser (React SPA) ──HTTP──▶ Backend API (Django/DRF :8000)
+                                  │  services layer (pricing, tax, stock, FSM, credit)
+                                  ▼
+                              MySQL 8.0 (:3306)
+```
+
+Presentation → API → business-logic → persistence boundaries are described in
+[docs/architecture/README.md](docs/architecture/README.md).
 
 ---
 
@@ -13,13 +45,15 @@ An enterprise-ready, full-stack e-commerce web application designed for **Vee Po
 4. [🔑 Admin Access & Seed Data](#-admin-access--seed-data)
 5. [⚙️ Environment Variables](#️-environment-variables)
 6. [🔌 API Endpoints Cheat Sheet](#-api-endpoints-cheat-sheet)
-7. [🛠️ Troubleshooting & FAQs](#️-troubleshooting--faqs)
+7. [🧪 Testing](#-testing)
+8. [🚢 Production Build & Deployment](#-production-build--deployment)
+9. [🛠️ Troubleshooting & FAQs](#️-troubleshooting--faqs)
+10. [🚩 Security Notes & Known Limitations](#-security-notes--known-limitations)
+11. [📚 Documentation Index](#-documentation-index)
 
 ---
 
 ## 📋 Prerequisites
-
-Before starting, ensure you have the following installed on your machine:
 
 - **Node.js**: `v18.0.0` or higher ([Download Node.js](https://nodejs.org/))
 - **Python**: `v3.10` or higher ([Download Python](https://www.python.org/))
@@ -30,174 +64,87 @@ Before starting, ensure you have the following installed on your machine:
 
 ## 🚀 Option A: Quick Local Setup (Recommended)
 
-Follow these simple step-by-step instructions to run the application locally without Docker.
-
-> 💡 **Note**: In development mode, the backend uses **SQLite** automatically, so you **do NOT need MySQL** installed to run the project locally!
-
----
+> 💡 In development mode the backend uses **SQLite** automatically — no MySQL needed.
 
 ### Step 1: Backend Setup (Django API)
 
-1. **Open a terminal** and navigate to the project root directory:
-   ```bash
-   cd Ecommerce-Website-for-Vee-Power-Electricals
-   ```
+```bash
+cd backend
+python -m venv venv
+# Windows PowerShell:  .\venv\Scripts\Activate.ps1
+# macOS/Linux:        source venv/bin/activate
+pip install -r requirements/development.txt
+python manage.py migrate
+python manage.py seed_data          # demo categories, brands, products
+python manage.py runserver          # → http://127.0.0.1:8000/
+```
 
-2. **Navigate into the backend folder**:
-   ```bash
-   cd backend
-   ```
-
-3. **Create a Python Virtual Environment**:
-   - **Windows (PowerShell / CMD)**:
-     ```powershell
-     python -m venv venv
-     ```
-   - **macOS / Linux**:
-     ```bash
-     python3 -m venv venv
-     ```
-
-4. **Activate the Virtual Environment**:
-   - **Windows (PowerShell)**:
-     ```powershell
-     .\venv\Scripts\Activate.ps1
-     ```
-     *(If Windows blocks script execution, run: `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process` first)*
-   - **Windows (Command Prompt / CMD)**:
-     ```cmd
-     venv\Scripts\activate.bat
-     ```
-   - **macOS / Linux**:
-     ```bash
-     source venv/bin/activate
-     ```
-
-5. **Install Backend Dependencies**:
-   ```bash
-   pip install -r requirements/development.txt
-   ```
-
-6. **Run Database Migrations**:
-   ```bash
-   python manage.py migrate
-   ```
-
-7. **Seed Initial Demo Data** *(Categories, Brands, Products)*:
-   ```bash
-   python manage.py seed_data
-   ```
-
-8. **(Optional) Create Superuser / Admin Account**:
-   ```bash
-   python manage.py createsuperuser
-   ```
-   *(Follow prompt to set admin username, email, and password)*
-
-9. **Start the Backend Server**:
-   ```bash
-   python manage.py runserver
-   ```
-   🎉 **Backend is live at**: `http://127.0.0.1:8000/`
-   - **API Root**: `http://127.0.0.1:8000/api/v1/`
-   - **Django Admin Portal**: `http://127.0.0.1:8000/admin/`
-
----
+- **API root:** `http://127.0.0.1:8000/api/v1/`
+- **Django Admin:** `http://127.0.0.1:8000/admin/`
 
 ### Step 2: Frontend Setup (React + Vite)
 
-1. **Open a NEW terminal window or tab** (keep the backend server terminal running).
+In a **new terminal**:
 
-2. **Navigate to the frontend folder**:
-   ```bash
-   cd frontend
-   ```
-
-3. **Install Frontend Dependencies**:
-   ```bash
-   npm install
-   ```
-
-4. **Start the Frontend Development Server**:
-   ```bash
-   npm run dev
-   ```
-
-5. **Access the Application**:
-   Open your browser and navigate to:
-   👉 **`http://localhost:5173`**
+```bash
+cd frontend
+npm install
+npm run dev                         # → http://localhost:5173
+```
 
 ---
 
 ## 🐳 Option B: Docker Setup (Containerized with Live Code Reload)
 
-Docker is configured with **live volume mounting** for both frontend and backend. Any changes you make to the source code on your computer are reflected immediately inside the containers!
+```bash
+docker compose up -d --build        # migrations + demo data applied on first run
+docker compose ps                   # verify the 3 services are healthy
+docker compose down                 # stop
+```
 
-1. **Ensure Docker Desktop is running**.
+- 🌐 Frontend (hot reload): `http://localhost:5173`
+- ⚡ Backend API: `http://localhost:8000/api/v1/`
+- 🛠️ Django Admin: `http://localhost:8000/admin/`
+- 🗄️ MySQL: `localhost:3306`
 
-2. **Start all services from the project root directory**:
-   ```bash
-   docker compose up -d --build
-   ```
-   *(On first run, database migrations and initial demo data are automatically applied!)*
-
-3. **Verify running services**:
-   ```bash
-   docker compose ps
-   ```
-
-4. **Access the application URLs**:
-   - 🌐 **Frontend (Live Hot-Reload)**: `http://localhost:5173`
-   - ⚡ **Backend API**: `http://localhost:8000/api/v1/`
-   - 🛠️ **Django Admin**: `http://localhost:8000/admin/`
-   - 🗄️ **MySQL DB**: `localhost:3306`
-
-5. **Stop Docker containers**:
-   ```bash
-   docker compose down
-   ```
-
-> 💡 **Tip for Production**: To run in production mode (Gunicorn + Nginx static serving):
-> ```bash
-> docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-> ```
-
+> 💡 **Production mode** (gunicorn + static frontend build):
+> `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build`
 
 ---
 
 ## 🔑 Admin Access & Seed Data
 
-### Accessing Django Admin Portal
-1. Run backend server (`python manage.py runserver`).
-2. Go to `http://localhost:8000/admin/`.
-3. Log in with the superuser credentials created via `python manage.py createsuperuser`.
-
-### Managing Inventory & Products
-- All products, brands, and categories loaded by `python manage.py seed_data` can be viewed, edited, and expanded in the Admin Portal or via REST API endpoints.
+1. Create an admin account: `python manage.py createsuperuser` (or use the
+   development seed's demo users — dev fixtures only, never production).
+2. Open `http://localhost:8000/admin/` and log in.
+3. Everything seeded by `seed_data` (or `seed_development_data` for the richer
+   demo dataset) is manageable in the Admin Portal or via REST.
 
 ---
 
 ## ⚙️ Environment Variables
 
-Both frontend and backend include `.env.example` files. By default, sensible defaults are configured out-of-the-box.
+Both apps ship tracked `.env.example` templates; defaults work out-of-the-box
+for local development. **Never commit real `.env` files or secrets.**
 
-### Backend (`backend/.env`)
-Create `backend/.env` if you want to override default settings (e.g., using MySQL instead of SQLite):
+Backend (`backend/.env`) — full reference:
+[docs/deployment/environment-configuration.md](docs/deployment/environment-configuration.md)
+
 ```env
-USE_SQLITE=True
+USE_SQLITE=True                     # False to use MySQL
 DATABASE_ENGINE=django.db.backends.mysql
 DATABASE_HOST=127.0.0.1
 DATABASE_PORT=3306
 DATABASE_NAME=veepower_db
-DATABASE_USER=root
-DATABASE_PASSWORD=root
-DJANGO_SECRET_KEY=your-custom-secret-key
+DATABASE_USER=<db-user>
+DATABASE_PASSWORD=<db-password>
+DJANGO_SECRET_KEY=<random-secret>
 DJANGO_DEBUG=True
 ALLOWED_HOSTS=localhost,127.0.0.1
 ```
 
-### Frontend (`frontend/.env`)
-Create `frontend/.env` if you need custom API URLs:
+Frontend (`frontend/.env`):
+
 ```env
 VITE_API_URL=http://localhost:8000/api/v1
 ```
@@ -206,62 +153,119 @@ VITE_API_URL=http://localhost:8000/api/v1
 
 ## 🔌 API Endpoints Cheat Sheet
 
-| Feature | HTTP Method | Endpoint |
+All routes are prefixed `/api/v1/` — full reference with auth/authorization per
+endpoint: [docs/api/README.md](docs/api/README.md).
+
+| Domain | Prefix | Examples |
 |---|---|---|
-| **Products** | `GET` | `/api/v1/products/` |
-| **Product Detail** | `GET` | `/api/v1/products/<sku>/` |
-| **Categories** | `GET` | `/api/v1/categories/` |
-| **Brands** | `GET` | `/api/v1/brands/` |
-| **Orders** | `GET`, `POST` | `/api/v1/orders/` |
-| **Inventory** | `GET` | `/api/v1/inventory/` |
-| **Stock Movement** | `POST` | `/api/v1/inventory/<id>/transaction/` |
-| **Auth Login** | `POST` | `/api/v1/auth/login/` |
-| **User Profile** | `GET` | `/api/v1/auth/me/` |
+| Auth & users | `/auth/` | `POST /auth/login/`, `POST /auth/register/`, `GET /auth/me/`, `POST /auth/token/refresh/` |
+| Addresses | `/addresses/` | customer address CRUD |
+| Catalog | `/catalog/` | `GET /catalog/products/`, `/catalog/categories/`, `/catalog/brands/` |
+| Inventory | `/inventory/` | overview, ledger, `POST /inventory/restock/`, `POST /inventory/adjust/` |
+| Orders | `/orders/` | `POST /orders/checkout/`, `GET /orders/my-orders/`, `PATCH /orders/{id}/status/`, `POST /orders/{id}/return/` |
+| Payments | `/payments/` | `POST /payments/initiate/`, `POST /payments/verify/`, `POST /payments/webhook/` |
+| Finance | `/finance/` | clients, quotations, invoices, payments, settlements, `GET /finance/summary/` |
+| Expenses | `/expenses/` | expense CRUD (admin) |
+| Configuration | `/config/` | `store/`, `tax/`, `delivery/`, `slabs/`, `shipping-rules/`, `discounts/`, `audit-logs/` |
+| Inquiries | `/inquiries/` | public contact form, admin inbox |
+| Health | `/health/` | readiness probe (application + database) |
+
+---
+
+## 🧪 Testing
+
+Verified counts at `d0a62a3` — authoritative record:
+[docs/testing/README.md](docs/testing/README.md).
+
+```bash
+# Backend (595 tests)
+docker exec veepower_backend python manage.py test tests --noinput
+
+# Database integrity (34 tests + 44-check live audit)
+docker exec veepower_backend python manage.py test tests.test_phase8_database_integrity
+docker exec -i veepower_backend python manage.py shell < backend/tests/audit_step18_database_integrity.py
+
+# Frontend typecheck + build
+cd frontend && npm run typecheck && npm run build
+
+# Live integration (17 checks) — needs the stack running
+cd frontend && node tests/integration.test.mjs
+
+# Playwright E2E (171 tests) — needs the stack running
+cd frontend && npx playwright test
+
+# Overflow audit (172 checks) & comprehensive backend audit (32 checks)
+cd frontend && node tests/overflow-audit.mjs
+cd frontend && node tests/comprehensive_audit.mjs
+```
+
+> ⚠️ Database-mutating suites (integration, Playwright, comprehensive audit,
+> live DB audit) must run **sequentially**, never concurrently.
+
+---
+
+## 🚢 Production Build & Deployment
+
+- Frontend production build: `npm run build` → `frontend/dist/` (code-split per route).
+- Backend production mode: gunicorn via `docker-compose.prod.yml`.
+- Deployment guide, runbooks, backup/restore and rollback:
+  [docs/deployment/README.md](docs/deployment/README.md).
+- Operations & maintenance runbook: [docs/operations/README.md](docs/operations/README.md).
 
 ---
 
 ## 🛠️ Troubleshooting & FAQs
 
 ### Q: Command `python` is not recognized on Windows?
-Try using `python3` or `py` instead:
-```bash
-py -m venv venv
-```
+Try `py -m venv venv`.
 
-### Q: `Activate.ps1 cannot be loaded because running scripts is disabled` on Windows PowerShell?
-Run PowerShell as Administrator or in your current terminal session execute:
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
-```
-Then run activate again: `.\venv\Scripts\Activate.ps1`
+### Q: `Activate.ps1 cannot be loaded` on Windows PowerShell?
+Run: `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process`, then
+`.\\venv\\Scripts\\Activate.ps1`.
 
-### Q: Port 8000 or 5173 is already in use?
-- For Backend: Run on a different port: `python manage.py runserver 8080`
-- For Frontend: Vite will automatically ask to run on `5174` or you can change port in `vite.config.ts`.
+### Q: Port 8000 or 5173 already in use?
+Backend: `python manage.py runserver 8080`. Frontend: Vite will offer `5174`, or change the port in `vite.config.ts`.
 
-### Q: Frontend is showing no products or empty screens?
-Make sure you ran `python manage.py seed_data` in the backend virtual environment to populate initial products, categories, and brands into the database.
+### Q: Frontend shows no products / empty screens?
+Run `python manage.py seed_data` in the backend environment.
+
+More: [docs/operations/README.md §9](docs/operations/README.md#9-troubleshooting).
 
 ---
 
-## 📂 Project Architecture Overview
+## 🚩 Security Notes & Known Limitations
 
-```text
-vee-power-electricals/
-│
-├── frontend/                                # React + TypeScript + Vite + Tailwind CSS
-│   ├── src/                                 # Pages, components, services, interfaces
-│   ├── package.json                         # Node dependencies & scripts
-│   └── vite.config.ts                       # Vite configuration
-│
-├── backend/                                 # Django REST Framework API
-│   ├── manage.py                            # Django CLI entrypoint
-│   ├── config/                              # Django settings (base, dev, prod)
-│   ├── apps/                                # Feature modules (users, products, orders, inventory)
-│   └── requirements/                        # Python package requirements
-│
-└── backend/docker/                          # Docker Compose & container definitions
-```
+- Secrets are env-only; dev fallbacks in settings are for local development —
+  production requires real secrets (`docs/deployment/environment-configuration.md`).
+- Rate limiting uses the in-memory cache in dev; configure **Redis** for
+  multi-worker production.
+- **Automated Razorpay outbound refunds are deferred/manual**; returns/cancellations
+  reconcile via credit notes.
+- Full list: [docs/limitations.md](docs/limitations.md).
+- Security architecture: [docs/security/README.md](docs/security/README.md),
+  auth deep-dive: [docs/security/authentication.md](docs/security/authentication.md).
+
+---
+
+## 📚 Documentation Index
+
+| Area | Document |
+|---|---|
+| Architecture (layers, modules, decisions) | [docs/architecture/README.md](docs/architecture/README.md) |
+| API reference (all real routes) | [docs/api/README.md](docs/api/README.md) |
+| Authentication & RBAC | [docs/security/authentication.md](docs/security/authentication.md) |
+| Business workflows (checkout, FSM, returns, B2B…) | [docs/workflows/README.md](docs/workflows/README.md) |
+| Database schema & integrity (Step 18 audit) | [docs/database/README.md](docs/database/README.md) |
+| Testing & regression record (Step 19) | [docs/testing/README.md](docs/testing/README.md) |
+| Performance (Step 17) | [docs/performance/README.md](docs/performance/README.md) |
+| Responsive (Step 16) | [docs/responsive/README.md](docs/responsive/README.md) |
+| Security hardening (Step 13) | [docs/security/README.md](docs/security/README.md) |
+| Deployment (runbooks, env, backup, CI/CD) | [docs/deployment/README.md](docs/deployment/README.md) |
+| Operations & maintenance | [docs/operations/README.md](docs/operations/README.md) |
+| User guide (customer & admin) | [docs/user-guide/README.md](docs/user-guide/README.md) |
+| Limitations & deferred features | [docs/limitations.md](docs/limitations.md) |
+| Domain deep-dives | `docs/orders/`, `docs/payment/`, `docs/inventory/`, `docs/catalog/`, `docs/finance/`, `docs/b2b-credit/`, `docs/configuration/`, `docs/communication/`, `docs/error-handling/`, `docs/frontend-integration/` |
+| Historical phase reports | `docs/PHASE_*.md`, `docs/phases/` |
 
 ---
 

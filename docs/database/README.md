@@ -50,6 +50,14 @@ regression suite plus a re-runnable 44-check live audit script.
 - Migrations: `finance/0001_initial`, `finance/0002_add_payment_reference_check`
   (added this phase). `makemigrations --check --dry-run` → `No changes detected`;
   `showmigrations finance` → both `[X]` applied.
+- **Transaction boundaries & locking:** checkout, payment capture/verification,
+  quotation conversion, credit checks and stock movements run inside
+  `transaction.atomic()` with `select_for_update()` row locks on the affected
+  product/order/invoice/client rows (oversell, double-conversion and
+  double-payment protection). Communication-log writes are intentionally
+  non-transactional relative to business mutations (logging never rolls back
+  the primary transaction). Append-only ledgers (stock transactions, audit
+  logs) are corrected only by compensating rows.
 
 ## 3. Live Data Snapshot (audit time)
 

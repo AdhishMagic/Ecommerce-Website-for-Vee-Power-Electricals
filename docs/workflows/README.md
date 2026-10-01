@@ -1,4 +1,4 @@
-# Vee Power Electricals — Complete Business Workflow Documentation (Step 15)
+# Vee Power Electricals — Complete Business Workflow Documentation
 
 This document describes the end-to-end business workflows of the Vee Power Electricals
 platform, how each is validated, and the failure/recovery contracts the system honors.
@@ -89,8 +89,9 @@ Draft → Sent → Approved → Converted
 ```
 
 - Created per `Client` with itemized lines; totals computed server-side.
-- `POST /api/v1/finance/quotations/{id}/convert/` issues a `Client` invoice linked via `quotation` FK.
+- `POST /api/v1/finance/quotations/{id}/convert/` issues a `Client` invoice linked via `quotation` FK; the converted invoice totals the quotation value plus 18% exclusive GST.
 - Duplicate conversion is rejected (400); conversion enforces the client credit limit; inactive clients cannot be quoted or converted.
+- **Step 18 hardening:** conversion additionally rejects when *any* invoice already references the quotation — regardless of the quotation's stored status — closing the historical hole that permitted fabricated duplicate invoices.
 - The quotation remains historically intact after conversion.
 
 ## 8. B2B / Credit Workflow
@@ -183,7 +184,11 @@ npx playwright test tests/e2e/responsive.spec.ts
 npx playwright test tests/complete-workflows.spec.ts
 node tests/comprehensive_audit.mjs
 
-# Database consistency audit (read-only)
+# Database integrity: Step 18 suite (34 tests) + authoritative live audit (44 checks)
+docker exec veepower_backend python manage.py test tests.test_phase8_database_integrity
+docker exec -i veepower_backend python manage.py shell < backend/tests/audit_step18_database_integrity.py
+
+# Legacy Step 15 consistency audit (superseded by the Step 18 audit; kept as historical evidence)
 docker exec -i veepower_backend python manage.py shell < backend/tests/audit_step15_db_consistency.py
 
 # Infrastructure

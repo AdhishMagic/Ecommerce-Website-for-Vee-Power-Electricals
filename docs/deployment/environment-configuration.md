@@ -30,20 +30,31 @@ The system strictly isolates runtime parameters across three distinct environmen
 
 | Variable Name | Development Default | CI / Test | Production Requirement | Sensitive? |
 |---|---|---|---|---|
+Variable names below are the **actual names read by the settings code**
+(`backend/config/settings/base.py`, verified at commit `d0a62a3`). Full
+reference: [Deployment README — Environment Variables](README.md#5-environment-variables-complete-reference).
+
+| Variable Name | Development Default | CI / Test | Production Requirement | Sensitive? |
+|---|---|---|---|---|
 | `DJANGO_SETTINGS_MODULE` | `config.settings.development` | `config.settings.production` | `config.settings.production` | No |
-| `DEBUG` | `True` | `False` | `False` (CRITICAL) | No |
-| `SECRET_KEY` | `django-insecure-dev-key...` | Ephemeral CI test key | Cryptographically random (>= 50 chars) | **YES** |
-| `ALLOWED_HOSTS` | `localhost,127.0.0.1` | `localhost,127.0.0.1` | Specific domain(s) e.g., `veepower.com,api.veepower.com` | No |
-| `DB_ENGINE` | `django.db.backends.mysql` | `django.db.backends.mysql` | `django.db.backends.mysql` | No |
-| `DB_NAME` | `veepower_db` | `veepower_test_db` | `veepower_production_db` | No |
-| `DB_USER` | `veepower_user` | `root` / `veepower_user` | Dedicated restricted user | **YES** |
-| `DB_PASSWORD` | `veepower_pass` | `test_password` | High-entropy random password | **YES** |
-| `DB_HOST` | `mysql` / `127.0.0.1` | `127.0.0.1` / `mysql` | Private DB hostname / RDS Endpoint | No |
-| `DB_PORT` | `3306` | `3306` | `3306` | No |
+| `DJANGO_DEBUG` | `True` | `False` | `False` (CRITICAL) | No |
+| `DJANGO_SECRET_KEY` | dev-only insecure fallback in `base.py` | Ephemeral CI test key | Cryptographically random (>= 50 chars) | **YES** |
+| `ALLOWED_HOSTS` | `localhost,127.0.0.1` (fallback `*`) | `localhost,127.0.0.1` | Specific domain(s) e.g., `veepower.com,api.veepower.com` | No |
+| `USE_SQLITE` | `True` (dev convenience) | `False` | `False` — must use MySQL | No |
+| `DATABASE_ENGINE` | `django.db.backends.mysql` | `django.db.backends.mysql` | `django.db.backends.mysql` | No |
+| `DATABASE_NAME` | `veepower_db` | `veepower_test_db` | `veepower_production_db` | No |
+| `DATABASE_USER` | dev fallback `root` | CI user | Dedicated restricted user | **YES** |
+| `DATABASE_PASSWORD` | dev fallback `root` | CI password | High-entropy random password | **YES** |
+| `DATABASE_HOST` | `127.0.0.1` / `mysql` | service hostname | Private DB hostname / RDS Endpoint | No |
+| `DATABASE_PORT` | `3306` | `3306` | `3306` | No |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | None | `https://veepower.com,https://www.veepower.com` | No |
 | `CSRF_TRUSTED_ORIGINS` | `http://localhost:5173` | None | `https://veepower.com,https://api.veepower.com` | No |
-| `JWT_SECRET_KEY` | Derived or dev key | CI test key | Independent high-entropy secret | **YES** |
-| `VITE_API_URL` | `http://localhost:8000/api/v1` | `http://localhost:8000/api/v1` | `https://api.veepower.com/api/v1` | Public |
+| `JWT_SECRET_KEY` | Falls back to `DJANGO_SECRET_KEY` | CI test key | Independent high-entropy secret | **YES** |
+| `THROTTLE_RATE_ANON` / `_USER` / `_AUTH` | `120/minute` / `1000/minute` / `100/minute` | same | tuned per load | No |
+| `RAZORPAY_KEY_ID` / `_KEY_SECRET` / `_WEBHOOK_SECRET` | mock test-mode fallbacks (dev-only) | mock keys | Live Razorpay keys from vault | **YES** |
+| `EMAIL_BACKEND` + `EMAIL_HOST`/`_PORT`/`_HOST_USER`/`_HOST_PASSWORD`/`_USE_TLS`/`_USE_SSL`/`_TIMEOUT`/`DEFAULT_FROM_EMAIL` | console backend (dev-only) | console | Production SMTP credentials | **YES** (user/password) |
+| `FRONTEND_URL` | `http://localhost:5173` | — | `https://veepower.com` (used in reset emails) | No |
+| `VITE_API_URL` (frontend) | `http://localhost:8000/api/v1` | `http://localhost:8000/api/v1` | `https://api.veepower.com/api/v1` | Public |
 
 ---
 

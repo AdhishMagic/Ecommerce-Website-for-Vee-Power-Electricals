@@ -1,5 +1,13 @@
 # Vee Power Electricals — Responsive Validation Documentation (Step 16)
 
+> **Defects found & fixed during Step 16 validation:** (1) admin
+> **Expenses** and **Inventory** modals could exceed short viewport heights —
+> fixed with the `max-h-[90vh] overflow-y-auto` internal-scroll pattern;
+> (2) the customer **checkout grid** refused to shrink below its content width
+> on mobile, producing a 7px horizontal overflow — fixed with `min-w-0` on the
+> grid children. Both are regression-guarded by the 62-test comprehensive
+> suite and the 172-check overflow audit.
+
 This document records the dedicated responsive validation and hardening pass
 performed across the entire frontend. The phase validated the existing design
 across desktop, tablet, mobile and intermediate viewports — no redesign, no new

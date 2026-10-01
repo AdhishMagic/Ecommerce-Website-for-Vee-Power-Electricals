@@ -218,7 +218,19 @@ passes. Not an application defect; logged for a future test-script polish.)
 
 None.
 
-## 18. Reproduction
+## 18. Sequential Execution & Mutating Suites
+
+Suites that **mutate shared database state** — the live integration script, the
+Playwright suite, `comprehensive_audit.mjs`, and the Step 18 live audit — must
+run **strictly one at a time, never concurrently**, or results corrupt
+(Step 18/19 lesson; also `docs/operations/README.md` §6). Safe-to-parallelize:
+backend Django suite (isolated test DB), typecheck/build.
+
+Current verified counts throughout this document are **verified at commit
+`d0a62a3`** and will drift as the suites evolve — re-derive them from the test
+inventory when suites change rather than treating them as permanent.
+
+## 19. Reproduction
 
 ```bash
 # Backend full regression (in-container, ~8-11 min)
@@ -240,7 +252,7 @@ cd frontend && npm run typecheck && npm run build
 # Frontend suites (dev server on :5173, backend on :8000)
 node tests/integration.test.mjs
 npx playwright test --reporter=list
-node tests/e2e/../../../tests/overflow-audit.mjs   # or: node tests/overflow-audit.mjs
+node tests/overflow-audit.mjs
 node tests/comprehensive_audit.mjs
 npx playwright test tests/e2e/performance-comprehensive.spec.ts --reporter=list
 ```
