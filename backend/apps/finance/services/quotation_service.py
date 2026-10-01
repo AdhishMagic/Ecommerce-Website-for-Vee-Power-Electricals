@@ -96,6 +96,17 @@ class QuotationService:
             inv_ref = f" (Invoice #{existing_invoice.invoice_number})" if existing_invoice else ""
             raise ValidationError(f"Quotation #{quotation.quotation_number} has already been converted to an invoice{inv_ref}.")
 
+        # 1b. Invoice-existence guard: the quotation status is the primary conversion
+        # marker, but invoice existence is authoritative. A quotation that already
+        # carries an invoice must never be converted again, regardless of its status
+        # (historical conversions that did not mark the quotation CONVERTED included).
+        pre_existing_invoice = Invoice.objects.filter(quotation=quotation).first()
+        if pre_existing_invoice:
+            raise ValidationError(
+                f"Quotation #{quotation.quotation_number} already carries invoice "
+                f"#{pre_existing_invoice.invoice_number} and cannot be converted again."
+            )
+
         # 2. Strict status check: must be APPROVED
         if quotation.status == QuotationStatus.REJECTED:
             raise ValidationError(f"Cannot convert rejected quotation #{quotation.quotation_number}.")

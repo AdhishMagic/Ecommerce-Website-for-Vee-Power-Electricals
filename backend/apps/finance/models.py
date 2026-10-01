@@ -497,6 +497,13 @@ class PaymentTransaction(TimeStampedModel):
                 check=models.Q(status__in=['INITIATED', 'SUCCESS', 'FAILED', 'REFUNDED']),
                 name='chk_pay_status'
             ),
+            # Domain rule: every transaction references an order OR an invoice.
+            # Order-linked payments without an invoice are valid (payment may
+            # precede invoice issuance); fully unlinked rows are prohibited.
+            models.CheckConstraint(
+                check=models.Q(order__isnull=False) | models.Q(invoice__isnull=False),
+                name='chk_pay_reference'
+            ),
         ]
         indexes = [
             models.Index(fields=['gateway_transaction_id'], name='idx_pay_gateway_id'),
