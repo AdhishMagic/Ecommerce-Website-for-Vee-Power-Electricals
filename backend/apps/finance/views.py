@@ -180,7 +180,10 @@ class ClientViewSet(viewsets.ModelViewSet):
     def client_invoices(self, request, pk=None):
         """List all invoices associated with this client."""
         client = self.get_object()
-        invoices = Invoice.objects.filter(client=client).select_related('order', 'quotation').prefetch_related('items__product').order_by('-created_at')
+        # select_related('client') avoids one query per invoice for client_name;
+        # prefetch_related('payments') lets the paid_amount/outstanding_amount model
+        # properties resolve from cache instead of issuing a query per invoice.
+        invoices = Invoice.objects.filter(client=client).select_related('client', 'order', 'quotation').prefetch_related('items__product', 'payments').order_by('-created_at')
         from .serializers import InvoiceSerializer
         page = self.paginate_queryset(invoices)
         if page is not None:
@@ -193,7 +196,9 @@ class ClientViewSet(viewsets.ModelViewSet):
     def client_payments(self, request, pk=None):
         """List all payments associated with this client's invoices."""
         client = self.get_object()
-        payments = PaymentTransaction.objects.filter(invoice__client=client).select_related('invoice', 'order').order_by('-created_at')
+        # invoice__client is required by PaymentTransactionSerializer.customer_email /
+        # customer_name, which would otherwise query the client once per payment.
+        payments = PaymentTransaction.objects.filter(invoice__client=client).select_related('invoice', 'invoice__client', 'order').order_by('-created_at')
         from .serializers import PaymentTransactionSerializer
         page = self.paginate_queryset(payments)
         if page is not None:
@@ -607,13 +612,17 @@ class FinanceSummaryView(APIView):
         )['total'] or Decimal('0.00')
 
         # 3. Authoritative Outstanding Balances
-        all_unpaid_invoices = Invoice.objects.filter(
+        # Materialise once: summing a queryset twice previously re-issued the
+        # invoice scan (and its payments prefetch) for the B2B sub-total.
+        all_unpaid_invoices = list(Invoice.objects.filter(
             status__in=[InvoiceStatus.UNPAID, InvoiceStatus.OVERDUE]
-        ).prefetch_related('payments')
+        ).prefetch_related('payments'))
         total_outstanding = sum((inv.outstanding_amount for inv in all_unpaid_invoices), Decimal('0.00')).quantize(Decimal('0.01'))
 
-        b2b_unpaid_invoices = all_unpaid_invoices.filter(client__isnull=False)
-        b2b_outstanding = sum((inv.outstanding_amount for inv in b2b_unpaid_invoices), Decimal('0.00')).quantize(Decimal('0.01'))
+        b2b_outstanding = sum(
+            (inv.outstanding_amount for inv in all_unpaid_invoices if inv.client_id is not None),
+            Decimal('0.00')
+        ).quantize(Decimal('0.01'))
 
         # 4. Expenses in date range
         expenses_in_range = Expense.objects.filter(expense_date__gte=start_date, expense_date__lte=end_date)

@@ -377,7 +377,9 @@ class AdminConfigAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     GET /api/v1/config/audit-logs/ (Admin only)
     Append-only audit trail recording administrative configuration changes.
     """
-    queryset = AdminConfigAuditLog.objects.all().order_by('-created_at')
+    # select_related('admin_user') resolves admin_email in the same query
+    # instead of one lookup per audit row.
+    queryset = AdminConfigAuditLog.objects.select_related('admin_user').all().order_by('-created_at')
     serializer_class = AdminConfigAuditLogSerializer
     permission_classes = [IsAdminUser]
 

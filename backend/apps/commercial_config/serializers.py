@@ -245,4 +245,6 @@ class AdminConfigAuditLogSerializer(serializers.ModelSerializer):
             'action_type', 'old_value', 'new_value', 'change_reason',
             'ip_address', 'created_at'
         ]
-        read_only_fields = '__all__'
+        # DRF requires read_only_fields to be a list/tuple; the sentinel string
+        # '__all__' raises TypeError while building the serializer fields.
+        read_only_fields = fields

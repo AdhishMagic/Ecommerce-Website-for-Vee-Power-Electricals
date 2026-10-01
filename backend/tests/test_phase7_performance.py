@@ -1,3 +1,4 @@
+import datetime
 from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.db import connection
@@ -187,3 +188,157 @@ class Phase7PerformanceBaselineTestCase(TestCase):
 
         queries_sql = " ".join([q['sql'].upper() for q in ctx.captured_queries])
         self.assertIn('LIMIT', queries_sql)
+
+
+class Step17PerformanceOptimizationTestCase(TestCase):
+    """
+    STEP 17 — query-count regression guards for the endpoints optimized in the
+    production performance pass. Each endpoint is asserted to execute a bounded
+    (constant) number of queries regardless of how many related rows exist, so
+    an N+1 regression fails the suite instead of silently reappearing.
+    """
+
+    def setUp(self):
+        from apps.finance.models import (
+            Client,
+            Invoice,
+            InvoiceItem,
+            PaymentTransaction,
+            PaymentTxStatus,
+        )
+
+        self.client = APIClient()
+        self.admin = User.objects.create_user(
+            email='step17_admin@example.com',
+            password='Password123!',
+            first_name='Step17',
+            last_name='Admin',
+            role=UserRole.ADMIN,
+            is_staff=True,
+        )
+        self.token_admin = str(AccessToken.for_user(self.admin))
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token_admin}')
+
+        self.b2b = Client.objects.create(
+            client_code='B2B17',
+            company_name='Step17 Industries',
+            contact_person='Perf Contact',
+            gstin='33ABCDE1234F1Z5',
+            email='b2b17@example.com',
+            phone='+919000000000',
+            credit_limit=Decimal('100000.00'),
+        )
+
+        # 12 invoices, each with a line item and a successful payment.
+        # Without select_related/prefetch_related the serializers issue one
+        # extra query per row for the client name and for the paid amount.
+        self.invoice_count = 12
+        for i in range(self.invoice_count):
+            inv = Invoice.objects.create(
+                invoice_number=f'INV-17-{i:04d}',
+                invoice_date=datetime.date(2026, 1, 1),
+                due_date=datetime.date(2026, 1, 31),
+                client=self.b2b,
+                subtotal=Decimal('1000.00'),
+                taxable_amount=Decimal('1000.00'),
+                total_amount=Decimal('1000.00'),
+            )
+            InvoiceItem.objects.create(
+                invoice=inv,
+                item_name='Step17 Item',
+                quantity=1,
+                rate=Decimal('1000.00'),
+                taxable_amount=Decimal('1000.00'),
+                total_amount=Decimal('1000.00'),
+            )
+            PaymentTransaction.objects.create(
+                invoice=inv,
+                gateway='MANUAL',
+                amount=Decimal('100.00'),
+                status=PaymentTxStatus.SUCCESS,
+            )
+
+    def test_client_invoices_query_count_is_bounded(self):
+        """
+        The per-client invoice drill-down must not issue one query per invoice
+        for the client name or the outstanding balance.
+        """
+        with CaptureQueriesContext(connection) as ctx:
+            res = self.client.get(f'/api/v1/finance/clients/{self.b2b.id}/invoices/')
+            self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        self.assertLessEqual(
+            len(ctx.captured_queries),
+            12,
+            f"Expected a bounded query count for {self.invoice_count} invoices, "
+            f"executed {len(ctx.captured_queries)}.",
+        )
+
+    def test_client_invoices_query_count_is_constant_as_rows_grow(self):
+        """
+        Doubling the invoice count must not double the query count — the
+        strongest possible guard against an N+1 regression on this endpoint.
+        """
+        from apps.finance.models import Invoice
+
+        def measure():
+            with CaptureQueriesContext(connection) as ctx:
+                res = self.client.get(f'/api/v1/finance/clients/{self.b2b.id}/invoices/')
+                self.assertEqual(res.status_code, status.HTTP_200_OK)
+                return len(ctx.captured_queries)
+
+        baseline = measure()
+        for i in range(self.invoice_count, self.invoice_count * 2):
+            Invoice.objects.create(
+                invoice_number=f'INV-17-{i:04d}',
+                invoice_date=datetime.date(2026, 1, 1),
+                due_date=datetime.date(2026, 1, 31),
+                client=self.b2b,
+                subtotal=Decimal('1000.00'),
+                taxable_amount=Decimal('1000.00'),
+                total_amount=Decimal('1000.00'),
+            )
+        grown = measure()
+
+        self.assertLessEqual(
+            grown,
+            baseline + 2,
+            f"Query count grew from {baseline} to {grown} when invoices doubled — N+1 regression.",
+        )
+
+    def test_config_audit_logs_endpoint_is_available(self):
+        """
+        The configuration audit log endpoint previously failed with a 500
+        because the serializer declared read_only_fields as a string. It must
+        now serialize successfully with a bounded query count.
+        """
+        from apps.core.models import AdminConfigAuditLog, AuditActionType
+
+        for i in range(8):
+            AdminConfigAuditLog.objects.create(
+                admin_user=self.admin,
+                domain='client',
+                record_id=i + 1,
+                action_type=AuditActionType.UPDATE,
+                old_value={'v': i},
+                new_value={'v': i + 1},
+                change_reason=f'step17 audit {i}',
+            )
+
+        with CaptureQueriesContext(connection) as ctx:
+            res = self.client.get('/api/v1/config/audit-logs/')
+            self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        self.assertLessEqual(len(ctx.captured_queries), 8)
+
+    def test_finance_summary_is_available_and_bounded(self):
+        """Finance summary keeps returning its authoritative payload."""
+        with CaptureQueriesContext(connection) as ctx:
+            res = self.client.get('/api/v1/finance/summary/')
+            self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        self.assertIn('kpis', res.data)
+        self.assertIn('total_outstanding', res.data['kpis'])
+        self.assertIn('b2b_outstanding', res.data['kpis'])
+        self.assertIn('monthly_trend', res.data)
+        self.assertLessEqual(len(ctx.captured_queries), 32)

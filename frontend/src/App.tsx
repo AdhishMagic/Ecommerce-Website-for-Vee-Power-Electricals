@@ -7,7 +7,10 @@ import ProtectedRoute from "./components/common/ProtectedRoute";
 import ScrollToTop from "./components/common/ScrollToTop";
 
 import CustomerLayout from "./layouts/CustomerLayout";
-import AdminLayout from "./layouts/AdminLayout";
+
+// AdminLayout is admin-only. Lazy-loading it keeps the admin sidebar markup and
+// the lucide icons it imports out of the initial customer bundle.
+const AdminLayout = lazy(() => import("./layouts/AdminLayout"));
 
 // Lazy-loaded customer pages
 const Home = lazy(() => import("./pages/customer/Home"));
@@ -58,7 +61,6 @@ export default function App() {
       <BrowserRouter>
         <ScrollToTop />
         <AuthProvider>
-          <ShopProvider>
             <CartProvider>
               <Suspense fallback={<PageLoader />}>
               <Routes>
@@ -84,8 +86,12 @@ export default function App() {
                 <Route path="/account" element={<ProtectedRoute allowedRoles={["customer", "admin"]}><CustomerLayout><Account /></CustomerLayout></ProtectedRoute>} />
                 <Route path="/account/orders" element={<ProtectedRoute allowedRoles={["customer", "admin"]}><CustomerLayout><Account /></CustomerLayout></ProtectedRoute>} />
 
-                {/* Admin routes */}
-                <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin"]}><AdminLayout /></ProtectedRoute>}>
+                {/* Admin routes.
+                    ShopProvider eagerly loads the product catalog and is only
+                    consumed by the admin product/inventory screens, so it is
+                    scoped to this subtree rather than the whole app — customer
+                    routes no longer issue a redundant catalog request. */}
+                <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin"]}><ShopProvider><AdminLayout /></ShopProvider></ProtectedRoute>}>
                   <Route index element={<Dashboard />} />
 
                   {/* Orders */}
@@ -119,7 +125,6 @@ export default function App() {
               </Routes>
             </Suspense>
           </CartProvider>
-        </ShopProvider>
       </AuthProvider>
     </BrowserRouter>
   </ErrorBoundary>
