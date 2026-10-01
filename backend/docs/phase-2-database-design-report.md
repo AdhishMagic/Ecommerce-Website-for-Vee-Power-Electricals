@@ -189,4 +189,4 @@ The production database comprises **28 normalized entities** organized across **
 ```
 
 > [!IMPORTANT]
-> **Phase 2 Database Design is complete.** All 11 technical specification documents have been authored and cross-verified under [`backend/docs/`](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/). The database architecture is 100% implementation-ready for Phase 3 (Django Models, Migrations & Seeders).
+> **Phase 2 Database Design is complete.** All 11 technical specification documents have been authored and cross-verified under [`backend/docs/`](./). The database architecture is 100% implementation-ready for Phase 3 (Django Models, Migrations & Seeders).

@@ -157,16 +157,16 @@ Based on the comprehensive inspection of the existing React codebase (`pages/adm
 ## 4. Reconciliation of Phase 1 Ambiguities (Resolved in Phase 1.5)
 
 > [!NOTE]
-> The 7 ambiguities identified during Phase 1 have been formally reconciled in **Phase 1.5 (Business Rule, Configuration & Schema Reconciliation)**. See [phase-1.5-reconciliation.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/phase-1.5-reconciliation.md) and [phase-1.5-decision-log.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/phase-1.5-decision-log.md) for full architectural justifications.
+> The 7 ambiguities identified during Phase 1 have been formally reconciled in **Phase 1.5 (Business Rule, Configuration & Schema Reconciliation)**. See [phase-1.5-reconciliation.md](./phase-1.5-reconciliation.md) and [phase-1.5-decision-log.md](./phase-1.5-decision-log.md) for full architectural justifications.
 
 1. **Order Status Value Discrepancies**:
-   * **RECONCILED (DEC-1.5-12)**: Standardized on canonical 10-state FSM: `PENDING` -> `CONFIRMED` -> `PACKED` -> `SHIPPED` -> `DELIVERED`, branching to `CANCELLED`, `RETURN_REQUESTED`, `RETURN_APPROVED`, `RETURN_REJECTED`, and `RETURN_COMPLETED`. See [order-state-machine.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/order-state-machine.md).
+   * **RECONCILED (DEC-1.5-12)**: Standardized on canonical 10-state FSM: `PENDING` -> `CONFIRMED` -> `PACKED` -> `SHIPPED` -> `DELIVERED`, branching to `CANCELLED`, `RETURN_REQUESTED`, `RETURN_APPROVED`, `RETURN_REJECTED`, and `RETURN_COMPLETED`. See [order-state-machine.md](./order-state-machine.md).
 
 2. **Free Shipping Threshold Inconsistency**:
    * **RECONCILED (DEC-1.5-06)**: Decoupled from application code into `DeliveryConfiguration.free_delivery_threshold`. Seeded at `₹999.00` for development and customizable by administrators via `/admin/orders/shipping`.
 
 3. **Tax Handling (MRP vs Selling Price vs Subtotal)**:
-   * **RECONCILED (DEC-1.5-01, DEC-1.5-02)**: Governed by `TaxConfiguration` with configurable `tax_calculation_mode` (`TAX_EXCLUSIVE` vs `TAX_INCLUSIVE`). Defaulted to `TAX_EXCLUSIVE` for development checkout compatibility, pending final executive sign-off. See [billing-pricing-rules.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/billing-pricing-rules.md).
+   * **RECONCILED (DEC-1.5-01, DEC-1.5-02)**: Governed by `TaxConfiguration` with configurable `tax_calculation_mode` (`TAX_EXCLUSIVE` vs `TAX_INCLUSIVE`). Defaulted to `TAX_EXCLUSIVE` for development checkout compatibility, pending final executive sign-off. See [billing-pricing-rules.md](./billing-pricing-rules.md).
 
 4. **Quotation to Invoice Workflow**:
    * **RECONCILED (DEC-1.5-15)**: One-way conversion from `Approved` status creating a linked `Invoice`. Physical inventory is NOT locked during quote conversion; stock is deducted only upon confirmed order payment or dispatch.
@@ -185,11 +185,11 @@ Based on the comprehensive inspection of the existing React codebase (`pages/adm
 ## 5. Phase 1.5 Architecture References
 
 For detailed design specifications governing commercial configuration and financial integrity, refer to:
-* **Master Reconciliation**: [phase-1.5-reconciliation.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/phase-1.5-reconciliation.md)
-* **Configuration Architecture**: [configuration-architecture.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/configuration-architecture.md)
-* **Canonical Billing & Pricing Engine**: [billing-pricing-rules.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/billing-pricing-rules.md)
-* **Master Business Rules Registry**: [business-rules-registry.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/business-rules-registry.md)
-* **Order State Machine**: [order-state-machine.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/order-state-machine.md)
-* **Financial & Stock Ledger Integrity**: [financial-integrity-rules.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/financial-integrity-rules.md)
-* **Architecture Decision Log**: [phase-1.5-decision-log.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/phase-1.5-decision-log.md)
+* **Master Reconciliation**: [phase-1.5-reconciliation.md](./phase-1.5-reconciliation.md)
+* **Configuration Architecture**: [configuration-architecture.md](./configuration-architecture.md)
+* **Canonical Billing & Pricing Engine**: [billing-pricing-rules.md](./billing-pricing-rules.md)
+* **Master Business Rules Registry**: [business-rules-registry.md](./business-rules-registry.md)
+* **Order State Machine**: [order-state-machine.md](./order-state-machine.md)
+* **Financial & Stock Ledger Integrity**: [financial-integrity-rules.md](./financial-integrity-rules.md)
+* **Architecture Decision Log**: [phase-1.5-decision-log.md](./phase-1.5-decision-log.md)
 

@@ -476,7 +476,7 @@
 ## 3. Phase 1.5 Configuration Entities Specification (Design Blueprint)
 
 > [!NOTE]
-> The following entities are designed to support commercial adaptability without code changes as established in Phase 1.5. They will be implemented as Django models in Phase 2. For detailed architectural definitions, refer to [configuration-architecture.md](file:///c:/Users/BALA%20ADHISH/Documents/Ecommerce-Website-for-Vee-Power-Electricals/backend/docs/configuration-architecture.md).
+> The following entities are designed to support commercial adaptability without code changes as established in Phase 1.5. They will be implemented as Django models in Phase 2. For detailed architectural definitions, refer to [configuration-architecture.md](./configuration-architecture.md).
 
 ### Entity 22: TaxConfig (`tax_configurations`)
 * **Purpose**: Governs statutory GST rates, intra/inter-state split, and calculation modes.

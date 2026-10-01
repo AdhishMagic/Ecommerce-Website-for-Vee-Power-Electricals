@@ -50,11 +50,12 @@ flowchart LR
   `orders`, `payments`, `finance`, `config`, `inventory`, `addresses`,
   `inquiries`) over `client.ts` (axios instance, base URL from
   `VITE_API_URL`, canonical `CanonicalApiError` error envelope,
-  JWT attach + refresh-on-401 handling in `services/api.ts`).
+  JWT attach + refresh-on-401 handling in `client.ts` / `AuthContext`).
 - **Error handling:** global `ErrorBoundary`, canonical error surface from the
   API client, per-page error states. See `docs/error-handling/README.md`.
-- **Legacy services** (`src/services/*`) remain for a few flows; `src/api/` is
-  the canonical client layer.
+- Legacy `src/services/*` wrappers and their type modules were removed in the
+  Step 21 cleanup (unused pre-API-layer code); `src/api/` is the canonical
+  client layer.
 
 ## 4. Backend
 
