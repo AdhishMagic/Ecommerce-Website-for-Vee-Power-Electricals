@@ -42,6 +42,12 @@ export interface AuthResponse {
   tokens?: AuthTokens;
 }
 
+export interface GoogleAuthResponse extends AuthResponse {
+  provider?: 'google';
+  is_new_user?: boolean;
+  linked_existing_account?: boolean;
+}
+
 export interface Category {
   id: number;
   name: string;

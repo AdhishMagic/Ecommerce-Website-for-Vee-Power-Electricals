@@ -219,6 +219,28 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         return user
 
 
+class GoogleAuthSerializer(serializers.Serializer):
+    """
+    Google Sign-In input serializer.
+
+    Accepts the Google Identity Services ID token supplied either as
+    ``credential`` (GIS default) or ``id_token``. Only the opaque credential is
+    read here; the service validates it server-side against Google. Email,
+    name, and picture are never accepted from the client.
+    """
+    credential = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    id_token = serializers.CharField(required=False, allow_blank=True, write_only=True)
+
+    def validate(self, attrs):
+        token = (attrs.get('credential') or attrs.get('id_token') or '').strip()
+        if not token:
+            raise serializers.ValidationError(
+                {"credential": "A Google credential is required."}
+            )
+        attrs['token'] = token
+        return attrs
+
+
 class LogoutSerializer(serializers.Serializer):
     """
     Token invalidation / logout serializer.

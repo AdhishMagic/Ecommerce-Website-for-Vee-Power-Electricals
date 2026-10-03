@@ -90,6 +90,122 @@ class User(AbstractUser, TimeStampedModel):
         return f"{self.email} ({self.get_full_name() or self.role})"
 
 
+class SocialProvider(models.TextChoices):
+    GOOGLE = 'google', 'Google'
+
+
+class IdentityEventType(models.TextChoices):
+    GOOGLE_LOGIN = 'GOOGLE_LOGIN', 'Google Identity Login'
+    GOOGLE_REGISTER = 'GOOGLE_REGISTER', 'Google Identity Registration'
+    GOOGLE_LINK = 'GOOGLE_LINK', 'Google Identity Linked'
+    LINK_REJECTED = 'LINK_REJECTED', 'Account Linking Rejected'
+    DUPLICATE_IDENTITY = 'DUPLICATE_IDENTITY', 'Duplicate Identity Attempt'
+    LINK_CONFLICT = 'LINK_CONFLICT', 'Account Link Conflict'
+
+
+class SocialAccount(TimeStampedModel):
+    """
+    External identity provider linkage record.
+
+    Maps an external provider identity (currently Google OIDC) onto an
+    authoritative local ``User``. The application's customer account, business
+    records, and data remain stored in MySQL; the provider is used strictly as
+    an identity source.
+
+    ``provider_subject`` is the provider's stable, opaque user identifier
+    (Google ``sub``). Email is stored for reference only and is never used as
+    the provider primary key.
+    """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='social_accounts',
+    )
+    provider = models.CharField(
+        max_length=20,
+        choices=SocialProvider.choices,
+        default=SocialProvider.GOOGLE,
+    )
+    provider_subject = models.CharField(max_length=255)
+    email = models.EmailField(max_length=255, blank=True, default='')
+    email_verified = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'social_accounts'
+        verbose_name = 'Social Account'
+        verbose_name_plural = 'Social Accounts'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['provider', 'provider_subject'],
+                name='uniq_social_provider_subject',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['user'], name='idx_social_user'),
+            models.Index(fields=['email'], name='idx_social_email'),
+        ]
+
+    def __str__(self):
+        return f"{self.provider}:{self.user_id} ({self.email})"
+
+
+class IdentityAuditLog(models.Model):
+    """
+    Append-only audit trail of external identity events.
+
+    Records linking, login, rejection, and duplicate-identity attempts without
+    ever storing OAuth authorization codes, access tokens, refresh tokens,
+    client secrets, or passwords.
+    """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='identity_audit_logs',
+    )
+    provider = models.CharField(
+        max_length=20,
+        choices=SocialProvider.choices,
+        default=SocialProvider.GOOGLE,
+    )
+    event_type = models.CharField(max_length=30, choices=IdentityEventType.choices)
+    provider_subject = models.CharField(max_length=255, blank=True, default='')
+    email = models.EmailField(max_length=255, blank=True, default='')
+    detail = models.CharField(max_length=255, blank=True, default='')
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'identity_audit_logs'
+        verbose_name = 'Identity Audit Log'
+        verbose_name_plural = 'Identity Audit Logs'
+        ordering = ['-created_at']
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(event_type__in=[
+                    'GOOGLE_LOGIN',
+                    'GOOGLE_REGISTER',
+                    'GOOGLE_LINK',
+                    'LINK_REJECTED',
+                    'DUPLICATE_IDENTITY',
+                    'LINK_CONFLICT',
+                ]),
+                name='chk_identity_event_type',
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=['event_type', 'created_at'],
+                name='idx_identity_event_created',
+            ),
+            models.Index(fields=['provider_subject'], name='idx_identity_subject'),
+        ]
+
+    def __str__(self):
+        return f"[{self.event_type}] {self.provider} {self.email}"
+
+
 class CustomerAddress(TimeStampedModel):
     """
     Customer shipping and billing address book.

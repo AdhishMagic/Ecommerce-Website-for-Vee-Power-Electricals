@@ -44,6 +44,21 @@ export const authService = {
     };
   },
 
+  async loginWithGoogle(credential: string): Promise<{
+    user: User;
+    token: string;
+    isNewUser: boolean;
+    linkedExistingAccount: boolean;
+  }> {
+    const res = await authApi.googleLogin(credential);
+    return {
+      user: mapProfileToUser(res.user),
+      token: res.access,
+      isNewUser: res.is_new_user === true,
+      linkedExistingAccount: res.linked_existing_account === true,
+    };
+  },
+
   async register(data: {
     email: string;
     password: string;

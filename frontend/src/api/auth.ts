@@ -1,5 +1,5 @@
 import { apiClient, clearAuthStorage, setAuthTokens, getRefreshToken } from './client';
-import { AuthResponse, UserProfile } from '../types/api';
+import { AuthResponse, GoogleAuthResponse, UserProfile } from '../types/api';
 
 export const authApi = {
   async register(data: {
@@ -24,6 +24,18 @@ export const authApi = {
     const res = await apiClient<AuthResponse>('/auth/login/', {
       method: 'POST',
       body: data,
+      skipAuth: true,
+    });
+    if (res.access) {
+      setAuthTokens(res.access, res.refresh);
+    }
+    return res;
+  },
+
+  async googleLogin(credential: string): Promise<GoogleAuthResponse> {
+    const res = await apiClient<GoogleAuthResponse>('/auth/google/', {
+      method: 'POST',
+      body: { credential },
       skipAuth: true,
     });
     if (res.access) {

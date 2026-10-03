@@ -11,6 +11,7 @@ overview: `docs/security/README.md`.
 |---|---|---|---|
 | POST | `/register/` | public | Customer self-registration; role forced to `customer`; validation errors are field-level |
 | POST | `/login/` | public | Returns JWT access + refresh; last-login updated; throttled via the dedicated `auth` rate |
+| POST | `/google/` | public | Google Sign-In: verifies a Google ID token server-side and returns the same JWT pair; links/creates the local account (see `docs/authentication/GOOGLE_SIGNIN.md`) |
 | POST | `/token/refresh/` | public (refresh token) | Rotates refresh; old refresh blacklisted (`ROTATE_REFRESH_TOKENS` + `BLACKLIST_AFTER_ROTATION`) |
 | POST | `/logout/` | authenticated | Blacklists the supplied refresh token server-side |
 | GET | `/me/` | authenticated | Current profile (role drives frontend route guards) |
@@ -101,4 +102,4 @@ access only their own orders, addresses, returns and payment status.
 - Rate limiting uses Django's cache (in-memory in the default dev setup);
   **multi-worker production deployments should configure Redis** as the cache
   backend or limits become per-process.
-- No MFA/OAuth yet; JWT + rotation + blacklist is the current boundary.
+- No MFA yet; **Google Sign-In (OIDC)** is available as an optional federated identity path (`POST /api/v1/auth/google/`, `docs/authentication/GOOGLE_SIGNIN.md`) and converges on the same JWT + rotation + blacklist boundary described above. Email/password remains fully supported.

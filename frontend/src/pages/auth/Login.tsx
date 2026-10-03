@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import AuthLayout from "../../components/layout/AuthLayout";
 import VeeElectricalsLoader, { AuthLoaderStatus } from "../../components/brand/VeeElectricalsLoader";
+import GoogleSignInButton from "../../components/auth/GoogleSignInButton";
 import { authService } from "../../services/authService";
 
 export default function Login() {
@@ -14,6 +15,7 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [authStatus, setAuthStatus] = useState<AuthLoaderStatus>("idle");
   const [showPassword, setShowPassword] = useState(false);
+  const [googleNotice, setGoogleNotice] = useState("");
   
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -66,6 +68,31 @@ export default function Login() {
       setIsLoading(false);
     }
   };
+
+  const handleGoogleCredential = useCallback(async (credential: string) => {
+    if (isLoading || authStatus === "submitting" || authStatus === "success") return;
+
+    setError("");
+    setGoogleNotice("");
+    setIsLoading(true);
+    setAuthStatus("submitting");
+
+    try {
+      const { user: authUser, token: authToken, linkedExistingAccount } =
+        await authService.loginWithGoogle(credential);
+      setAuthStatus("success");
+      if (linkedExistingAccount) {
+        setGoogleNotice("Signed in with Google using your existing account.");
+      }
+      setTimeout(() => {
+        login(authToken, authUser, redirect);
+      }, 500);
+    } catch (err: any) {
+      setError(err?.message || "Google sign-in failed. Please try again or use email and password.");
+      setAuthStatus("error");
+      setIsLoading(false);
+    }
+  }, [isLoading, authStatus, redirect, login]);
 
   const isRegistered = searchParams.get("registered") === "true";
 
@@ -170,6 +197,24 @@ export default function Login() {
             Sign In
           </button>
         </form>
+
+        <div className="flex items-center gap-3 my-6" aria-hidden="true">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-xs uppercase tracking-wide text-muted">or</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+
+        {googleNotice && (
+          <div className="bg-emerald-50 text-emerald-700 p-3.5 rounded-xl text-sm border border-emerald-200 flex items-center gap-2.5 mb-4">
+            <svg className="w-5 h-5 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            <span>{googleNotice}</span>
+          </div>
+        )}
+
+        <GoogleSignInButton
+          onCredential={handleGoogleCredential}
+          disabled={isLoading || authStatus !== "idle"}
+        />
 
         <div className="mt-8 text-center text-sm text-muted">
           Don't have an account? <Link to="/register" className="text-electric font-medium hover:underline">Create account</Link>

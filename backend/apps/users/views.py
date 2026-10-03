@@ -12,8 +12,10 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.core.services.communication_service import CommunicationService
+from apps.users.services.google_identity import sign_in_with_google, verify_google_id_token
 
 from .serializers import (
+    GoogleAuthSerializer,
     LogoutSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
@@ -92,6 +94,54 @@ class LoginView(APIView):
                 },
             },
             status=status.HTTP_200_OK,
+        )
+
+
+class GoogleLoginView(APIView):
+    """
+    POST /api/v1/auth/google/
+    Verifies a Google ID token server-side and returns the application's
+    existing JWT pair. Existing local accounts with the same verified canonical
+    email are linked (not duplicated); other emails remain separate accounts.
+    """
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
+
+    def post(self, request):
+        serializer = GoogleAuthSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        claims = verify_google_id_token(serializer.validated_data['token'])
+        result = sign_in_with_google(claims, request=request)
+        user = result['user']
+
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+        refresh_token = str(refresh)
+
+        if result['created']:
+            message = 'Account created and signed in with Google.'
+        elif result['linked']:
+            message = 'Existing account linked and signed in with Google.'
+        else:
+            message = 'Login successful.'
+
+        return Response(
+            {
+                'message': message,
+                'user': UserProfileSerializer(user).data,
+                'access': access_token,
+                'refresh': refresh_token,
+                'tokens': {
+                    'access': access_token,
+                    'refresh': refresh_token,
+                },
+                'provider': 'google',
+                'is_new_user': result['created'],
+                'linked_existing_account': result['linked'],
+            },
+            status=status.HTTP_201_CREATED if result['created'] else status.HTTP_200_OK,
         )
 
 
