@@ -33,7 +33,7 @@ jobs:
       JWT_SECRET_KEY: "ci-jwt-validation-secret-key-do-not-use-in-production-minimum-50-chars"
       DATABASE_ENGINE: "django.db.backends.mysql"
       DATABASE_NAME: "veepower_test_db"
-      DATABASE_USER: "veepower"
+      DATABASE_USER: "root"
       DATABASE_PASSWORD: "root"
       DATABASE_HOST: "127.0.0.1"
       DATABASE_PORT: "3306"
