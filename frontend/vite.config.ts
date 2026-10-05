@@ -30,15 +30,66 @@ export default defineConfig({
       },
     },
   },
+  optimizeDeps: {
+    // Declare runtime dependencies up front to prevent mid-session re-optimization resets
+    include: [
+      'react',
+      'react-dom',
+      'react-dom/client',
+      'react-is',
+      'react-router-dom',
+      'lucide-react',
+      'recharts',
+    ],
+  },
   server: {
     host: '0.0.0.0',
     port: parseInt(process.env.PORT || '5173'),
+    strictPort: true,
+    cors: true,
+    // Allow both localhost, 127.0.0.1, and container hostnames without Host header rejection
+    allowedHosts: true,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+    },
+    // Pre-warm entry points and primary admin pages so navigations load instantly from cache
+    warmup: {
+      clientFiles: [
+        './src/main.tsx',
+        './src/App.tsx',
+        './src/pages/admin/Customers.tsx',
+        './src/pages/admin/Dashboard.tsx',
+        './src/pages/admin/Orders.tsx',
+      ],
+    },
     watch: {
       usePolling: true,
-      interval: 100,
+      interval: 1000,
+      ignored: [
+        '**/node_modules/**',
+        '**/.git/**',
+        '**/dist/**',
+        '**/.vscode/**',
+        '**/tests/**',
+        '**/coverage/**',
+        '**/public/**',
+        '**/*.mp4',
+        '**/*.png',
+        '**/*.jpg',
+        '**/*.jpeg',
+        '**/*.svg',
+      ],
     },
     hmr: {
-      clientPort: 5173,
+      // Disables intrusive error overlay popup on transient reconnects
+      overlay: false,
+      clientPort: parseInt(process.env.FRONTEND_PORT || '5173'),
+    },
+    proxy: {
+      '/media': {
+        target: process.env.VITE_BACKEND_URL || 'http://backend:8000',
+        changeOrigin: true,
+      },
     },
   },
   preview: {

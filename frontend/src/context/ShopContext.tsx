@@ -15,6 +15,7 @@ export interface Product {
   lowStockThreshold?: number;
   image?: string;
   description?: string;
+  specs?: Array<{ key: string; value: string }>;
 }
 
 export const calculateStockStatus = (stock: number, threshold: number = 10) => {
@@ -121,12 +122,16 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     await catalogApi.createProduct({
       name: product.name,
       sku: product.sku,
+      category: product.category,
+      brand: product.brand,
       price: product.price,
       mrp: product.price,
       stock: product.stock,
       low_stock_threshold: product.lowStockThreshold || 5,
       active: product.active,
       description: product.description || '',
+      primary_image: product.image || '',
+      specifications: product.specs,
     });
     await refreshProducts();
   }, [refreshProducts]);
@@ -135,6 +140,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     const payload: any = {};
     if (updates.name !== undefined) payload.name = updates.name;
     if (updates.sku !== undefined) payload.sku = updates.sku;
+    if (updates.category !== undefined) payload.category = updates.category;
+    if (updates.brand !== undefined) payload.brand = updates.brand;
     if (updates.price !== undefined) {
       payload.price = updates.price;
       payload.mrp = updates.price;
@@ -142,6 +149,9 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     if (updates.stock !== undefined) payload.stock = updates.stock;
     if (updates.active !== undefined) payload.active = updates.active;
     if (updates.description !== undefined) payload.description = updates.description;
+    if (updates.lowStockThreshold !== undefined) payload.low_stock_threshold = updates.lowStockThreshold;
+    if (updates.image !== undefined) payload.primary_image = updates.image;
+    if (updates.specs !== undefined) payload.specifications = updates.specs;
 
     if (!id.includes('-') && !isNaN(Number(id))) {
       await catalogApi.updateProduct(id, payload);

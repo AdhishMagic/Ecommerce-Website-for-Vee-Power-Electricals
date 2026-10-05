@@ -10,6 +10,7 @@ export default function Register() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [authStatus, setAuthStatus] = useState<AuthLoaderStatus>("idle");
 
@@ -29,6 +30,7 @@ export default function Register() {
     if (isLoading || authStatus === "submitting" || authStatus === "success") return;
 
     setError("");
+    setFieldErrors({});
 
     if (!name.trim() || !email.trim() || !password || !confirmPassword) {
       setError("Please fill out all fields.");
@@ -45,8 +47,8 @@ export default function Register() {
       return;
     }
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters long.");
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters long.");
       return;
     }
 
@@ -73,6 +75,9 @@ export default function Register() {
     } catch (err: any) {
       const msg = err?.message || err?.detail || "Registration failed. Please check your details.";
       setError(msg);
+      if (err?.fieldErrors && typeof err.fieldErrors === "object") {
+        setFieldErrors(err.fieldErrors);
+      }
       setAuthStatus("error");
       setIsLoading(false);
     }
@@ -120,9 +125,12 @@ export default function Register() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 bg-bg border border-border rounded-xl focus:bg-white focus:border-electric focus:ring-4 focus:ring-electric/10 outline-none transition-all text-sm"
+              className={`w-full px-4 py-3 bg-bg border ${fieldErrors.email ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-border focus:border-electric focus:ring-electric/10'} rounded-xl focus:bg-white focus:ring-4 outline-none transition-all text-sm`}
               placeholder="name@example.com"
             />
+            {fieldErrors.email && (
+              <p className="text-red-500 text-xs mt-1">{fieldErrors.email.join(' ')}</p>
+            )}
           </div>
 
           <div>
@@ -132,8 +140,8 @@ export default function Register() {
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-bg border border-border rounded-xl focus:bg-white focus:border-electric focus:ring-4 focus:ring-electric/10 outline-none transition-all text-sm pr-11"
-                placeholder="At least 6 characters"
+                className={`w-full px-4 py-3 bg-bg border ${fieldErrors.password ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-border focus:border-electric focus:ring-electric/10'} rounded-xl focus:bg-white focus:ring-4 outline-none transition-all text-sm pr-11`}
+                placeholder="At least 8 characters"
               />
               <button
                 type="button"
@@ -148,6 +156,9 @@ export default function Register() {
                 )}
               </button>
             </div>
+            {fieldErrors.password && (
+              <p className="text-red-500 text-xs mt-1">{fieldErrors.password.join(' ')}</p>
+            )}
           </div>
 
           <div>

@@ -557,4 +557,181 @@ export interface FinanceSummary {
   }>;
 }
 
+/**
+ * Authoritative Admin dashboard contract returned by `GET /api/v1/finance/summary/`.
+ *
+ * Date-filtered metrics (`total_sales`, `total_invoiced`, `total_expenses`) follow the
+ * requested `filter_type`. Balance and operational metrics (`total_outstanding`,
+ * `b2b_outstanding`, order/return counts) are complete-database snapshots and never
+ * depend on pagination or page size.
+ */
+export interface DashboardSummary {
+  date_range: {
+    filter_type: string;
+    /** ISO date, or null for the unbounded `all_time` window. */
+    start_date: string | null;
+    end_date: string | null;
+  };
+  kpis: {
+    total_invoiced: string;
+    total_paid: string;
+    total_outstanding: string;
+    b2b_outstanding: string;
+    total_expenses: string;
+    paid_expenses: string;
+    net_profit: string;
+    operating_margin: string;
+  };
+  total_sales: string;
+  total_invoiced: string;
+  total_outstanding: string;
+  b2b_outstanding: string;
+  total_expenses: string;
+  open_orders_count: number;
+  confirmed_orders_count: number;
+  out_for_delivery_count: number;
+  returns_count: number;
+  total_orders_count: number;
+  order_metrics: {
+    scope: 'snapshot';
+    total_orders_count: number;
+    open_orders_count: number;
+    confirmed_orders_count: number;
+    out_for_delivery_count: number;
+    returns_count: number;
+    pending_orders_count: number;
+    packed_orders_count: number;
+    shipped_orders_count: number;
+    delivered_orders_count: number;
+    cancelled_orders_count: number;
+    returns_by_status: Record<string, number>;
+  };
+  payouts_summary: {
+    gross_amount: string;
+    fees: string;
+    net_amount: string;
+  };
+  monthly_trend: Array<{
+    month: string;
+    month_label: string;
+    revenue: number;
+    expenses: number;
+    net: number;
+  }>;
+}
+
+export interface CustomerAddressItem {
+  id: number;
+  recipient_name: string;
+  phone: string;
+  address_line1: string;
+  address_line2?: string;
+  landmark?: string;
+  city: string;
+  state: string;
+  pincode: string;
+  address_type: 'home' | 'work' | 'other';
+  is_default: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CustomerRecentOrder {
+  id: number;
+  order_number: string;
+  created_at: string;
+  status: OrderStatus;
+  payment_status: PaymentStatus;
+  payment_method: string;
+  total_amount: string;
+  items_count: number;
+}
+
+export interface CustomerOrderSummary {
+  total_orders: number;
+  pending_orders: number;
+  completed_orders: number;
+  cancelled_orders: number;
+  returned_orders: number;
+  total_spent: string;
+}
+
+export interface CustomerFinancialSummary {
+  total_invoiced: string;
+  paid_amount: string;
+  outstanding_amount: string;
+  invoice_count: number;
+}
+
+export interface Customer {
+  id: number;
+  customer_id: string;
+  name: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  customer_type: 'B2B' | 'B2C';
+  orders_count: number;
+  total_spent: string;
+  outstanding_balance: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerDetail extends Customer {
+  role: UserRole;
+  last_login: string | null;
+  addresses: CustomerAddressItem[];
+  order_summary: CustomerOrderSummary;
+  financial_summary: CustomerFinancialSummary;
+  recent_orders: CustomerRecentOrder[];
+}
+
+export interface CustomerSummary {
+  total_customers: number;
+  active_customers: number;
+  inactive_customers: number;
+  new_customers_30d: number;
+  b2b_customers: number;
+  total_spent: string;
+  total_outstanding: string;
+}
+
+export interface CustomerFilters {
+  search?: string;
+  status?: 'all' | 'active' | 'inactive';
+  customer_type?: 'all' | 'b2b' | 'b2c';
+  ordering?: string;
+  page?: number;
+  page_size?: number;
+  from_date?: string;
+  to_date?: string;
+}
+
+export interface CustomerCreateInput {
+  first_name: string;
+  last_name?: string;
+  email: string;
+  phone?: string;
+  password?: string;
+  is_active?: boolean;
+  address_line1?: string;
+  address_line2?: string;
+  landmark?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  address_type?: 'home' | 'work' | 'other';
+}
+
+export interface CustomerUpdateInput {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  phone?: string;
+  is_active?: boolean;
+}
+
 

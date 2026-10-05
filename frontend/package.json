@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test:integration": "node tests/integration.test.mjs",
+    "test:dashboard": "node tests/dashboard_metrics.test.mjs",
     "format": "oxfmt"
   },
   "dependencies": {

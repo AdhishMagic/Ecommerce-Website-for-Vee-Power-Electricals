@@ -27,7 +27,18 @@ export const authService = {
     try {
       const profile = await authApi.getMe();
       return mapProfileToUser(profile);
-    } catch {
+    } catch (err: any) {
+      if (err?.status === 401) {
+        return null;
+      }
+      const storedUser = sessionStorage.getItem('vp_user') || localStorage.getItem('vp_user');
+      if (storedUser) {
+        try {
+          return JSON.parse(storedUser);
+        } catch {
+          return null;
+        }
+      }
       return null;
     }
   },

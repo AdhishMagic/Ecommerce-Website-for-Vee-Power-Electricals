@@ -133,9 +133,27 @@ All monetary calculations in the Finance domain use Python's `Decimal` type with
 
 ## 9. API Reference
 
-### Finance Summary & KPIs
-- `GET /api/v1/finance/summary/?filter_type={today|current_month|previous_month|custom}&start_date=YYYY-MM-DD&end_date=YYYY-MM-DD`
-  - Returns: `total_invoiced`, `total_paid`, `total_outstanding`, `b2b_outstanding`, `total_expenses`, `paid_expenses`, `net_profit`, `operating_margin`, `payouts_summary`, `pl_trend` (6-month breakdown), `status_breakdown`.
+### Finance Summary & KPIs (single authoritative dashboard metrics endpoint)
+- `GET /api/v1/finance/summary/?filter_type={today|current_month|previous_month|30_days|all_time|custom}&start_date=YYYY-MM-DD&end_date=YYYY-MM-DD`
+  - Filter semantics (project timezone `Asia/Kolkata`), resolved by `resolve_summary_date_range()`:
+    - `today` — today's calendar date only
+    - `current_month` — 1st of the current month through today
+    - `previous_month` — the complete previous calendar month
+    - `30_days` — rolling window `today - 30 days` through today (not the calendar month)
+    - `all_time` — no date restriction (all historical records)
+    - `custom` — explicit `start_date`/`end_date`
+  - Any other `filter_type` returns `400` with the supported list; invalid values are never silently downgraded.
+  - Date-filtered metrics: `kpis.total_invoiced`, `kpis.total_paid` (alias `total_sales`), `kpis.total_expenses`.
+  - Complete-database snapshots (filter independent): `kpis.total_outstanding`, `kpis.b2b_outstanding`
+    (unpaid/overdue invoices only) and the order metrics — `total_orders_count`, `open_orders_count`
+    (`PENDING`+`CONFIRMED`+`PACKED`), `confirmed_orders_count`, `out_for_delivery_count` (`SHIPPED`),
+    `returns_count` (`RETURN_REQUESTED`+`RETURN_APPROVED`+`RETURN_COMPLETED`), plus the full
+    `order_metrics` status breakdown.
+  - Also returns `total_invoiced`, `total_sales`, `total_outstanding`, `b2b_outstanding` as flat top-level
+    keys, `kpis` (legacy contract), `payouts_summary`, `monthly_trend` (6-month revenue/expense trend,
+    ordered and zero-filled) and `breakdowns`.
+  - Order metrics are computed with a single conditional-aggregate `COUNT` query over the complete
+    `orders` table. Clients must never derive these values from a paginated record page.
 
 ### Invoices
 - `GET /api/v1/finance/invoices/`: Paginated list with filtering by `status`, `customer`, `date_from`, `date_to`.

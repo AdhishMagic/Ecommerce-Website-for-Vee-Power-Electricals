@@ -59,12 +59,10 @@ export default function Login() {
     try {
       const { user: authUser, token: authToken } = await authService.login(email, password);
       setAuthStatus("success");
-      setTimeout(() => {
-        login(authToken, authUser, redirect);
-      }, 500);
+      login(authToken, authUser, redirect);
     } catch (err: any) {
       setError(err?.message || "Invalid email or password");
-      setAuthStatus("error");
+      setAuthStatus("idle");
       setIsLoading(false);
     }
   };
@@ -84,12 +82,10 @@ export default function Login() {
       if (linkedExistingAccount) {
         setGoogleNotice("Signed in with Google using your existing account.");
       }
-      setTimeout(() => {
-        login(authToken, authUser, redirect);
-      }, 500);
+      login(authToken, authUser, redirect);
     } catch (err: any) {
       setError(err?.message || "Google sign-in failed. Please try again or use email and password.");
-      setAuthStatus("error");
+      setAuthStatus("idle");
       setIsLoading(false);
     }
   }, [isLoading, authStatus, redirect, login]);
@@ -137,6 +133,7 @@ export default function Login() {
               <input
                 type="email"
                 value={email}
+                autoComplete="email"
                 onChange={(e) => {
                   setEmail(e.target.value);
                   if (emailError) setEmailError("");
@@ -160,6 +157,7 @@ export default function Login() {
               <input
                 type={showPassword ? "text" : "password"}
                 value={password}
+                autoComplete="current-password"
                 onChange={(e) => {
                   setPassword(e.target.value);
                   if (passwordError) setPasswordError("");

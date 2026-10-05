@@ -1,9 +1,15 @@
-from django.db.models import Q
+import calendar
+import datetime
+from decimal import Decimal
+
+from django.db.models import Count, Q, Sum
+from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.views import APIView
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from apps.orders.models import Order, OrderStatus
 from apps.users.permissions import IsAdminUser
 from .models import (
     Client,
@@ -555,58 +561,141 @@ class ExpenseViewSet(viewsets.ModelViewSet):
             serializer.save()
 
 
+def resolve_summary_date_range(filter_type, start_date_str=None, end_date_str=None, today=None):
+    """
+    Single authoritative resolver for every dashboard filter window.
+
+    Returns ``(start_date, end_date)`` calendar dates. ``(None, None)`` means "no date
+    restriction" (all-time). Raises ``ValueError`` for unsupported filter types so the
+    API can fail loudly instead of silently reporting the wrong period.
+
+    Definitions (project timezone, ``settings.TIME_ZONE``):
+      * ``today``          -> today's calendar date only
+      * ``current_month``  -> 1st of the current month through today
+      * ``previous_month`` -> the complete previous calendar month
+      * ``30_days``        -> rolling window: (today - 30 days) through today
+      * ``all_time``       -> no restriction (all historical records)
+      * ``custom``         -> explicit start/end dates (falls back to current_month when incomplete)
+    """
+    today = today or timezone.localdate()
+
+    if filter_type == 'today':
+        return today, today
+    if filter_type == 'current_month':
+        return today.replace(day=1), today
+    if filter_type == 'previous_month':
+        first_this_month = today.replace(day=1)
+        prev_month_end = first_this_month - datetime.timedelta(days=1)
+        return prev_month_end.replace(day=1), prev_month_end
+    if filter_type == '30_days':
+        return today - datetime.timedelta(days=30), today
+    if filter_type == 'all_time':
+        return None, None
+    if filter_type == 'custom':
+        if start_date_str and end_date_str:
+            start_date = datetime.date.fromisoformat(start_date_str)
+            end_date = datetime.date.fromisoformat(end_date_str)
+            if end_date < start_date:
+                start_date, end_date = end_date, start_date
+            return start_date, end_date
+        return today.replace(day=1), today
+    raise ValueError(filter_type)
+
+
+def resolve_datetime_bounds(start_date, end_date):
+    """
+    Convert an inclusive calendar-date window into timezone-aware, half-open datetime
+    bounds ``[start, end + 1 day)`` for ``DateTimeField`` filters.
+
+    This keeps day boundaries aligned with the project timezone and lets the database
+    use the column index instead of evaluating a per-row date conversion.
+    """
+    tz = timezone.get_current_timezone()
+    start_dt = None
+    end_dt = None
+    if start_date is not None:
+        start_dt = datetime.datetime.combine(start_date, datetime.time.min).replace(tzinfo=tz)
+    if end_date is not None:
+        end_dt = datetime.datetime.combine(
+            end_date + datetime.timedelta(days=1), datetime.time.min
+        ).replace(tzinfo=tz)
+    return start_dt, end_dt
+
+
 class FinanceSummaryView(APIView):
     """
-    Executive financial reporting and dashboard metrics endpoint.
-    Aggregates authoritative sales, payments, outstanding, expenses, B2B credit, and payout settlements.
+    Executive financial reporting and Admin dashboard metrics endpoint.
+    Aggregates authoritative sales, payments, outstanding, expenses, B2B credit, payout
+    settlements, and complete order/return counts directly in the database.
     Enforces strict admin RBAC and deterministic date range filtering.
+
+    Single source of truth for dashboard metrics: no client may derive these totals from
+    a paginated record page. Date-filtered metrics (``total_invoiced``, ``total_sales``,
+    ``total_expenses``) follow ``filter_type``; balance/operational snapshots
+    (``total_outstanding``, ``b2b_outstanding``, order and return counts) always describe
+    the complete current database state.
     """
     permission_classes = [IsAdminUser]
 
-    def get(self, request):
-        from decimal import Decimal
-        from django.db.models import Sum, Count
-        from django.utils import timezone
-        import datetime
-        import calendar
+    SUPPORTED_FILTERS = ('today', 'current_month', 'previous_month', '30_days', 'all_time', 'custom')
+    # Business definition of an order that still requires fulfillment.
+    OPEN_ORDER_STATUSES = [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PACKED]
+    # Business definition of an order with an active/lodged return (rejected returns excluded).
+    RETURN_ORDER_STATUSES = [
+        OrderStatus.RETURN_REQUESTED,
+        OrderStatus.RETURN_APPROVED,
+        OrderStatus.RETURN_COMPLETED,
+    ]
 
-        today = timezone.now().date()
-        filter_type = request.query_params.get('filter_type', 'current_month').lower()
+    def get(self, request):
+        today = timezone.localdate()
+        filter_type = (request.query_params.get('filter_type') or 'current_month').lower()
         start_date_str = request.query_params.get('start_date')
         end_date_str = request.query_params.get('end_date')
 
-        if filter_type == 'today':
-            start_date = today
-            end_date = today
-        elif filter_type == 'previous_month':
-            first_this_month = today.replace(day=1)
-            prev_month_end = first_this_month - datetime.timedelta(days=1)
-            start_date = prev_month_end.replace(day=1)
-            end_date = prev_month_end
-        elif filter_type == 'custom' and start_date_str and end_date_str:
-            try:
-                start_date = datetime.date.fromisoformat(start_date_str)
-                end_date = datetime.date.fromisoformat(end_date_str)
-                if end_date < start_date:
-                    start_date, end_date = end_date, start_date
-            except (ValueError, TypeError):
-                start_date = today.replace(day=1)
-                end_date = today
-        else:  # current_month default
-            start_date = today.replace(day=1)
-            end_date = today
+        if filter_type not in self.SUPPORTED_FILTERS:
+            return Response(
+                {
+                    'detail': (
+                        f"Unsupported filter_type '{filter_type}'. Supported values: "
+                        f"{', '.join(self.SUPPORTED_FILTERS)}."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            start_date, end_date = resolve_summary_date_range(
+                filter_type, start_date_str, end_date_str, today=today
+            )
+        except (ValueError, TypeError):
+            return Response(
+                {
+                    'detail': (
+                        "Invalid start_date/end_date. Expected ISO dates (YYYY-MM-DD)."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        start_dt, end_dt = resolve_datetime_bounds(start_date, end_date)
 
         # 1. Total Invoiced (non-cancelled invoices in date range)
-        invoices_in_range = Invoice.objects.filter(invoice_date__gte=start_date, invoice_date__lte=end_date)
+        invoices_in_range = Invoice.objects.all()
+        if start_date is not None:
+            invoices_in_range = invoices_in_range.filter(invoice_date__gte=start_date)
+        if end_date is not None:
+            invoices_in_range = invoices_in_range.filter(invoice_date__lte=end_date)
         total_invoiced = invoices_in_range.exclude(status=InvoiceStatus.CANCELLED).aggregate(
             total=Sum('total_amount')
         )['total'] or Decimal('0.00')
 
-        # 2. Total Paid (successful payments in date range)
-        payments_in_range = PaymentTransaction.objects.filter(
-            created_at__date__gte=start_date,
-            created_at__date__lte=end_date
-        )
+        # 2. Total Paid / Total Sales (successful payments in date range)
+        payments_in_range = PaymentTransaction.objects.all()
+        if start_dt is not None:
+            payments_in_range = payments_in_range.filter(created_at__gte=start_dt)
+        if end_dt is not None:
+            payments_in_range = payments_in_range.filter(created_at__lt=end_dt)
         total_paid = payments_in_range.filter(status=PaymentTxStatus.SUCCESS).aggregate(
             total=Sum('amount')
         )['total'] or Decimal('0.00')
@@ -625,7 +714,11 @@ class FinanceSummaryView(APIView):
         ).quantize(Decimal('0.01'))
 
         # 4. Expenses in date range
-        expenses_in_range = Expense.objects.filter(expense_date__gte=start_date, expense_date__lte=end_date)
+        expenses_in_range = Expense.objects.all()
+        if start_date is not None:
+            expenses_in_range = expenses_in_range.filter(expense_date__gte=start_date)
+        if end_date is not None:
+            expenses_in_range = expenses_in_range.filter(expense_date__lte=end_date)
         total_expenses = expenses_in_range.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
         paid_expenses = expenses_in_range.filter(status='Paid').aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
 
@@ -636,8 +729,41 @@ class FinanceSummaryView(APIView):
             if total_paid > Decimal('0.00') else Decimal('0.00')
         )
 
+        # 5b. Authoritative order metrics: counted in the database across the COMPLETE
+        # orders table (single aggregate query, never derived from a paginated API page).
+        order_counts = Order.objects.aggregate(
+            total_orders_count=Count('id'),
+            pending_orders_count=Count('id', filter=Q(status=OrderStatus.PENDING)),
+            confirmed_orders_count=Count('id', filter=Q(status=OrderStatus.CONFIRMED)),
+            packed_orders_count=Count('id', filter=Q(status=OrderStatus.PACKED)),
+            shipped_orders_count=Count('id', filter=Q(status=OrderStatus.SHIPPED)),
+            delivered_orders_count=Count('id', filter=Q(status=OrderStatus.DELIVERED)),
+            cancelled_orders_count=Count('id', filter=Q(status=OrderStatus.CANCELLED)),
+            return_requested_count=Count('id', filter=Q(status=OrderStatus.RETURN_REQUESTED)),
+            return_approved_count=Count('id', filter=Q(status=OrderStatus.RETURN_APPROVED)),
+            return_rejected_count=Count('id', filter=Q(status=OrderStatus.RETURN_REJECTED)),
+            return_completed_count=Count('id', filter=Q(status=OrderStatus.RETURN_COMPLETED)),
+        )
+        total_orders_count = order_counts['total_orders_count']
+        open_orders_count = sum(
+            order_counts[key] for key in (
+                'pending_orders_count', 'confirmed_orders_count', 'packed_orders_count'
+            )
+        )
+        # Courier hand-over state governed by the canonical order FSM ('SHIPPED').
+        out_for_delivery_count = order_counts['shipped_orders_count']
+        returns_count = sum(
+            order_counts[key] for key in (
+                'return_requested_count', 'return_approved_count', 'return_completed_count'
+            )
+        )
+
         # 6. Payout Settlements in date range
-        payouts_in_range = PayoutSettlement.objects.filter(settlement_date__gte=start_date, settlement_date__lte=end_date)
+        payouts_in_range = PayoutSettlement.objects.all()
+        if start_date is not None:
+            payouts_in_range = payouts_in_range.filter(settlement_date__gte=start_date)
+        if end_date is not None:
+            payouts_in_range = payouts_in_range.filter(settlement_date__lte=end_date)
         settled_payouts = payouts_in_range.filter(status='Settled').aggregate(
             gross=Sum('gross_amount'),
             fees=Sum('gateway_fee'),
@@ -656,10 +782,11 @@ class FinanceSummaryView(APIView):
             _, num_days = calendar.monthrange(y, m)
             month_end = datetime.date(y, m, num_days)
 
+            month_start_dt, month_end_dt = resolve_datetime_bounds(month_start, month_end)
             m_rev = PaymentTransaction.objects.filter(
                 status=PaymentTxStatus.SUCCESS,
-                created_at__date__gte=month_start,
-                created_at__date__lte=month_end
+                created_at__gte=month_start_dt,
+                created_at__lt=month_end_dt
             ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
 
             m_exp = Expense.objects.filter(
@@ -717,8 +844,8 @@ class FinanceSummaryView(APIView):
         return Response({
             'date_range': {
                 'filter_type': filter_type,
-                'start_date': start_date.isoformat(),
-                'end_date': end_date.isoformat(),
+                'start_date': start_date.isoformat() if start_date else None,
+                'end_date': end_date.isoformat() if end_date else None,
             },
             'kpis': {
                 'total_invoiced': str(total_invoiced),
@@ -729,6 +856,37 @@ class FinanceSummaryView(APIView):
                 'paid_expenses': str(paid_expenses),
                 'net_profit': str(net_profit),
                 'operating_margin': str(operating_margin),
+            },
+            # Flat, authoritative dashboard contract. These mirror the kpis block exactly
+            # (same computed values, single implementation) plus the complete order counts.
+            'total_sales': str(total_paid),
+            'total_invoiced': str(total_invoiced),
+            'total_outstanding': str(total_outstanding),
+            'b2b_outstanding': str(b2b_outstanding),
+            'total_expenses': str(total_expenses),
+            'open_orders_count': open_orders_count,
+            'confirmed_orders_count': order_counts['confirmed_orders_count'],
+            'out_for_delivery_count': out_for_delivery_count,
+            'returns_count': returns_count,
+            'total_orders_count': total_orders_count,
+            'order_metrics': {
+                'scope': 'snapshot',
+                'total_orders_count': total_orders_count,
+                'open_orders_count': open_orders_count,
+                'confirmed_orders_count': order_counts['confirmed_orders_count'],
+                'out_for_delivery_count': out_for_delivery_count,
+                'returns_count': returns_count,
+                'pending_orders_count': order_counts['pending_orders_count'],
+                'packed_orders_count': order_counts['packed_orders_count'],
+                'shipped_orders_count': order_counts['shipped_orders_count'],
+                'delivered_orders_count': order_counts['delivered_orders_count'],
+                'cancelled_orders_count': order_counts['cancelled_orders_count'],
+                'returns_by_status': {
+                    'RETURN_REQUESTED': order_counts['return_requested_count'],
+                    'RETURN_APPROVED': order_counts['return_approved_count'],
+                    'RETURN_REJECTED': order_counts['return_rejected_count'],
+                    'RETURN_COMPLETED': order_counts['return_completed_count'],
+                },
             },
             'payouts_summary': {
                 'gross_amount': str(settled_payouts['gross'] or '0.00'),

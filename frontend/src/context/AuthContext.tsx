@@ -24,6 +24,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+let activeRefreshPromise: Promise<User | null> | null = null;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
     const storedUser = sessionStorage.getItem("vp_user") || localStorage.getItem("vp_user");
@@ -53,8 +55,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     navigate("/login");
   }, [navigate]);
 
-  // Load and synchronize user on mount if token exists
+  // Load and synchronize user on mount if token exists (deduplicated across React StrictMode)
   const refreshUser = useCallback(async (): Promise<User | null> => {
+    if (activeRefreshPromise) {
+      return activeRefreshPromise;
+    }
+
     const currentToken = getAccessToken();
     if (!currentToken) {
       setUser(null);
@@ -62,23 +68,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return null;
     }
 
-    try {
-      const currentUser = await authService.getCurrentUser();
-      if (currentUser) {
-        setUser(currentUser);
-        setIsAuthenticated(true);
-        sessionStorage.setItem("vp_user", JSON.stringify(currentUser));
-        localStorage.setItem("vp_user", JSON.stringify(currentUser));
-        return currentUser;
-      } else {
-        await logout();
+    activeRefreshPromise = (async () => {
+      try {
+        const currentUser = await authService.getCurrentUser();
+        if (currentUser) {
+          setUser(currentUser);
+          setIsAuthenticated(true);
+          sessionStorage.setItem("vp_user", JSON.stringify(currentUser));
+          localStorage.setItem("vp_user", JSON.stringify(currentUser));
+          return currentUser;
+        } else {
+          // Token is invalid/expired: clear locally without firing redundant server calls
+          clearAuthStorage();
+          setToken(null);
+          setUser(null);
+          setIsAuthenticated(false);
+          return null;
+        }
+      } catch {
         return null;
+      } finally {
+        activeRefreshPromise = null;
       }
-    } catch {
-      await logout();
-      return null;
-    }
-  }, [logout]);
+    })();
+
+    return activeRefreshPromise;
+  }, []);
 
   useEffect(() => {
     if (getAccessToken()) {
@@ -87,20 +102,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Listen to session expired event from API client
     const handleSessionExpired = () => {
-      logout();
+      clearAuthStorage();
+      setToken(null);
+      setUser(null);
+      setIsAuthenticated(false);
+      navigate("/login");
     };
 
     window.addEventListener("auth_session_expired", handleSessionExpired);
     return () => {
       window.removeEventListener("auth_session_expired", handleSessionExpired);
     };
-  }, [refreshUser, logout]);
+  }, [refreshUser, navigate]);
 
   const login = (newToken: string, newUser: User, redirectPath?: string) => {
     sessionStorage.setItem("vp_token", newToken);
     sessionStorage.setItem("vp_user", JSON.stringify(newUser));
     sessionStorage.setItem("vp_role", String(newUser.role));
     localStorage.setItem("auth_token", newToken);
+    localStorage.setItem("auth_access_token", newToken);
     localStorage.setItem("vp_user", JSON.stringify(newUser));
     setToken(newToken);
     setUser(newUser);

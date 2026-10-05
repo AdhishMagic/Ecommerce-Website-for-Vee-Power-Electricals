@@ -18,6 +18,7 @@ import {
   Settings,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { ShopProvider } from "../context/ShopContext";
 import VeeElectricalsLogo from "../components/brand/VeeElectricalsLogo";
 import { COMPANY_NAME } from "../constants/companyInfo";
 
@@ -203,7 +204,8 @@ export default function AdminLayout() {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
+    <ShopProvider>
+      <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
       {/* Sidebar Overlay for Mobile */}
       {sidebarOpen && (
         <div
@@ -418,5 +420,6 @@ export default function AdminLayout() {
         </main>
       </div>
     </div>
+    </ShopProvider>
   );
 }

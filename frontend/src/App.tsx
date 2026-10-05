@@ -2,7 +2,6 @@ import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { CartProvider } from "./context/CartContext";
 import { AuthProvider } from "./context/AuthContext";
-import { ShopProvider } from "./context/ShopContext";
 import ProtectedRoute from "./components/common/ProtectedRoute";
 import ScrollToTop from "./components/common/ScrollToTop";
 
@@ -41,6 +40,7 @@ const ClientsPage = lazy(() => import("./pages/admin/Clients"));
 const InvoicesPage = lazy(() => import("./pages/admin/Invoices"));
 const ProductsAnalytics = lazy(() => import("./pages/admin/ProductsAnalytics"));
 const TrafficAnalytics = lazy(() => import("./pages/admin/TrafficAnalytics"));
+const AdminCustomers = lazy(() => import("./pages/admin/Customers"));
 
 // Lazy-loaded auth pages
 const Login = lazy(() => import("./pages/auth/Login"));
@@ -87,11 +87,9 @@ export default function App() {
                 <Route path="/account/orders" element={<ProtectedRoute allowedRoles={["customer", "admin"]}><CustomerLayout><Account /></CustomerLayout></ProtectedRoute>} />
 
                 {/* Admin routes.
-                    ShopProvider eagerly loads the product catalog and is only
-                    consumed by the admin product/inventory screens, so it is
-                    scoped to this subtree rather than the whole app — customer
-                    routes no longer issue a redundant catalog request. */}
-                <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin"]}><ShopProvider><AdminLayout /></ShopProvider></ProtectedRoute>}>
+                    AdminLayout now internally wraps its children with ShopProvider
+                    so ShopContext and catalog APIs are lazy-loaded only when entering /admin. */}
+                <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin"]}><AdminLayout /></ProtectedRoute>}>
                   <Route index element={<Dashboard />} />
 
                   {/* Orders */}
@@ -117,7 +115,8 @@ export default function App() {
                   <Route path="inventory" element={<AdminInventory />} />
                   <Route path="categories" element={<AdminCategories />} />
                   <Route path="import" element={<ImportProducts />} />
-                  <Route path="customers" element={<div className="bg-white rounded-xl border border-[#D9E1E8] p-8 text-center text-[#667085]"><p className="text-4xl mb-3">👥</p><p className="font-semibold text-[#0B3A63]">Customer Management</p><p className="text-sm mt-1">Coming soon</p></div>} />
+                  <Route path="customers" element={<AdminCustomers />} />
+                  <Route path="customers/:id" element={<AdminCustomers />} />
                   <Route path="settings" element={<div className="bg-white rounded-xl border border-[#D9E1E8] p-8 text-center text-[#667085]"><p className="text-4xl mb-3">⚙️</p><p className="font-semibold text-[#0B3A63]">Settings</p><p className="text-sm mt-1">Coming soon</p></div>} />
                 </Route>
 

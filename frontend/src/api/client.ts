@@ -25,6 +25,28 @@ export class ApiError extends Error {
     const canonical = data.error;
     let message = canonical?.message || data.detail || data.message;
 
+    const parsedFieldErrors: Record<string, string[]> = {};
+    const rawErrors = canonical?.details || data.errors;
+    const fieldMessages: string[] = [];
+
+    if (rawErrors && typeof rawErrors === 'object') {
+      for (const [key, val] of Object.entries(rawErrors)) {
+        const arr = Array.isArray(val) ? val.map(String) : [String(val)];
+        parsedFieldErrors[key] = arr;
+        const joined = arr.join(' ');
+        if (key === 'non_field_errors' || key === 'detail') {
+          fieldMessages.push(joined);
+        } else {
+          const friendlyKey = key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
+          fieldMessages.push(`${friendlyKey}: ${joined}`);
+        }
+      }
+    }
+
+    if (fieldMessages.length > 0 && (!message || message === 'Validation failed.' || message === 'Bad request.' || message === 'Invalid input.')) {
+      message = fieldMessages.join(' | ');
+    }
+
     if (!message && data.errors && typeof data.errors === 'object') {
       message = Object.values(data.errors).flat().join(' ');
     }
@@ -63,14 +85,7 @@ export class ApiError extends Error {
     this.data = data;
     this.code = canonical?.code || getDefaultCode(status);
     this.requestId = canonical?.request_id || requestId;
-    this.fieldErrors = {};
-
-    const rawErrors = canonical?.details || data.errors;
-    if (rawErrors && typeof rawErrors === 'object') {
-      for (const [key, val] of Object.entries(rawErrors)) {
-        this.fieldErrors[key] = Array.isArray(val) ? val.map(String) : [String(val)];
-      }
-    }
+    this.fieldErrors = parsedFieldErrors;
   }
 }
 

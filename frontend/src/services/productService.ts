@@ -18,11 +18,22 @@ const mapApiProductToProduct = (item: ProductSummary | ProductDetail): Product =
       ? (item.subcategory as any).name
       : item.subcategory_name || '';
 
+  const normalizeImageUrl = (url?: string) => {
+    if (!url) return '';
+    if (url.startsWith('/media/')) {
+      const backendBase = import.meta.env.VITE_API_URL
+        ? import.meta.env.VITE_API_URL.replace('/api/v1', '')
+        : 'http://localhost:8000';
+      return `${backendBase}${url}`;
+    }
+    return url;
+  };
+
   const detailImages = (item as ProductDetail).images;
   const imageList: string[] = Array.isArray(detailImages) && detailImages.length > 0
-    ? detailImages.map((img) => img.image)
+    ? detailImages.map((img) => normalizeImageUrl(img.image))
     : item.primary_image
-    ? [item.primary_image]
+    ? [normalizeImageUrl(item.primary_image)]
     : ['https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=600&fit=crop'];
 
   const detailSpecs = (item as ProductDetail).specifications;

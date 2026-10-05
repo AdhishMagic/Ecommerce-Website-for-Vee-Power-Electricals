@@ -187,6 +187,100 @@ class ProductAdminCreateUpdateSerializer(serializers.ModelSerializer):
         if not data.get('slug') and data.get('name'):
             from django.utils.text import slugify
             data['slug'] = slugify(data['name'])
+
+        # Default mrp to price if omitted
+        if not data.get('mrp') and data.get('price'):
+            data['mrp'] = data['price']
+
+        # Map image to primary_image if passed
+        if not data.get('primary_image') and data.get('image'):
+            data['primary_image'] = data['image']
+
+        # Handle base64 image data URI or oversized string in primary_image
+        img_val = data.get('primary_image')
+        if img_val and isinstance(img_val, str) and (img_val.startswith('data:image/') or len(img_val) > 500):
+            import base64
+            import uuid
+            from django.conf import settings
+            from pathlib import Path
+            try:
+                if ';base64,' in img_val:
+                    header, encoded = img_val.split(';base64,', 1)
+                    mime = header.replace('data:image/', '').split(';')[0]
+                    ext = 'jpg' if mime == 'jpeg' else mime.split('+')[0]
+                    if not ext or len(ext) > 5:
+                        ext = 'png'
+                else:
+                    encoded = img_val
+                    ext = 'png'
+
+                media_dir = Path(settings.MEDIA_ROOT) / 'products'
+                media_dir.mkdir(parents=True, exist_ok=True)
+                filename = f"{uuid.uuid4().hex}.{ext}"
+                file_path = media_dir / filename
+
+                with open(file_path, 'wb') as f:
+                    f.write(base64.b64decode(encoded))
+
+                data['primary_image'] = f"{settings.MEDIA_URL}products/{filename}"
+            except Exception:
+                # If decode fails, fallback to clean empty string to avoid validation error
+                data['primary_image'] = ''
+
+        # Resolve category if passed as string/slug/name
+        cat_val = data.get('category')
+        if cat_val is not None:
+            is_int = False
+            try:
+                int(cat_val)
+                is_int = True
+            except (ValueError, TypeError):
+                pass
+
+            if not is_int and isinstance(cat_val, str) and cat_val.strip():
+                from apps.products.models import Category
+                from django.db.models import Q
+                from django.utils.text import slugify
+                val_clean = cat_val.strip()
+                cat_slug = slugify(val_clean)
+                found_cat = Category.objects.filter(
+                    Q(slug__iexact=cat_slug) | Q(name__iexact=val_clean) | Q(slug__iexact=val_clean)
+                ).first()
+                if not found_cat:
+                    found_cat, _ = Category.objects.get_or_create(
+                        slug=cat_slug or 'general',
+                        defaults={'name': val_clean}
+                    )
+                if found_cat:
+                    data['category'] = found_cat.id
+
+        # Resolve brand if passed as string/slug/name
+        brand_val = data.get('brand')
+        if brand_val is not None:
+            is_int = False
+            try:
+                int(brand_val)
+                is_int = True
+            except (ValueError, TypeError):
+                pass
+
+            if not is_int and isinstance(brand_val, str) and brand_val.strip():
+                from apps.products.models import Brand
+                from django.db.models import Q
+                from django.utils.text import slugify
+                val_clean = brand_val.strip()
+                brand_slug = slugify(val_clean)
+                found_brand = Brand.objects.filter(
+                    Q(slug__iexact=brand_slug) | Q(name__iexact=val_clean) | Q(slug__iexact=val_clean)
+                ).first()
+                if not found_brand:
+                    found_brand, _ = Brand.objects.get_or_create(
+                        slug=brand_slug or 'general',
+                        defaults={'name': val_clean}
+                    )
+                if found_brand:
+                    data['brand'] = found_brand.id
+
         return super().to_internal_value(data)
 
     def validate(self, data):
@@ -217,3 +311,40 @@ class ProductAdminCreateUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"subcategory": f"Subcategory '{subcategory.name}' does not belong to category '{category.name}'."})
 
         return data
+
+    def create(self, validated_data):
+        specs_data = self.initial_data.get('specifications') or self.initial_data.get('specs')
+        product = super().create(validated_data)
+        if specs_data and isinstance(specs_data, list):
+            from apps.products.models import ProductSpecification
+            for idx, item in enumerate(specs_data):
+                if isinstance(item, dict):
+                    k = item.get('key') or item.get('spec_key')
+                    v = item.get('value') or item.get('spec_value')
+                    if k and str(k).strip() and v and str(v).strip():
+                        ProductSpecification.objects.create(
+                            product=product,
+                            spec_key=str(k).strip(),
+                            spec_value=str(v).strip(),
+                            sort_order=idx
+                        )
+        return product
+
+    def update(self, instance, validated_data):
+        specs_data = self.initial_data.get('specifications') or self.initial_data.get('specs')
+        product = super().update(instance, validated_data)
+        if specs_data is not None and isinstance(specs_data, list):
+            from apps.products.models import ProductSpecification
+            product.specifications.all().delete()
+            for idx, item in enumerate(specs_data):
+                if isinstance(item, dict):
+                    k = item.get('key') or item.get('spec_key')
+                    v = item.get('value') or item.get('spec_value')
+                    if k and str(k).strip() and v and str(v).strip():
+                        ProductSpecification.objects.create(
+                            product=product,
+                            spec_key=str(k).strip(),
+                            spec_value=str(v).strip(),
+                            sort_order=idx
+                        )
+        return product
