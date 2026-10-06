@@ -27,18 +27,10 @@ export const authService = {
     try {
       const profile = await authApi.getMe();
       return mapProfileToUser(profile);
-    } catch (err: any) {
-      if (err?.status === 401) {
-        return null;
-      }
-      const storedUser = sessionStorage.getItem('vp_user') || localStorage.getItem('vp_user');
-      if (storedUser) {
-        try {
-          return JSON.parse(storedUser);
-        } catch {
-          return null;
-        }
-      }
+    } catch {
+      // Any failure means the session could not be confirmed by the server. Never
+      // fall back to a cached user, which would let a dead session look signed in
+      // while every subsequent request 401s.
       return null;
     }
   },

@@ -16,6 +16,7 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
+  isBootstrapping: boolean;
   login: (token: string, user: User, redirectPath?: string) => void;
   logout: () => void;
   requireAuth: (action: () => void) => void;
@@ -40,10 +41,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return !!getAccessToken() && !!(sessionStorage.getItem("vp_user") || localStorage.getItem("vp_user"));
   });
 
+  // A stored token is not proof of a valid session. Until it has been confirmed
+  // against the backend, protected pages must not mount: otherwise every admin
+  // effect fires its own authenticated request in parallel and they all 401 at once.
+  const [isBootstrapping, setIsBootstrapping] = useState<boolean>(() => !!getAccessToken());
+
   const navigate = useNavigate();
   const location = useLocation();
 
   const logout = useCallback(async () => {
+    const wasAdminRoute = window.location.pathname.startsWith("/admin");
     try {
       await authService.logout();
     } catch {
@@ -52,7 +59,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null);
     setUser(null);
     setIsAuthenticated(false);
-    navigate("/login");
+    setIsBootstrapping(false);
+    navigate(wasAdminRoute ? "/admin/login" : "/login");
   }, [navigate]);
 
   // Load and synchronize user on mount if token exists (deduplicated across React StrictMode)
@@ -96,9 +104,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (getAccessToken()) {
-      refreshUser();
-    }
+    let cancelled = false;
+
+    const bootstrapSession = async () => {
+      if (!getAccessToken()) {
+        setIsBootstrapping(false);
+        return;
+      }
+      // Confirm the stored token before any protected content mounts.
+      await refreshUser();
+      if (!cancelled) setIsBootstrapping(false);
+    };
+
+    bootstrapSession();
 
     // Listen to session expired event from API client
     const handleSessionExpired = () => {
@@ -106,11 +124,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(null);
       setUser(null);
       setIsAuthenticated(false);
-      navigate("/login");
+      setIsBootstrapping(false);
+
+      const { pathname, search } = window.location;
+      // Already on a login screen: never stack a redirect on top of it.
+      if (pathname === "/login" || pathname === "/admin/login") return;
+
+      const redirect = encodeURIComponent(pathname + search);
+      if (pathname.startsWith("/admin")) {
+        navigate(`/admin/login?redirect=${redirect}`);
+      } else {
+        navigate(`/login?redirect=${redirect}`);
+      }
     };
 
     window.addEventListener("auth_session_expired", handleSessionExpired);
     return () => {
+      cancelled = true;
       window.removeEventListener("auth_session_expired", handleSessionExpired);
     };
   }, [refreshUser, navigate]);
@@ -148,7 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isAuthenticated, login, logout, requireAuth, refreshUser }}>
+    <AuthContext.Provider value={{ user, token, isAuthenticated, isBootstrapping, login, logout, requireAuth, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -203,7 +203,13 @@ test.describe('Step 16: Comprehensive Responsive Validation', () => {
   test('PD-desktop: image, info and CTAs all visible side-by-side', async ({ page }) => {
     await useViewport(page, DESKTOP);
     await page.goto('/shop');
-    await page.locator('a[href^="/product/"]').first().click();
+    // The shop grid itself renders an <h1> and per-card "Add to Cart" buttons, so
+    // those assertions would pass even if the click never navigated. Wait for the
+    // product URL first, then assert detail-page content.
+    await Promise.all([
+      page.waitForURL(/\/product\//, { timeout: 15000 }),
+      page.locator('a[href^="/product/"]').first().click(),
+    ]);
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 15000 });
     await expect(page.locator('button', { hasText: /Add to Cart/i }).first()).toBeVisible();
     await expect(page.locator('button', { hasText: /Buy Now/i })).toBeVisible();
@@ -213,7 +219,11 @@ test.describe('Step 16: Comprehensive Responsive Validation', () => {
   test('PD-mobile: content stacks, quantity controls and CTAs usable', async ({ page }) => {
     await useViewport(page, MOBILE);
     await page.goto('/shop');
-    await page.locator('a[href^="/product/"]').first().click();
+    // Same as PD-desktop: wait for the product URL before asserting detail content.
+    await Promise.all([
+      page.waitForURL(/\/product\//, { timeout: 15000 }),
+      page.locator('a[href^="/product/"]').first().click(),
+    ]);
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 15000 });
     await expectNoHorizontalOverflow(page);
     // Quantity controls present and touch-sized
@@ -346,7 +356,15 @@ test.describe('Step 16: Comprehensive Responsive Validation', () => {
   test('CO-mobile-error: validation error message contained, no overflow', async ({ page, request }) => {
     await useViewport(page, MOBILE);
     await openCheckout(page, request);
-    // Submit with no address selected
+
+    // Wait for the address step to finish loading (saved addresses may or may not exist).
+    await page.waitForSelector('input[name="saved_address"], input[placeholder="Rajesh Kumar"]', { timeout: 15000 });
+    // If a saved address exists it is auto-selected, so the "no address" validation
+    // branch would be unreachable. Force the empty new-address form so submitting
+    // genuinely has no delivery address, whatever earlier runs left in the database.
+    if (await page.locator('input[name="saved_address"]').first().isVisible().catch(() => false)) {
+      await page.getByRole('button', { name: /Add New Address/i }).click();
+    }
     await page.locator('button', { hasText: /Continue to Review/i }).click();
     const err = page.locator('div', { hasText: /required|select a delivery address/i }).first();
     await expect(err).toBeVisible({ timeout: 5000 });

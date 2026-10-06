@@ -18,6 +18,7 @@ from .models import (
 )
 from .serializers import (
     CompanyStoreConfigurationSerializer,
+    CompanyStoreConfigurationPublicSerializer,
     TaxConfigurationSerializer,
     DeliveryConfigurationSerializer,
     DistanceSlabSerializer,
@@ -45,9 +46,25 @@ class CompanyStoreConfigView(APIView):
         obj, _ = CompanyStoreConfiguration.objects.get_or_create(id=1)
         return obj
 
+    @staticmethod
+    def _is_administrator(user) -> bool:
+        return bool(
+            user
+            and user.is_authenticated
+            and (
+                getattr(user, 'role', '') == 'admin'
+                or getattr(user, 'is_staff', False)
+                or getattr(user, 'is_superuser', False)
+            )
+        )
+
     def get(self, request):
         config = self.get_object()
-        return Response(CompanyStoreConfigurationSerializer(config).data)
+        # Administrators see bank settlement coordinates; anonymous and customer
+        # callers receive the public projection without them.
+        if self._is_administrator(request.user):
+            return Response(CompanyStoreConfigurationSerializer(config).data)
+        return Response(CompanyStoreConfigurationPublicSerializer(config).data)
 
     def put(self, request):
         config = self.get_object()

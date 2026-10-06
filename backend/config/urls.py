@@ -20,6 +20,7 @@ urlpatterns = [
     path('api/v1/inquiries/', include('apps.core.urls')),
     path('api/v1/config/', include('apps.commercial_config.urls')),
     path('api/v1/customers/', include('apps.users.urls_customer')),
+    path('api/v1/settings/', include('apps.admin_settings.urls')),
 ]
 
 if settings.DEBUG:

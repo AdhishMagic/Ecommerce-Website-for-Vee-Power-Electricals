@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import update_last_login
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
@@ -78,6 +79,11 @@ class LoginView(APIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
 
+        # SIMPLE_JWT['UPDATE_LAST_LOGIN'] only applies to SimpleJWT's own token
+        # serializer, which this project replaces, so the timestamp that the
+        # admin Security section and Customers list report is written explicitly.
+        update_last_login(None, user)
+
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
         refresh_token = str(refresh)
@@ -115,6 +121,8 @@ class GoogleLoginView(APIView):
         claims = verify_google_id_token(serializer.validated_data['token'])
         result = sign_in_with_google(claims, request=request)
         user = result['user']
+
+        update_last_login(None, user)
 
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)

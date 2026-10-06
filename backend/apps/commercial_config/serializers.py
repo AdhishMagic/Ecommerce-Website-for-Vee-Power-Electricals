@@ -52,6 +52,29 @@ class CompanyStoreConfigurationSerializer(serializers.ModelSerializer):
         return data
 
 
+class CompanyStoreConfigurationPublicSerializer(serializers.ModelSerializer):
+    """
+    Anonymous/storefront-safe projection of the company profile.
+
+    Bank settlement coordinates (account number, IFSC, branch, bank name) are
+    administrative financial data and are withheld from unauthenticated callers;
+    administrators continue to receive them from the full serializer.
+    """
+    class Meta:
+        model = CompanyStoreConfiguration
+        fields = [
+            'id', 'legal_company_name', 'brand_name', 'gstin', 'pan',
+            'registered_address', 'warehouse_address', 'support_email', 'support_phone',
+            'currency_code', 'currency_symbol', 'rounding_mode',
+            'auto_cancel_unpaid_minutes', 'cancellation_allowed_until',
+            'return_window_days', 'require_shipping_awb',
+            'upi_enabled', 'cards_enabled', 'netbanking_enabled',
+            'cod_enabled', 'cod_max_limit', 'guest_checkout_enabled',
+            'is_maintenance_mode', 'maintenance_notice', 'updated_at',
+        ]
+        read_only_fields = fields
+
+
 class TaxConfigurationSerializer(serializers.ModelSerializer):
     class Meta:
         model = TaxConfiguration

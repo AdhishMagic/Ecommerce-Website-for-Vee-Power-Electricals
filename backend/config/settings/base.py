@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'apps.finance.apps.FinanceConfig',
     'apps.core.apps.CoreConfig',
     'apps.common.apps.CommonConfig',
+    'apps.admin_settings.apps.AdminSettingsConfig',
 ]
 
 MIDDLEWARE = [
@@ -108,6 +109,10 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
+
+# Application release identifier surfaced read-only on the Admin Settings > System
+# section. This is a deployment constant, not an administrator-editable setting.
+APP_VERSION = os.getenv('APP_VERSION', '1.0.0')
 
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'Asia/Kolkata'

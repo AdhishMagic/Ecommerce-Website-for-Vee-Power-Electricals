@@ -13,6 +13,7 @@ from apps.core.models import (
     CommunicationChannel,
     CommunicationStatus,
 )
+from apps.admin_settings.models import NotificationSettings
 from apps.orders.models import Order, OrderStatus
 from apps.finance.models import Invoice, Quotation, PaymentTransaction
 
@@ -30,6 +31,10 @@ class CommunicationService:
     Authoritative domain service orchestrating customer communication across email channels.
     Enforces server-authoritative recipient validation, cryptographic sanitization,
     fail-safe error isolation, and strict event-level idempotency.
+
+    Delivery is additionally gated by the administrator-configurable
+    :class:`apps.admin_settings.models.NotificationSettings` policy: a disabled
+    category is recorded as ``SKIPPED`` and is never transmitted.
     """
 
     @classmethod
@@ -95,8 +100,36 @@ class CommunicationService:
         5. Records immutable audit entry in CommunicationLog.
         6. Isolates failure: returns failed log entry without rolling back business transactions.
         """
-        valid_recipient = cls.validate_recipient_email(recipient)
         safe_snapshot = cls.sanitize_context_for_snapshot(context)
+
+        # Authoritative notification-policy gate. Events whose category an
+        # administrator has switched off are recorded as SKIPPED and never sent.
+        # A missing policy row (or an unmapped event type) preserves the original
+        # always-deliver behaviour, and PASSWORD_RESET is never suppressible.
+        if not NotificationSettings.is_event_enabled(event_type):
+            category = NotificationSettings.resolve_category(event_type)
+            logger.info(
+                "Communication suppressed by notification policy: event '%s' (category '%s') [key: %s]",
+                event_type, category, idempotency_key,
+            )
+            log_record, _ = CommunicationLog.objects.update_or_create(
+                idempotency_key=idempotency_key,
+                defaults={
+                    'event_type': event_type,
+                    'channel': CommunicationChannel.EMAIL,
+                    'recipient': str(recipient)[:255] if recipient else 'UNKNOWN',
+                    'subject': subject[:255],
+                    'template_name': template_base,
+                    'status': CommunicationStatus.SKIPPED,
+                    'error_message': (
+                        f"Suppressed by notification policy: category '{category}' is disabled."
+                    ),
+                    'context_snapshot': safe_snapshot,
+                },
+            )
+            return log_record
+
+        valid_recipient = cls.validate_recipient_email(recipient)
 
         if not valid_recipient:
             logger.warning(

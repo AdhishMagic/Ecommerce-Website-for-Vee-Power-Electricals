@@ -18,7 +18,8 @@ import { test, expect, type Page } from '@playwright/test';
  */
 
 test.describe('Step 17: Performance Validation', () => {
-  test.setTimeout(90_000);
+  // Two-settle tests can spend up to 2 x the settle cap in a stalled environment.
+  test.setTimeout(120_000);
 
   const ADMIN = { email: 'admin@veepower.in', password: 'AdminPass123!' };
   const CUSTOMER = { email: 'e2e_verified_customer@veepower.com', password: 'SecurePass123!' };
@@ -74,7 +75,12 @@ test.describe('Step 17: Performance Validation', () => {
     const listener = (req: any) => urls.push(req.url());
     page.on('request', listener);
 
-    const settle = async (quietMs = 1200, capMs = 15000) => {
+    // The cap only applies to a *stalled* window. A cold Vite dev-server boot can
+    // take longer than the old 15s cap under load, which closed the window before the
+    // app had issued its first API request and made the request-set assertions fail on
+    // an empty list. Waiting longer does not hide a genuinely missing request — the
+    // quiet window still ends as soon as the network goes idle.
+    const settle = async (quietMs = 1200, capMs = 30000) => {
       const started = Date.now();
       let last = -1;
       let lastChange = Date.now();
@@ -89,9 +95,13 @@ test.describe('Step 17: Performance Validation', () => {
       }
     };
 
+    // Only API endpoints count. Product imagery is served from the same origin as
+    // the API (http://localhost:8000/media/...), and whether the browser gets round to
+    // requesting those lazy images inside the settle window is pure timing — that
+    // made "the endpoints the route needs" flaky. Static assets are not endpoints.
     const apiPaths = () =>
       urls
-        .filter((u) => u.startsWith(API_ORIGIN))
+        .filter((u) => u.startsWith(`${API_ORIGIN}/api/`))
         .map((u) => {
           const url = new URL(u);
           return `${url.pathname}${url.search}`;

@@ -246,18 +246,46 @@ export interface PaginatedResponse<T> {
   results: T[];
 }
 
+/**
+ * Company / store configuration as persisted by
+ * `commercial_config.CompanyStoreConfiguration` (singleton row, `id = 1`).
+ *
+ * Field names mirror the backend model exactly. The bank settlement block is
+ * returned to administrators only; anonymous and customer callers receive the
+ * public projection, which is why those four fields are optional here.
+ */
+export type RoundingMode = 'ROUND_HALF_UP' | 'NO_ROUNDING';
+
 export interface StoreProfile {
-  legal_name: string;
-  trading_name?: string;
+  id: number;
+  legal_company_name: string;
+  brand_name: string;
   gstin: string;
-  email: string;
-  phone: string;
-  address_line1: string;
-  address_line2?: string;
-  city: string;
-  state: string;
-  pincode: string;
-  currency: string;
+  pan: string;
+  registered_address: string;
+  warehouse_address: string;
+  support_email: string;
+  support_phone: string;
+  bank_name?: string;
+  bank_account_number?: string;
+  bank_ifsc?: string;
+  bank_branch?: string;
+  currency_code: string;
+  currency_symbol: string;
+  rounding_mode: RoundingMode;
+  auto_cancel_unpaid_minutes: number;
+  cancellation_allowed_until: string;
+  return_window_days: number;
+  require_shipping_awb: boolean;
+  upi_enabled: boolean;
+  cards_enabled: boolean;
+  netbanking_enabled: boolean;
+  cod_enabled: boolean;
+  cod_max_limit: string;
+  guest_checkout_enabled: boolean;
+  is_maintenance_mode: boolean;
+  maintenance_notice: string | null;
+  updated_at: string;
 }
 
 export interface DistanceSlab {
@@ -732,6 +760,98 @@ export interface CustomerUpdateInput {
   email?: string;
   phone?: string;
   is_active?: boolean;
+}
+
+/* ------------------------------------------------------------------ *
+ * Admin Settings module (`/api/v1/settings/`)
+ * ------------------------------------------------------------------ */
+
+/**
+ * System-wide outbound notification policy — a real MySQL row enforced by
+ * `apps.core.services.CommunicationService` at dispatch time.
+ */
+export interface NotificationSettings {
+  email_notifications_enabled: boolean;
+  order_notifications: boolean;
+  payment_notifications: boolean;
+  invoice_notifications: boolean;
+  quotation_notifications: boolean;
+  customer_notifications: boolean;
+  updated_at: string;
+  updated_by_email: string | null;
+}
+
+/** Writable subset of the notification policy. */
+export type NotificationSettingsPatch = Partial<
+  Pick<
+    NotificationSettings,
+    | 'email_notifications_enabled'
+    | 'order_notifications'
+    | 'payment_notifications'
+    | 'invoice_notifications'
+    | 'quotation_notifications'
+    | 'customer_notifications'
+  >
+> & { change_reason?: string };
+
+/** A single usable refresh-token session, sourced from the SimpleJWT registry. */
+export interface SessionRecord {
+  id: number;
+  created_at: string | null;
+  expires_at: string;
+}
+
+/** Read-only security posture of the authenticated administrator. */
+export interface SecurityOverview {
+  email: string;
+  role: UserRole;
+  role_display: string;
+  is_active: boolean;
+  account_status: string;
+  last_login: string | null;
+  account_created_at: string | null;
+  active_sessions_count: number;
+  recent_sessions: SessionRecord[];
+  configuration_changes_count: number;
+  last_configuration_change_at: string | null;
+}
+
+export interface PasswordChangeInput {
+  current_password: string;
+  new_password: string;
+  confirm_password: string;
+}
+
+/** Response to a successful rotation: fresh tokens following the existing JWT policy. */
+export interface PasswordChangeResult {
+  message: string;
+  sessions_revoked: number;
+  access: string;
+  refresh: string;
+}
+
+export interface LastMigration {
+  app: string;
+  name: string;
+  applied_at: string;
+}
+
+/** Read-only, secret-free environment diagnostic. */
+export interface SystemInformation {
+  app_version: string;
+  api_version: string;
+  environment: string;
+  debug: boolean;
+  django_version: string;
+  drf_version: string;
+  python_version: string;
+  api_status: string;
+  database_status: string;
+  database_engine: string;
+  database_latency_ms: number;
+  time_zone: string;
+  server_time: string;
+  last_migration: LastMigration | null;
 }
 
 

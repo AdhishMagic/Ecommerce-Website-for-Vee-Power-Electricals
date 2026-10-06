@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { ReactNode } from "react";
+import VeeElectricalsLoader from "../brand/VeeElectricalsLoader";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -8,8 +9,14 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, isBootstrapping } = useAuth();
   const location = useLocation();
+
+  // Wait for the stored token to be validated before deciding, so we neither
+  // flash the login screen nor mount children that would fire doomed requests.
+  if (isBootstrapping) {
+    return <VeeElectricalsLoader status="submitting" />;
+  }
 
   if (!isAuthenticated || !user) {
     // Redirect to login and save the original location they were trying to access

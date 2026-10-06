@@ -157,7 +157,12 @@ export const getRefreshToken = (): string | null => {
   );
 };
 
+// A freshly stored token pair means there is a live session again, so re-arm the
+// one-shot "session expired" notification for any later failure.
+let sessionExpiredNotified = false;
+
 export const setAuthTokens = (access: string, refresh?: string): void => {
+  sessionExpiredNotified = false;
   localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, access);
   localStorage.setItem(STORAGE_KEYS.LEGACY_TOKEN, access);
   sessionStorage.setItem('vp_token', access);
@@ -181,22 +186,74 @@ export const clearAuthStorage = (): void => {
   sessionStorage.removeItem('vp_role');
 };
 
-let isRefreshing = false;
-let refreshSubscribers: ((token: string) => void)[] = [];
-
-const subscribeTokenRefresh = (cb: (token: string) => void) => {
-  refreshSubscribers.push(cb);
-};
-
-const onTokenRefreshed = (token: string) => {
-  refreshSubscribers.forEach((cb) => cb(token));
-  refreshSubscribers = [];
-};
-
-const onRefreshFailed = () => {
-  refreshSubscribers = [];
+// Ends the session exactly once, no matter how many requests were in flight when
+// it was discovered. Without this, N concurrent 401s produced N redirects, and a
+// request that could not be recovered was silently retried forever.
+const notifySessionExpired = (): void => {
+  const hadSession = !!(getAccessToken() || getRefreshToken());
   clearAuthStorage();
+  if (!hadSession || sessionExpiredNotified) return;
+  sessionExpiredNotified = true;
   window.dispatchEvent(new CustomEvent('auth_session_expired'));
+};
+
+const postTokenRefresh = async (
+  refreshToken: string
+): Promise<{ access: string; refresh?: string } | null> => {
+  try {
+    const res = await fetch(`${API_BASE_URL}/auth/token/refresh/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ refresh: refreshToken }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    if (!data?.access) return null;
+    return { access: data.access, refresh: data.refresh };
+  } catch {
+    return null;
+  }
+};
+
+// Single-flight refresh. The backend rotates and blacklists refresh tokens, so two
+// concurrent refreshes with the same token would make the loser 401 and needlessly
+// destroy a perfectly valid session. Every concurrent 401 awaits this one promise.
+let refreshPromise: Promise<string> | null = null;
+
+const refreshAccessToken = (): Promise<string> => {
+  if (refreshPromise) return refreshPromise;
+
+  const tokenAtStart = getRefreshToken();
+  if (!tokenAtStart) {
+    return Promise.reject(new ApiError(401, { detail: 'No refresh token is available.' }));
+  }
+
+  const attempt = (async (): Promise<string> => {
+    let result = await postTokenRefresh(tokenAtStart);
+
+    if (!result) {
+      // Another tab or page load may have rotated first, which blacklists the token
+      // we just sent. If storage now holds a different refresh token, adopt it rather
+      // than declaring a valid session dead.
+      const latest = getRefreshToken();
+      if (latest && latest !== tokenAtStart) {
+        result = await postTokenRefresh(latest);
+      }
+    }
+
+    if (!result) {
+      throw new ApiError(401, { detail: 'Session expired. Please log in again.' });
+    }
+
+    setAuthTokens(result.access, result.refresh || tokenAtStart);
+    return result.access;
+  })();
+
+  refreshPromise = attempt.finally(() => {
+    refreshPromise = null;
+  });
+
+  return refreshPromise;
 };
 
 export interface RequestOptions extends Omit<RequestInit, 'body'> {
@@ -288,54 +345,24 @@ export async function apiClient<T>(
     if (timeoutId) clearTimeout(timeoutId);
   }
 
-  // Handle 401 Unauthorized for token refresh
+  // A 401 on an authenticated request means the stored session can no longer be
+  // used. Refresh once (shared by every concurrent 401) and replay; if that is not
+  // possible, end the session cleanly instead of letting every caller re-issue
+  // unauthenticated requests that 401 again and again.
   if (response.status === 401 && !skipAuth && !_isRetry) {
-    const refreshToken = getRefreshToken();
-    if (refreshToken) {
-      if (!isRefreshing) {
-        isRefreshing = true;
-        try {
-          const refreshRes = await fetch(`${API_BASE_URL}/auth/token/refresh/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-            body: JSON.stringify({ refresh: refreshToken }),
-          });
-
-          if (refreshRes.ok) {
-            const data = await refreshRes.json();
-            const newAccess = data.access;
-            const newRefresh = data.refresh || refreshToken;
-            setAuthTokens(newAccess, newRefresh);
-            isRefreshing = false;
-            onTokenRefreshed(newAccess);
-
-            // Replay original request
-            return apiClient<T>(endpoint, { ...options, _isRetry: true });
-          } else {
-            isRefreshing = false;
-            onRefreshFailed();
-            throw new ApiError(401, { detail: 'Session expired. Please log in again.' });
-          }
-        } catch (err) {
-          isRefreshing = false;
-          onRefreshFailed();
-          throw err instanceof ApiError ? err : new ApiError(401, { detail: 'Session refresh failed.' });
-        }
-      } else {
-        // Queue this request until refresh completes
-        return new Promise<T>((resolve, reject) => {
-          subscribeTokenRefresh((newAccessToken: string) => {
-            apiClient<T>(endpoint, {
-              ...options,
-              headers: { ...headers, Authorization: `Bearer ${newAccessToken}` },
-              _isRetry: true,
-            })
-              .then(resolve)
-              .catch(reject);
-          });
-        });
-      }
+    let newAccess: string;
+    try {
+      newAccess = await refreshAccessToken();
+    } catch {
+      notifySessionExpired();
+      throw new ApiError(401, { detail: 'Session expired. Please log in again.' });
     }
+
+    return apiClient<T>(endpoint, {
+      ...options,
+      headers: { ...(headers as Record<string, string>), Authorization: `Bearer ${newAccess}` },
+      _isRetry: true,
+    });
   }
 
   // Check if response is 204 No Content

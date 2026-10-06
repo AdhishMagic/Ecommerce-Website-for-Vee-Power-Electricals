@@ -41,6 +41,7 @@ const InvoicesPage = lazy(() => import("./pages/admin/Invoices"));
 const ProductsAnalytics = lazy(() => import("./pages/admin/ProductsAnalytics"));
 const TrafficAnalytics = lazy(() => import("./pages/admin/TrafficAnalytics"));
 const AdminCustomers = lazy(() => import("./pages/admin/Customers"));
+const AdminSettings = lazy(() => import("./pages/admin/Settings"));
 
 // Lazy-loaded auth pages
 const Login = lazy(() => import("./pages/auth/Login"));
@@ -117,7 +118,7 @@ export default function App() {
                   <Route path="import" element={<ImportProducts />} />
                   <Route path="customers" element={<AdminCustomers />} />
                   <Route path="customers/:id" element={<AdminCustomers />} />
-                  <Route path="settings" element={<div className="bg-white rounded-xl border border-[#D9E1E8] p-8 text-center text-[#667085]"><p className="text-4xl mb-3">⚙️</p><p className="font-semibold text-[#0B3A63]">Settings</p><p className="text-sm mt-1">Coming soon</p></div>} />
+                  <Route path="settings" element={<AdminSettings />} />
                 </Route>
 
                 <Route path="*" element={<Navigate to="/" replace />} />

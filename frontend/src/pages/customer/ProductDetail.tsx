@@ -23,16 +23,20 @@ export default function ProductDetail() {
       try {
         setLoading(true);
         const prod = await productService.getProductById(id);
-        if (isMounted) {
-          if (prod) {
-            setProduct(prod);
-            // Load related products
+        if (!isMounted) return;
+        setProduct(prod ?? null);
+
+        // Related products are supplementary. A failure here must never invalidate
+        // a product that loaded fine — doing so turned valid pages into
+        // "Product Not Found" whenever the secondary request hiccuped.
+        if (prod) {
+          try {
             const allInCat = await productService.getProducts({ category: prod.category });
             if (isMounted) {
               setRelated(allInCat.filter(p => String(p.id) !== String(prod.id)).slice(0, 4));
             }
-          } else {
-            setProduct(null);
+          } catch (relatedErr) {
+            console.error("Failed to fetch related products:", relatedErr);
           }
         }
       } catch (err) {
