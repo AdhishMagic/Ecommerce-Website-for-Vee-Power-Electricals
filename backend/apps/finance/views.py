@@ -21,6 +21,7 @@ from .models import (
     QuotationStatus,
     InvoiceStatus,
     Expense,
+    ExpenseStatus,
 )
 from .serializers import (
     ClientSerializer,
@@ -89,6 +90,43 @@ class ClientViewSet(viewsets.ModelViewSet):
             elif is_active.lower() in ['false', '0']:
                 qs = qs.filter(is_active=False)
         return qs
+
+    @action(detail=False, methods=['get'], url_path='summary')
+    def summary(self, request):
+        """
+        Database-wide aggregates for the B2B Clients Directory KPI cards.
+
+        Computed over the complete ``clients``/``invoices`` tables in the database.
+        The directory table is paginated, so summing the visible page would silently
+        under-report every total as soon as the client book exceeds one page.
+        """
+        aggregates = Client.objects.aggregate(
+            total_count=Count('id'),
+            active_count=Count('id', filter=Q(is_active=True)),
+            inactive_count=Count('id', filter=Q(is_active=False)),
+            total_credit_limit=Sum('credit_limit'),
+        )
+
+        # Authoritative credit exposure: outstanding balance of every non-settled B2B
+        # invoice. Materialised once (2 queries) so it agrees exactly with the dashboard
+        # ``b2b_outstanding`` and never degrades into a per-client N+1.
+        unpaid_invoices = list(
+            Invoice.objects.filter(
+                client__isnull=False,
+                status__in=[InvoiceStatus.UNPAID, InvoiceStatus.OVERDUE],
+            ).prefetch_related('payments')
+        )
+        total_exposure = sum(
+            (inv.outstanding_amount for inv in unpaid_invoices), Decimal('0.00')
+        ).quantize(Decimal('0.01'))
+
+        return Response({
+            'total_count': aggregates['total_count'] or 0,
+            'active_count': aggregates['active_count'] or 0,
+            'inactive_count': aggregates['inactive_count'] or 0,
+            'total_credit_limit': str(aggregates['total_credit_limit'] or Decimal('0.00')),
+            'total_exposure': str(total_exposure),
+        }, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'], url_path='credit')
     def credit_details(self, request, pk=None):
@@ -250,9 +288,52 @@ class QuotationViewSet(viewsets.ModelViewSet):
             qs = qs.filter(client_id=client_id)
 
         status_param = self.request.query_params.get('status')
-        if status_param:
+        if status_param and status_param != 'All':
             qs = qs.filter(status=status_param)
+
+        # Server-side search so the directory never filters only the visible page.
+        search = self.request.query_params.get('search') or self.request.query_params.get('q')
+        if search:
+            search = search.strip()
+            qs = qs.filter(
+                Q(quotation_number__icontains=search) |
+                Q(client__company_name__icontains=search) |
+                Q(notes__icontains=search)
+            )
         return qs
+
+    @action(detail=False, methods=['get'], url_path='summary')
+    def summary(self, request):
+        """
+        Database-wide quotation aggregates for the Quotations KPI cards.
+
+        Never derived from the paginated quotation page.
+        """
+        aggregates = Quotation.objects.aggregate(
+            total_count=Count('id'),
+            total_value=Sum('total_value'),
+        )
+        by_status = {
+            row['status']: {
+                'count': row['count'],
+                'value': str(row['total'] or '0.00'),
+            }
+            for row in Quotation.objects.values('status').annotate(
+                count=Count('id'), total=Sum('total_value')
+            )
+        }
+        return Response({
+            'total_count': aggregates['total_count'] or 0,
+            'total_value': str(aggregates['total_value'] or Decimal('0.00')),
+            'pending_count': (
+                by_status.get(QuotationStatus.DRAFT, {}).get('count', 0)
+                + by_status.get(QuotationStatus.SENT, {}).get('count', 0)
+            ),
+            'converted_count': by_status.get(QuotationStatus.CONVERTED, {}).get('count', 0),
+            'approved_count': by_status.get(QuotationStatus.APPROVED, {}).get('count', 0),
+            'rejected_count': by_status.get(QuotationStatus.REJECTED, {}).get('count', 0),
+            'by_status': by_status,
+        }, status=status.HTTP_200_OK)
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -363,6 +444,50 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             )
 
         return qs
+
+    @action(detail=False, methods=['get'], url_path='summary')
+    def summary(self, request):
+        """
+        Database-wide invoice aggregates for the Invoices KPI cards.
+
+        Never derived from the paginated invoice page. Collected cash is read from
+        successful ``PaymentTransaction`` rows (authoritative money received) rather
+        than a derived invoice status flag.
+        """
+        total_invoiced = Invoice.objects.exclude(
+            status=InvoiceStatus.CANCELLED
+        ).aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
+
+        by_status = {
+            row['status']: {
+                'count': row['count'],
+                'amount': str(row['total'] or '0.00'),
+            }
+            for row in Invoice.objects.values('status').annotate(
+                count=Count('id'), total=Sum('total_amount')
+            )
+        }
+
+        total_collected = PaymentTransaction.objects.filter(
+            status=PaymentTxStatus.SUCCESS
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+
+        unpaid_invoices = list(
+            Invoice.objects.filter(
+                status__in=[InvoiceStatus.UNPAID, InvoiceStatus.OVERDUE]
+            ).prefetch_related('payments')
+        )
+        total_outstanding = sum(
+            (inv.outstanding_amount for inv in unpaid_invoices), Decimal('0.00')
+        ).quantize(Decimal('0.01'))
+
+        return Response({
+            'total_count': Invoice.objects.count(),
+            'total_invoiced': str(total_invoiced),
+            'total_collected': str(total_collected),
+            'total_outstanding': str(total_outstanding),
+            'by_status': by_status,
+        }, status=status.HTTP_200_OK)
 
     def destroy(self, request, *args, **kwargs):
         invoice = self.get_object()
@@ -490,6 +615,33 @@ class PaymentTransactionViewSet(viewsets.ReadOnlyModelViewSet):
 
         return qs
 
+    @action(detail=False, methods=['get'], url_path='summary')
+    def summary(self, request):
+        """
+        Database-wide payment transaction aggregates for the Transactions KPI cards.
+        """
+        by_status = {
+            row['status']: {
+                'count': row['count'],
+                'amount': str(row['total'] or '0.00'),
+            }
+            for row in PaymentTransaction.objects.values('status').annotate(
+                count=Count('id'), total=Sum('amount')
+            )
+        }
+        total_collected = PaymentTransaction.objects.filter(
+            status=PaymentTxStatus.SUCCESS
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        return Response({
+            'total_count': PaymentTransaction.objects.count(),
+            'total_collected': str(total_collected),
+            'success_count': by_status.get(PaymentTxStatus.SUCCESS, {}).get('count', 0),
+            'failed_count': by_status.get(PaymentTxStatus.FAILED, {}).get('count', 0),
+            'initiated_count': by_status.get(PaymentTxStatus.INITIATED, {}).get('count', 0),
+            'refunded_count': by_status.get(PaymentTxStatus.REFUNDED, {}).get('count', 0),
+            'by_status': by_status,
+        }, status=status.HTTP_200_OK)
+
 
 class PayoutSettlementViewSet(viewsets.ReadOnlyModelViewSet):
     """
@@ -553,6 +705,44 @@ class ExpenseViewSet(viewsets.ModelViewSet):
             qs = qs.filter(expense_date__lte=end_date)
 
         return qs
+
+    @action(detail=False, methods=['get'], url_path='summary')
+    def summary(self, request):
+        """
+        Database-wide expense aggregates for the Expenses KPI cards and category chart.
+
+        Never derived from the paginated expense page.
+        """
+        aggregates = Expense.objects.aggregate(
+            total_count=Count('id'),
+            total_amount=Sum('amount'),
+        )
+        by_category = {
+            row['category']: {
+                'count': row['count'],
+                'amount': str(row['total'] or '0.00'),
+            }
+            for row in Expense.objects.values('category').annotate(
+                count=Count('id'), total=Sum('amount')
+            )
+        }
+        by_status = {
+            row['status']: {
+                'count': row['count'],
+                'amount': str(row['total'] or '0.00'),
+            }
+            for row in Expense.objects.values('status').annotate(
+                count=Count('id'), total=Sum('amount')
+            )
+        }
+        return Response({
+            'total_count': aggregates['total_count'] or 0,
+            'total_amount': str(aggregates['total_amount'] or Decimal('0.00')),
+            'pending_count': by_status.get(ExpenseStatus.PENDING, {}).get('count', 0),
+            'pending_amount': by_status.get(ExpenseStatus.PENDING, {}).get('amount', '0.00'),
+            'by_category': by_category,
+            'by_status': by_status,
+        }, status=status.HTTP_200_OK)
 
     def perform_create(self, serializer):
         if self.request.user and self.request.user.is_authenticated:

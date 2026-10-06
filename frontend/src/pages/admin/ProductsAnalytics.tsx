@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { 
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, 
+  AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, 
   Tooltip as RechartsTooltip, ResponsiveContainer, Legend
 } from "recharts";
 import { Package, TrendingUp, IndianRupee, AlertTriangle, RefreshCw } from "lucide-react";
@@ -18,6 +18,8 @@ export default function ProductsAnalytics() {
   const [financeData, setFinanceData] = useState<FinanceSummary | null>(null);
   const [products, setProducts] = useState<ProductSummary[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
+  // Authoritative database-wide product count from the pagination envelope.
+  const [catalogTotalCount, setCatalogTotalCount] = useState<number | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -34,6 +36,7 @@ export default function ProductsAnalytics() {
       }
       if (prodRes.status === "fulfilled") {
         setProducts(prodRes.value.results || []);
+        setCatalogTotalCount(typeof prodRes.value.count === "number" ? prodRes.value.count : null);
       }
       if (ordersRes.status === "fulfilled") {
         setOrders(ordersRes.value.results || []);
@@ -54,11 +57,13 @@ export default function ProductsAnalytics() {
     loadData();
   }, [loadData]);
 
-  // Authoritative calculations from real backend data
+  // Authoritative calculations from real backend data.
+  // `total_orders_count` is the complete database count returned by the finance
+  // summary API — never the length of the page of orders loaded for the table.
   const totalRevenue = financeData?.kpis?.total_paid ?? 0;
   const totalInvoiced = financeData?.kpis?.total_invoiced ?? 0;
-  const totalOrders = orders.length;
-  const avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
+  const totalOrders = (financeData as any)?.total_orders_count ?? null;
+  const avgOrderValue = totalOrders ? Math.round(totalRevenue / totalOrders) : null;
 
   // Monthly trend from backend finance summary
   const revenueTrend = useMemo(() => {
@@ -188,8 +193,8 @@ export default function ProductsAnalytics() {
             <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
               <div>
                 <p className="text-sm font-semibold text-slate-500 mb-1">Total Orders</p>
-                <p className="text-3xl font-bold text-[#0A2540]">{totalOrders}</p>
-                <p className="text-xs text-slate-400 mt-1">Products: {products.length}</p>
+                <p className="text-3xl font-bold text-[#0A2540]" data-testid="analytics-total-orders">{totalOrders === null ? "—" : totalOrders.toLocaleString("en-IN")}</p>
+                <p className="text-xs text-slate-400 mt-1">Products: {catalogTotalCount === null ? products.length : catalogTotalCount.toLocaleString("en-IN")}</p>
               </div>
               <div className="w-14 h-14 rounded-full flex items-center justify-center bg-[#F2A900]/20">
                 <Package className="w-6 h-6 text-[#F2A900]" />
@@ -199,8 +204,8 @@ export default function ProductsAnalytics() {
             <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
               <div>
                 <p className="text-sm font-semibold text-slate-500 mb-1">Avg Order Value</p>
-                <p className="text-3xl font-bold text-[#0A2540]">₹{avgOrderValue.toLocaleString("en-IN")}</p>
-                <p className="text-xs text-slate-400 mt-1">Live DRF metric</p>
+                <p className="text-3xl font-bold text-[#0A2540]">{avgOrderValue === null ? "—" : `₹${avgOrderValue.toLocaleString("en-IN")}`}</p>
+                <p className="text-xs text-slate-400 mt-1">Period revenue ÷ orders on record</p>
               </div>
               <div className="w-14 h-14 rounded-full flex items-center justify-center bg-[#0A2540]/10">
                 <TrendingUp className="w-6 h-6 text-[#0A2540]" />

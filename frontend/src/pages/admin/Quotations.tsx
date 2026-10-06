@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
-import { FileText, Clock, CheckCircle2, IndianRupee, Plus, Download, Edit, ArrowRightCircle, Send, XCircle } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { FileText, Clock, CheckCircle2, IndianRupee, Plus, Download, Edit, ArrowRightCircle, Send, XCircle, RefreshCw, AlertCircle } from "lucide-react";
 import QuotationModal, { Quotation } from "../../components/admin/QuotationModal";
 import QuotationPrintModal from "../../components/admin/QuotationPrintModal";
-import { financeApi } from "../../api/finance";
+import { financeApi, QuotationsSummary } from "../../api/finance";
+import AdminPagination from "../../components/common/AdminPagination";
 
 const STATUS_COLORS: Record<string, string> = {
   "Draft": "bg-slate-100 text-slate-700",
@@ -12,21 +13,50 @@ const STATUS_COLORS: Record<string, string> = {
   "Converted": "bg-purple-100 text-purple-700",
 };
 
+const money = (value: unknown): string => {
+  if (value === null || value === undefined || value === "") return "—";
+  const num = Number(value);
+  return Number.isFinite(num) ? `₹${num.toLocaleString("en-IN")}` : "—";
+};
+
 export default function QuotationsPage() {
   const [quotes, setQuotes] = useState<(Quotation & { rawId?: number | string })[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("All");
 
+  // Server-side pagination state driven by the backend envelope.
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  // Database-wide aggregates for the KPI cards.
+  const [summary, setSummary] = useState<QuotationsSummary | null>(null);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingQuote, setEditingQuote] = useState<(Quotation & { rawId?: number | string }) | null>(null);
   const [printingQuote, setPrintingQuote] = useState<Quotation | null>(null);
 
-  const fetchQuotations = async () => {
+  const fetchSummary = useCallback(async () => {
+    try {
+      setSummary(await financeApi.getQuotationsSummary());
+    } catch (err) {
+      console.error("Failed to load quotation summary:", err);
+      setSummary(null);
+    }
+  }, []);
+
+  const fetchQuotations = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await financeApi.getQuotations();
+      const res = await financeApi.getQuotationsPaginated({
+        page,
+        page_size: pageSize,
+        status: statusFilter === "All" ? undefined : statusFilter,
+      });
+      const data = res.results || [];
       const mapped = (data || []).map((q: any) => ({
         id: q.quotation_number || `QT-${q.id}`,
         rawId: q.id,
@@ -45,17 +75,30 @@ export default function QuotationsPage() {
         })),
       }));
       setQuotes(mapped);
+      setTotalCount(typeof res.count === "number" ? res.count : mapped.length);
+      setTotalPages(res.total_pages || Math.ceil((res.count || 1) / pageSize) || 1);
     } catch (err: any) {
       console.error("Failed to load quotations:", err);
       setError(err?.message || "Failed to load quotations from API.");
+      setQuotes([]);
+      setTotalCount(0);
+      setTotalPages(1);
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, pageSize, statusFilter]);
 
   useEffect(() => {
     fetchQuotations();
-  }, []);
+  }, [fetchQuotations]);
+
+  useEffect(() => {
+    fetchSummary();
+  }, [fetchSummary]);
+
+  const refreshAll = async () => {
+    await Promise.all([fetchQuotations(), fetchSummary()]);
+  };
 
   const handleCreateNew = () => {
     setEditingQuote(null);
@@ -75,7 +118,7 @@ export default function QuotationsPage() {
     try {
       const targetId = quote.rawId || quote.id;
       await financeApi.updateQuotationStatus(String(targetId), newStatus);
-      await fetchQuotations();
+      await refreshAll();
     } catch (err: any) {
       console.error(`Failed to update quotation to ${newStatus}:`, err);
       alert(err?.message || `Failed to update quotation status to ${newStatus}.`);
@@ -88,7 +131,7 @@ export default function QuotationsPage() {
         const targetId = quote.rawId || quote.id;
         await financeApi.convertQuotationToInvoice(String(targetId));
         alert(`Success! Invoice generated for ${quote.client}. You can view it in the Invoices panel.`);
-        await fetchQuotations();
+        await refreshAll();
       } catch (err: any) {
         console.error("Failed to convert quotation to invoice:", err);
         alert(err?.message || "Failed to convert quotation to invoice.");
@@ -116,20 +159,21 @@ export default function QuotationsPage() {
         });
       }
       setIsModalOpen(false);
-      await fetchQuotations();
+      await refreshAll();
     } catch (err: any) {
       console.error("Failed to save quotation:", err);
       alert(err?.message || "Failed to save quotation.");
     }
   };
 
-  const filteredQuotes = statusFilter === "All" 
-    ? quotes 
-    : quotes.filter(q => q.status === statusFilter);
+  const convertedCount = summary ? (summary.converted_count || 0) + (summary.approved_count || 0) : null;
 
-  const totalValue = quotes.reduce((sum, q) => sum + q.value, 0);
-  const pendingCount = quotes.filter(q => q.status === "Draft" || q.status === "Sent").length;
-  const convertedCount = quotes.filter(q => q.status === "Converted" || q.status === "Approved").length;
+  const kpis = [
+    { title: "Total Quotes Issued", value: summary ? summary.total_count.toLocaleString("en-IN") : "—", icon: <FileText className="w-5 h-5 text-blue-600" />, bg: "bg-blue-100" },
+    { title: "Pending Approval", value: summary ? summary.pending_count.toLocaleString("en-IN") : "—", icon: <Clock className="w-5 h-5 text-amber-600" />, bg: "bg-amber-100" },
+    { title: "Converted to Orders", value: convertedCount === null ? "—" : convertedCount.toLocaleString("en-IN"), icon: <CheckCircle2 className="w-5 h-5 text-emerald-600" />, bg: "bg-emerald-100" },
+    { title: "Total Quoted Value", value: money(summary?.total_value), icon: <IndianRupee className="w-5 h-5 text-[#0A2540]" />, bg: "bg-[#0A2540]/10" },
+  ];
 
   return (
     <div className="space-y-6">
@@ -138,20 +182,15 @@ export default function QuotationsPage() {
         <p className="text-sm text-slate-500 mt-1">Manage B2B quotations and price estimations.</p>
       </div>
 
-      {/* KPI Cards */}
+      {/* KPI Cards — authoritative database-wide aggregates. */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { title: "Total Quotes Issued", value: quotes.length.toString(), icon: <FileText className="w-5 h-5 text-blue-600" />, bg: "bg-blue-100" },
-          { title: "Pending Approval", value: pendingCount.toString(), icon: <Clock className="w-5 h-5 text-amber-600" />, bg: "bg-amber-100" },
-          { title: "Converted to Orders", value: convertedCount.toString(), icon: <CheckCircle2 className="w-5 h-5 text-emerald-600" />, bg: "bg-emerald-100" },
-          { title: "Total Quoted Value", value: `₹${totalValue.toLocaleString("en-IN")}`, icon: <IndianRupee className="w-5 h-5 text-[#0A2540]" />, bg: "bg-[#0A2540]/10" },
-        ].map((kpi, idx) => (
+        {kpis.map((kpi, idx) => (
           <div key={idx} className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-semibold text-slate-500 mb-1">{kpi.title}</p>
-              <p className="text-2xl font-bold text-[#0A2540]">{kpi.value}</p>
+              <p className="text-2xl font-bold text-[#0A2540]" data-testid={`quotation-kpi-${idx}`}>{kpi.value}</p>
             </div>
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${kpi.bg}`}>
+            <div className={`w-12 h-12 shrink-0 rounded-full flex items-center justify-center ${kpi.bg}`}>
               {kpi.icon}
             </div>
           </div>
@@ -163,9 +202,9 @@ export default function QuotationsPage() {
         <div className="p-5 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h2 className="font-bold text-[#0A2540]">All Quotations</h2>
           <div className="flex items-center gap-3 w-full sm:w-auto">
-            <select 
+            <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
               className="border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-sm text-[#0A2540] font-medium outline-none focus:border-[#0A2540] flex-1 sm:flex-none"
             >
               <option value="All">All Statuses</option>
@@ -173,8 +212,17 @@ export default function QuotationsPage() {
               <option value="Sent">Sent</option>
               <option value="Approved">Approved</option>
               <option value="Rejected">Rejected</option>
+              <option value="Converted">Converted</option>
             </select>
-            <button 
+            <button
+              onClick={refreshAll}
+              disabled={loading}
+              className="p-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-50"
+              title="Refresh quotations"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            <button
               onClick={handleCreateNew}
               className="flex items-center justify-center gap-2 px-4 py-2 bg-[#F2A900] text-[#0A2540] text-sm font-bold rounded-lg hover:bg-[#e09b00] transition-colors shadow-sm whitespace-nowrap"
             >
@@ -183,7 +231,17 @@ export default function QuotationsPage() {
             </button>
           </div>
         </div>
-        
+
+        {error && (
+          <div className="m-5 p-4 bg-rose-50 border border-rose-200 rounded-lg flex items-center justify-between text-rose-700 text-sm">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              <span>{error}</span>
+            </div>
+            <button onClick={fetchQuotations} className="text-xs font-bold underline hover:no-underline">Retry</button>
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[900px]">
             <thead>
@@ -198,63 +256,84 @@ export default function QuotationsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredQuotes.map(quote => (
-                <tr key={quote.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-5 py-4 text-sm font-bold text-[#0A2540] font-mono">{quote.id}</td>
-                  <td className="px-5 py-4 text-sm font-medium text-slate-700">{quote.client}</td>
-                  <td className="px-5 py-4 text-sm text-slate-600">{quote.date}</td>
-                  <td className="px-5 py-4 text-sm text-slate-600">{quote.expiry}</td>
-                  <td className="px-5 py-4 text-sm font-bold text-[#0A2540] text-right">₹{quote.value.toLocaleString("en-IN")}</td>
-                  <td className="px-5 py-4 text-center">
-                    <span className={`inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider ${STATUS_COLORS[quote.status]}`}>
-                      {quote.status}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <button onClick={() => handleDownloadPDF(quote)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Download PDF">
-                        <Download className="w-4 h-4" />
-                      </button>
-                      {(quote.status === "Draft" || quote.status === "Sent") && (
-                        <button onClick={() => handleEditQuotation(quote)} className="p-1.5 text-slate-400 hover:text-[#0A2540] hover:bg-slate-100 rounded transition-colors" title="Edit">
-                          <Edit className="w-4 h-4" />
-                        </button>
-                      )}
-                      {quote.status === "Draft" && (
-                        <button onClick={() => handleUpdateStatus(quote, "SENT")} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Send Quotation">
-                          <Send className="w-4 h-4" />
-                        </button>
-                      )}
-                      {quote.status === "Sent" && (
-                        <>
-                          <button onClick={() => handleUpdateStatus(quote, "APPROVED")} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="Approve Quotation">
-                            <CheckCircle2 className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => handleUpdateStatus(quote, "REJECTED")} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Reject Quotation">
-                            <XCircle className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
-                      {quote.status === "Approved" && (
-                        <button onClick={() => handleConvertToInvoice(quote)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="Convert to Invoice">
-                          <ArrowRightCircle className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {filteredQuotes.length === 0 && (
+              {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-8 text-center text-slate-500">No quotations found.</td>
+                  <td colSpan={7} className="px-5 py-12 text-center text-slate-400">
+                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-[#0A2540]" />
+                    <p className="text-sm font-medium">Loading quotations...</p>
+                  </td>
                 </tr>
+              ) : quotes.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-5 py-8 text-center text-slate-500">
+                    {error ? "Unable to load quotations." : "No quotations found."}
+                  </td>
+                </tr>
+              ) : (
+                quotes.map(quote => (
+                  <tr key={quote.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-5 py-4 text-sm font-bold text-[#0A2540] font-mono">{quote.id}</td>
+                    <td className="px-5 py-4 text-sm font-medium text-slate-700">{quote.client}</td>
+                    <td className="px-5 py-4 text-sm text-slate-600">{quote.date}</td>
+                    <td className="px-5 py-4 text-sm text-slate-600">{quote.expiry}</td>
+                    <td className="px-5 py-4 text-sm font-bold text-[#0A2540] text-right">₹{quote.value.toLocaleString("en-IN")}</td>
+                    <td className="px-5 py-4 text-center">
+                      <span className={`inline-flex px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider ${STATUS_COLORS[quote.status]}`}>
+                        {quote.status}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button onClick={() => handleDownloadPDF(quote)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Download PDF">
+                          <Download className="w-4 h-4" />
+                        </button>
+                        {(quote.status === "Draft" || quote.status === "Sent") && (
+                          <button onClick={() => handleEditQuotation(quote)} className="p-1.5 text-slate-400 hover:text-[#0A2540] hover:bg-slate-100 rounded transition-colors" title="Edit">
+                            <Edit className="w-4 h-4" />
+                          </button>
+                        )}
+                        {quote.status === "Draft" && (
+                          <button onClick={() => handleUpdateStatus(quote, "SENT")} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Send Quotation">
+                            <Send className="w-4 h-4" />
+                          </button>
+                        )}
+                        {quote.status === "Sent" && (
+                          <>
+                            <button onClick={() => handleUpdateStatus(quote, "APPROVED")} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="Approve Quotation">
+                              <CheckCircle2 className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => handleUpdateStatus(quote, "REJECTED")} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Reject Quotation">
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                        {quote.status === "Approved" && (
+                          <button onClick={() => handleConvertToInvoice(quote)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="Convert to Invoice">
+                            <ArrowRightCircle className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
         </div>
+
+        <AdminPagination
+          totalCount={totalCount}
+          page={page}
+          pageSize={pageSize}
+          totalPages={totalPages}
+          label="quotations"
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          disabled={loading || !!error}
+        />
       </div>
 
-      <QuotationModal 
+      <QuotationModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleModalSubmit}
@@ -262,9 +341,9 @@ export default function QuotationsPage() {
       />
 
       {printingQuote && (
-        <QuotationPrintModal 
-          quote={printingQuote} 
-          onClose={() => setPrintingQuote(null)} 
+        <QuotationPrintModal
+          quote={printingQuote}
+          onClose={() => setPrintingQuote(null)}
         />
       )}
     </div>

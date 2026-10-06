@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Plus, IndianRupee, Clock, Tag, X, Edit, Trash2, Loader2, AlertCircle } from "lucide-react";
-import { financeApi } from "../../api/finance";
+import { financeApi, ExpensesSummary } from "../../api/finance";
 import { ExpenseItem } from "../../types/api";
+import AdminPagination from "../../components/common/AdminPagination";
 
 type Expense = {
   id: number;
@@ -24,6 +25,15 @@ export default function ExpensesPage() {
   const [error, setError] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState("All");
 
+  // Server-side pagination state driven by the backend envelope.
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  // Database-wide aggregates for the KPI cards.
+  const [summary, setSummary] = useState<ExpensesSummary | null>(null);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -31,12 +41,25 @@ export default function ExpensesPage() {
     date: "", category: "Operations", description: "", vendor: "", amount: 0, status: "Pending"
   });
 
-  const fetchExpenses = async () => {
+  const fetchSummary = useCallback(async () => {
+    try {
+      setSummary(await financeApi.getExpensesSummary());
+    } catch (err) {
+      console.error("Failed to load expense summary:", err);
+      setSummary(null);
+    }
+  }, []);
+
+  const fetchExpenses = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data: ExpenseItem[] = await financeApi.getExpenses();
-      const mapped: Expense[] = data.map(e => ({
+      const res = await financeApi.getExpensesPaginated({
+        category: categoryFilter === "All" ? undefined : categoryFilter,
+        page,
+        page_size: pageSize,
+      });
+      const mapped: Expense[] = (res.results || []).map((e: ExpenseItem) => ({
           id: e.id,
           date: e.expense_date || e.date || "",
           category: e.category,
@@ -46,46 +69,47 @@ export default function ExpensesPage() {
           status: (e.status === "Paid" ? "Paid" : "Pending") as "Paid" | "Pending",
         }));
       setExpenses(mapped);
+      setTotalCount(typeof res.count === "number" ? res.count : mapped.length);
+      setTotalPages(res.total_pages || Math.ceil((res.count || 1) / pageSize) || 1);
     } catch (err: unknown) {
       setExpenses([]);
+      setTotalCount(0);
+      setTotalPages(1);
       setError(err instanceof Error ? err.message : "Unable to load expenses. Please try again.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [categoryFilter, page, pageSize]);
 
   useEffect(() => {
     fetchExpenses();
-  }, []);
+  }, [fetchExpenses]);
 
-  const filteredExpenses = categoryFilter === "All"
-    ? expenses
-    : expenses.filter(e => e.category === categoryFilter);
+  useEffect(() => {
+    fetchSummary();
+  }, [fetchSummary]);
 
-  // Dynamic KPI Metrics
-  const { totalAmount, pendingCount, topCategory } = useMemo(() => {
-    const total = expenses.reduce((acc, curr) => acc + (curr.amount || 0), 0);
-    const pending = expenses.filter(e => e.status === "Pending").length;
+  const refreshAll = async () => {
+    await Promise.all([fetchExpenses(), fetchSummary()]);
+  };
 
-    const catCounts: Record<string, number> = {};
-    expenses.forEach(e => {
-      catCounts[e.category] = (catCounts[e.category] || 0) + 1;
-    });
-    let topCat = "General";
+  // Authoritative database-wide KPIs. `topCategory` is the category with the most
+  // records across the whole ledger, not merely the visible page.
+  const totalAmount = summary ? Number(summary.total_amount) : null;
+  const pendingCount = summary ? summary.pending_count : null;
+  const topCategory = (() => {
+    const counts = summary?.by_category;
+    if (!counts) return "—";
+    let top = "—";
     let maxCount = 0;
-    Object.entries(catCounts).forEach(([cat, cnt]) => {
-      if (cnt > maxCount) {
-        maxCount = cnt;
-        topCat = cat;
+    Object.entries(counts).forEach(([cat, agg]) => {
+      if ((agg.count || 0) > maxCount) {
+        maxCount = agg.count || 0;
+        top = cat;
       }
     });
-
-    return {
-      totalAmount: total,
-      pendingCount: pending,
-      topCategory: topCat
-    };
-  }, [expenses]);
+    return top;
+  })();
 
   const handleOpenModal = (expense?: Expense) => {
     if (expense) {
@@ -126,29 +150,14 @@ export default function ExpensesPage() {
       };
 
       if (editingExpense) {
-        const updated = await financeApi.updateExpense(editingExpense.id, payload);
-        setExpenses(prev => prev.map(e => e.id === editingExpense.id ? {
-            ...e,
-            date: updated.expense_date || updated.date || formData.date!,
-            category: updated.category,
-            description: updated.description,
-            vendor: updated.vendor,
-            amount: Number(updated.amount),
-            status: updated.status as "Paid" | "Pending",
-        } : e));
+        await financeApi.updateExpense(editingExpense.id, payload);
       } else {
-        const created = await financeApi.createExpense(payload);
-        setExpenses(prev => [{
-            id: created.id,
-            date: created.expense_date || created.date || formData.date!,
-            category: created.category,
-            description: created.description,
-            vendor: created.vendor,
-            amount: Number(created.amount),
-            status: created.status as "Paid" | "Pending",
-        }, ...prev]);
+        await financeApi.createExpense(payload);
       }
       handleCloseModal();
+      // Refetch the authoritative page + aggregates instead of splicing optimistic
+      // rows into a server-paginated list.
+      await refreshAll();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unable to save the expense. Please review the form and try again.");
     } finally {
@@ -160,7 +169,7 @@ export default function ExpensesPage() {
     if (confirm("Are you sure you want to delete this expense?")) {
       try {
         await financeApi.deleteExpense(id);
-        setExpenses(prev => prev.filter(e => e.id !== id));
+        await refreshAll();
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Unable to delete the expense. Please try again.");
       }
@@ -186,13 +195,13 @@ export default function ExpensesPage() {
         {[
           {
             title: "Total Expenses",
-            value: `₹${totalAmount.toLocaleString("en-IN")}`,
+            value: totalAmount === null ? "—" : `₹${totalAmount.toLocaleString("en-IN")}`,
             icon: <IndianRupee className="w-6 h-6 text-red-600" />,
             bg: "bg-red-100"
           },
           {
             title: "Pending Approvals",
-            value: String(pendingCount),
+            value: pendingCount === null ? "—" : String(pendingCount),
             icon: <Clock className="w-6 h-6 text-amber-600" />,
             bg: "bg-amber-100"
           },
@@ -222,7 +231,7 @@ export default function ExpensesPage() {
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <select 
               value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
+              onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
               className="border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-sm text-[#0A2540] font-medium outline-none focus:border-[#0A2540] flex-1 sm:flex-none"
             >
               <option value="All">All Categories</option>
@@ -248,7 +257,7 @@ export default function ExpensesPage() {
             <Loader2 className="w-8 h-8 animate-spin text-[#0A2540]" />
             <p className="text-sm font-medium">Loading expenses...</p>
           </div>
-        ) : filteredExpenses.length === 0 ? (
+        ) : expenses.length === 0 ? (
           <div className="p-12 text-center text-slate-400">
             <p className="text-base font-semibold text-slate-600">No expenses found</p>
             <p className="text-sm mt-1">There are no expense records for the selected filter.</p>
@@ -268,7 +277,7 @@ export default function ExpensesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredExpenses.map(expense => (
+                {expenses.map(expense => (
                   <tr key={expense.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-4 text-sm font-medium text-slate-700">{expense.date}</td>
                     <td className="px-5 py-4 text-sm">
@@ -298,6 +307,17 @@ export default function ExpensesPage() {
             </table>
           </div>
         )}
+
+        <AdminPagination
+          totalCount={totalCount}
+          page={page}
+          pageSize={pageSize}
+          totalPages={totalPages}
+          label="expenses"
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          disabled={loading || !!error}
+        />
       </div>
 
       {/* Add/Edit Modal */}

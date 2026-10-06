@@ -9,7 +9,144 @@ import {
   PaginatedResponse,
 } from '../types/api';
 
+/**
+ * Database-wide aggregates for admin KPI cards.
+ *
+ * Every value here is computed by the backend over the complete table. Admin KPI
+ * cards must read these instead of summing the current paginated page, otherwise
+ * the displayed totals silently under-report as soon as a table exceeds one page.
+ */
+export interface StatusAggregate {
+  count: number;
+  amount?: string;
+  value?: string;
+}
+
+export interface ClientsSummary {
+  total_count: number;
+  active_count: number;
+  inactive_count: number;
+  total_credit_limit: string;
+  total_exposure: string;
+}
+
+export interface QuotationsSummary {
+  total_count: number;
+  total_value: string;
+  pending_count: number;
+  converted_count: number;
+  approved_count: number;
+  rejected_count: number;
+  by_status: Record<string, StatusAggregate>;
+}
+
+export interface InvoicesSummary {
+  total_count: number;
+  total_invoiced: string;
+  total_collected: string;
+  total_outstanding: string;
+  by_status: Record<string, StatusAggregate>;
+}
+
+export interface ExpensesSummary {
+  total_count: number;
+  total_amount: string;
+  pending_count: number;
+  pending_amount: string;
+  by_category: Record<string, StatusAggregate>;
+  by_status: Record<string, StatusAggregate>;
+}
+
+export interface PaymentsSummary {
+  total_count: number;
+  total_collected: string;
+  success_count: number;
+  failed_count: number;
+  initiated_count: number;
+  refunded_count: number;
+  by_status: Record<string, StatusAggregate>;
+}
+
 export const financeApi = {
+  // Database-wide aggregates (never derived from a paginated page)
+  async getClientsSummary(): Promise<ClientsSummary> {
+    return apiClient<ClientsSummary>('/finance/clients/summary/');
+  },
+
+  async getQuotationsSummary(): Promise<QuotationsSummary> {
+    return apiClient<QuotationsSummary>('/finance/quotations/summary/');
+  },
+
+  async getInvoicesSummary(): Promise<InvoicesSummary> {
+    return apiClient<InvoicesSummary>('/finance/invoices/summary/');
+  },
+
+  async getExpensesSummary(): Promise<ExpensesSummary> {
+    return apiClient<ExpensesSummary>('/expenses/summary/');
+  },
+
+  async getPaymentsSummary(): Promise<PaymentsSummary> {
+    return apiClient<PaymentsSummary>('/finance/payments/summary/');
+  },
+
+  // Paginated list variants. These preserve the backend `count`/`page`/`total_pages`
+  // envelope so admin tables can paginate on the server instead of silently showing
+  // only the first page of a large table.
+  async getClientsPaginated(params?: {
+    search?: string;
+    is_active?: boolean | string;
+    page?: number;
+    page_size?: number;
+  }): Promise<PaginatedResponse<ClientItem>> {
+    return apiClient<PaginatedResponse<ClientItem>>('/finance/clients/', { params });
+  },
+
+  async getQuotationsPaginated(params?: {
+    client?: number | string;
+    status?: string;
+    search?: string;
+    page?: number;
+    page_size?: number;
+  }): Promise<PaginatedResponse<Quotation>> {
+    return apiClient<PaginatedResponse<Quotation>>('/finance/quotations/', { params });
+  },
+
+  async getInvoicesPaginated(params?: {
+    client?: number | string;
+    order?: number | string;
+    status?: string;
+    search?: string;
+    start_date?: string;
+    end_date?: string;
+    page?: number;
+    page_size?: number;
+  }): Promise<PaginatedResponse<Invoice>> {
+    return apiClient<PaginatedResponse<Invoice>>('/finance/invoices/', { params });
+  },
+
+  async getExpensesPaginated(params?: {
+    category?: string;
+    status?: string;
+    search?: string;
+    start_date?: string;
+    end_date?: string;
+    page?: number;
+    page_size?: number;
+  }): Promise<PaginatedResponse<ExpenseItem>> {
+    return apiClient<PaginatedResponse<ExpenseItem>>('/expenses/', { params });
+  },
+
+  async getPaymentsPaginated(params?: {
+    order?: number | string;
+    invoice?: number | string;
+    status?: string;
+    gateway?: string;
+    page?: number;
+    page_size?: number;
+  }): Promise<PaginatedResponse<PaymentTransaction>> {
+    return apiClient<PaginatedResponse<PaymentTransaction>>('/finance/payments/', { params });
+  },
+
   // Clients
   async getClients(params?: { search?: string; q?: string; is_active?: boolean | string; page?: number }): Promise<ClientItem[]> {
     const res = await apiClient<PaginatedResponse<ClientItem> | ClientItem[]>('/finance/clients/', { params });

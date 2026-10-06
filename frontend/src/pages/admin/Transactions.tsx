@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { 
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer
 } from "recharts";
-import { CreditCard, Receipt, TrendingUp, AlertCircle, RefreshCw, CheckCircle2, Clock, XCircle } from "lucide-react";
-import { financeApi } from "../../api/finance";
+import { CreditCard, TrendingUp, AlertCircle, RefreshCw, CheckCircle2, XCircle } from "lucide-react";
+import { financeApi, PaymentsSummary } from "../../api/finance";
 import { PaymentTransaction } from "../../types/api";
+import AdminPagination from "../../components/common/AdminPagination";
 
 const STATUS_COLORS: Record<string, string> = {
   "SUCCESS": "bg-emerald-100 text-emerald-700",
@@ -20,64 +21,71 @@ export default function TransactionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("All");
 
-  const fetchData = async () => {
+  // Server-side pagination state driven by the backend envelope.
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  // Database-wide payment aggregates for the KPI cards and status chart.
+  const [paymentSummary, setPaymentSummary] = useState<PaymentsSummary | null>(null);
+
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [txns, summary] = await Promise.all([
-        financeApi.getPayments(),
+      const [txns, finSummary, paySummary] = await Promise.all([
+        financeApi.getPaymentsPaginated({
+          page,
+          page_size: pageSize,
+          status: statusFilter === "All" ? undefined : statusFilter,
+        }),
         financeApi.getFinanceSummary({ filter_type: 'current_month' }),
+        financeApi.getPaymentsSummary(),
       ]);
-      setTransactions(txns || []);
-      setSummaryData(summary);
+      const results = txns.results || [];
+      setTransactions(results);
+      setTotalCount(typeof txns.count === "number" ? txns.count : results.length);
+      setTotalPages(txns.total_pages || Math.ceil((txns.count || 1) / pageSize) || 1);
+      setSummaryData(finSummary);
+      setPaymentSummary(paySummary);
     } catch (err: any) {
       console.error("Failed to load transactions:", err);
       setError(err?.message || "Failed to load transactions.");
+      setTransactions([]);
+      setTotalCount(0);
+      setTotalPages(1);
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, pageSize, statusFilter]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
-  const filteredTxns = useMemo(() => {
-    if (statusFilter === "All") return transactions;
-    return transactions.filter(t => t.status?.toUpperCase() === statusFilter.toUpperCase());
-  }, [transactions, statusFilter]);
+  const totalCollected = paymentSummary ? Number(paymentSummary.total_collected) : null;
+  const successCount = paymentSummary?.success_count ?? null;
+  const avgValue = totalCollected !== null && successCount
+    ? totalCollected / successCount
+    : null;
 
-  const kpis = useMemo(() => {
-    const successTxns = transactions.filter(t => t.status === "SUCCESS");
-    const totalCollected = successTxns.reduce((sum, t) => sum + Number(t.amount || 0), 0);
-    const avgValue = successTxns.length > 0 ? totalCollected / successTxns.length : 0;
-    const failedCount = transactions.filter(t => t.status === "FAILED").length;
+  const kpis = [
+    { title: "Total Collected", value: totalCollected === null ? "—" : `₹${totalCollected.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`, icon: <TrendingUp className="w-5 h-5 text-[#0B3A63]" />, bg: "bg-[#0B3A63]/10" },
+    { title: "Avg Transaction Value", value: avgValue === null ? "—" : `₹${avgValue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`, icon: <CreditCard className="w-5 h-5 text-emerald-600" />, bg: "bg-emerald-100" },
+    { title: "Successful Payments", value: successCount === null ? "—" : `${successCount}`, icon: <CheckCircle2 className="w-5 h-5 text-emerald-600" />, bg: "bg-emerald-100" },
+    { title: "Failed Attempts", value: paymentSummary ? `${paymentSummary.failed_count}` : "—", icon: <XCircle className="w-5 h-5 text-red-600" />, bg: "bg-red-100" },
+  ];
 
-    return [
-      { title: "Total Collected", value: `₹${totalCollected.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`, icon: <TrendingUp className="w-5 h-5 text-[#0B3A63]" />, bg: "bg-[#0B3A63]/10" },
-      { title: "Avg Transaction Value", value: `₹${avgValue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`, icon: <CreditCard className="w-5 h-5 text-emerald-600" />, bg: "bg-emerald-100" },
-      { title: "Successful Payments", value: `${successTxns.length}`, icon: <CheckCircle2 className="w-5 h-5 text-emerald-600" />, bg: "bg-emerald-100" },
-      { title: "Failed Attempts", value: `${failedCount}`, icon: <XCircle className="w-5 h-5 text-red-600" />, bg: "bg-red-100" },
-    ];
-  }, [transactions]);
-
+  // Authoritative status breakdown across the complete payments table, never the page.
   const statusBreakdownData = useMemo(() => {
-    const counts: Record<string, number> = {
-      SUCCESS: 0,
-      FAILED: 0,
-      INITIATED: 0,
-      REFUNDED: 0,
-    };
-    transactions.forEach(t => {
-      const s = t.status?.toUpperCase() || 'INITIATED';
-      counts[s] = (counts[s] || 0) + 1;
-    });
+    const byStatus = paymentSummary?.by_status || {};
     return [
-      { name: 'Success', count: counts.SUCCESS || 0 },
-      { name: 'Failed', count: counts.FAILED || 0 },
-      { name: 'Initiated', count: counts.INITIATED || 0 },
+      { name: 'Success', count: byStatus.SUCCESS?.count || 0 },
+      { name: 'Failed', count: byStatus.FAILED?.count || 0 },
+      { name: 'Initiated', count: byStatus.INITIATED?.count || 0 },
     ];
-  }, [transactions]);
+  }, [paymentSummary]);
 
   const trendData = summaryData?.monthly_trend || [];
 
@@ -115,7 +123,7 @@ export default function TransactionsPage() {
           <div key={idx} className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-slate-500 mb-1">{kpi.title}</p>
-              <p className="text-2xl font-bold text-[#0B3A63]">{loading ? "..." : kpi.value}</p>
+              <p className="text-2xl font-bold text-[#0B3A63]">{kpi.value}</p>
             </div>
             <div className={`w-12 h-12 rounded-full flex items-center justify-center ${kpi.bg}`}>
               {kpi.icon}
@@ -182,7 +190,7 @@ export default function TransactionsPage() {
             {["All", "SUCCESS", "FAILED", "INITIATED"].map((st) => (
               <button
                 key={st}
-                onClick={() => setStatusFilter(st)}
+                onClick={() => { setStatusFilter(st); setPage(1); }}
                 className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
                   statusFilter === st
                     ? "bg-[#0B3A63] text-white"
@@ -207,14 +215,14 @@ export default function TransactionsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredTxns.length === 0 ? (
+              {transactions.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-8 text-center text-sm text-slate-400">
-                    {loading ? "Loading transactions..." : "No payment transactions found."}
+                    {loading ? "Loading transactions..." : (error ? "Unable to load transactions." : "No payment transactions found.")}
                   </td>
                 </tr>
               ) : (
-                filteredTxns.map(txn => (
+                transactions.map(txn => (
                   <tr key={txn.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-5 py-4 text-sm font-bold text-[#0B3A63] font-mono">
                       {txn.gateway_transaction_id || `TXN-${txn.id}`}
@@ -247,6 +255,17 @@ export default function TransactionsPage() {
             </tbody>
           </table>
         </div>
+
+        <AdminPagination
+          totalCount={totalCount}
+          page={page}
+          pageSize={pageSize}
+          totalPages={totalPages}
+          label="payment transactions"
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          disabled={loading || !!error}
+        />
       </div>
     </div>
   );
