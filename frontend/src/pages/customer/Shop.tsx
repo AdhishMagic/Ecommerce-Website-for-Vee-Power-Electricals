@@ -3,6 +3,8 @@ import { useSearchParams, Link } from "react-router-dom";
 import { productService } from "../../services/productService";
 import { Product, Category } from "../../types/product";
 import ProductCard from "../../components/common/ProductCard";
+import CategoriesPage from "./CategoriesPage";
+import BrandsPage from "./BrandsPage";
 
 const sortOptions = [
   { value: "featured", label: "Featured" },
@@ -130,69 +132,11 @@ export default function Shop() {
   };
 
   if (view === "categories") {
-    return (
-      <div className="site-container py-8">
-        <h1 className="text-2xl font-bold text-[#0B3A63] mb-2">All Categories</h1>
-        <p className="text-[#667085] text-sm mb-8">Browse our complete electrical product range by category</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {categories.map(cat => (
-            <div key={cat.id} className="bg-white border border-[#D9E1E8] rounded-xl overflow-hidden shadow-sm">
-              <div className="bg-[#0B3A63] px-5 py-4 flex items-center gap-3">
-                <span className="text-3xl">{cat.icon || "⚡"}</span>
-                <h3 className="text-lg font-bold text-white">{cat.name}</h3>
-              </div>
-              <div className="p-4">
-                <ul className="space-y-1">
-                  {cat.subcategories.map(sub => (
-                    <li key={sub}>
-                      <Link
-                        to={`/shop?category=${cat.slug || cat.id}&subcategory=${encodeURIComponent(sub)}`}
-                        className="flex items-center gap-2 text-sm text-[#17212B] hover:text-[#1769AA] py-1 px-2 rounded hover:bg-[#F6F8FA] transition-colors"
-                      >
-                        <span className="w-1.5 h-1.5 bg-[#F2A900] rounded-full flex-shrink-0"></span>
-                        {sub}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  to={`/shop?category=${cat.slug || cat.id}`}
-                  className="mt-3 block text-center text-sm text-[#1769AA] hover:text-[#0B3A63] font-medium border border-[#D9E1E8] rounded-lg py-2 hover:bg-[#F6F8FA] transition-colors"
-                >
-                  View All {cat.name}
-                </Link>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+    return <CategoriesPage />;
   }
 
   if (view === "brands") {
-    return (
-      <div className="site-container py-8">
-        <h1 className="text-2xl font-bold text-[#0B3A63] mb-2">Shop by Brand</h1>
-        <p className="text-[#667085] text-sm mb-8">Authorised dealer for India's leading electrical brands</p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-          {brands.map(brand => (
-            <Link
-              key={brand}
-              to={`/shop?brand=${encodeURIComponent(brand.toLowerCase())}`}
-              className="bg-white border border-[#D9E1E8] rounded-xl p-5 text-center transition-all duration-300 ease-in-out group hover:-translate-y-2 hover:scale-105 hover:shadow-2xl hover:bg-[#0B3A63] hover:border-[#0B3A63]"
-            >
-              <div className="w-12 h-12 bg-[#0B3A63] rounded-full flex items-center justify-center mx-auto mb-3 transition-colors duration-300 group-hover:bg-white/15">
-                <span className="text-white font-bold text-lg transition-colors duration-300 group-hover:text-white" style={{ fontFamily: "Outfit" }}>{brand[0]}</span>
-              </div>
-              <div className="font-semibold text-[#17212B] transition-colors duration-300 group-hover:text-white">{brand}</div>
-              <div className="text-xs text-[#667085] mt-1 transition-colors duration-300 group-hover:text-white/80">
-                {products.filter(p => slugifyBrand(p.brand) === slugifyBrand(brand)).length} products
-              </div>
-            </Link>
-          ))}
-        </div>
-      </div>
-    );
+    return <BrandsPage />;
   }
 
   const FilterPanel = () => (

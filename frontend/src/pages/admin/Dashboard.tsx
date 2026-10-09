@@ -328,7 +328,7 @@ export default function Dashboard() {
           <div className="my-6 bg-slate-50 rounded-xl p-6 border border-slate-200 text-center">
             <MapPin className="w-12 h-12 text-[#F2A900] mx-auto mb-3" />
             <h3 className="font-bold text-[#0B3A63] text-sm">Primary Hub: Coimbatore</h3>
-            <p className="text-xs text-slate-500 mt-1">Serving Tamil Nadu and Pan-India B2B corridors.</p>
+            <p className="text-xs text-slate-500 mt-1">Delivering all around India across all states and B2B corridors.</p>
             <div className="mt-4 pt-4 border-t border-slate-200 flex justify-around text-center">
               <div>
                 <p className="text-xs text-slate-500">Origin PIN</p>

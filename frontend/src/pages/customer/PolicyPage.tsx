@@ -23,8 +23,8 @@ const policies: Record<string, { title: string; sections: { heading: string; con
   shipping: {
     title: "Shipping Policy",
     sections: [
-      { heading: "Delivery Area", content: "We currently deliver across Tamil Nadu. Pan-India shipping is available for select products. Please contact us for delivery to other states." },
-      { heading: "Delivery Time", content: "Standard delivery: 3–5 business days within Coimbatore and nearby areas. Other Tamil Nadu locations: 5–7 business days. Delivery times may vary during peak seasons." },
+      { heading: "Delivery Area", content: "We deliver products all around India. Fast Pan-India shipping is available for all products to every state, union territory, and pin code." },
+      { heading: "Delivery Time", content: "Standard delivery: 3–5 business days all around India. Delivery times may vary depending on destination pin code and courier schedules." },
       { heading: "Shipping Charges", content: "Free shipping on orders above ₹999. Orders below ₹999: ₹99 shipping charge. Bulk and heavy items may have additional charges." },
       { heading: "Order Tracking", content: "Once dispatched, you'll receive an SMS/email with your tracking number. Track your order in the 'My Orders' section of your account." },
     ],

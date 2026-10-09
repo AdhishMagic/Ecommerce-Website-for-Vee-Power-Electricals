@@ -20,7 +20,7 @@ const VIEWPORTS = [
   { name: '320x568_mobile_compact', width: 320, height: 568 },
 ];
 
-const CUSTOMER = { email: 'e2e_verified_customer@veepower.com', password: 'SecurePass123!' };
+const CUSTOMER = { email: 'rajesh.kumar@example.com', password: 'CustomerPass123!' };
 
 async function runVerification() {
   console.log('--- STARTING MY ORDERS VERIFICATION & RESPONSIVENESS SUITE ---');
@@ -28,7 +28,7 @@ async function runVerification() {
   // Launch browser
   const browser = await chromium.launch({
     headless: true,
-    executablePath: 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    channel: 'msedge',
   });
 
   try {

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60">
+  <rect width="200" height="60" rx="8" fill="#FFFFFF"/>
+  <g transform="translate(10, 10)">
+    <rect x="0" y="0" width="40" height="40" rx="6" fill="#E5231B"/>
+    <path d="M 20 8 L 28 22 L 23 22 L 23 32 L 17 32 L 17 22 L 12 22 Z" fill="#FFFFFF"/>
+    <circle cx="20" cy="14" r="3" fill="#E5231B"/>
+    <text x="50" y="24" font-family="Outfit, sans-serif" font-weight="900" font-size="20" fill="#111827" letter-spacing="1">ANCHOR</text>
+    <text x="50" y="35" font-family="Inter, sans-serif" font-weight="500" font-size="9" fill="#E5231B" letter-spacing="0.5">by Panasonic</text>
+  </g>
+</svg>

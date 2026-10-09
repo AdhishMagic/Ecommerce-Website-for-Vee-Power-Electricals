@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60">
+  <rect width="200" height="60" rx="8" fill="#FFFFFF"/>
+  <g transform="translate(10, 10)">
+    <rect x="2" y="2" width="36" height="36" rx="6" fill="#DC2626"/>
+    <polygon points="12,12 28,12 28,28 12,28" stroke="#FFFFFF" stroke-width="3" fill="none"/>
+    <circle cx="20" cy="20" r="4" fill="#FFFFFF"/>
+    <text x="46" y="27" font-family="'Outfit', 'Inter', sans-serif" font-weight="900" font-size="21" fill="#0F172A" letter-spacing="1">POLYCAB</text>
+  </g>
+</svg>

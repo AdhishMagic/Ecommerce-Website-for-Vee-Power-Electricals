@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60">
+  <rect width="200" height="60" rx="8" fill="#FFFFFF"/>
+  <g transform="translate(10, 10)">
+    <text x="5" y="27" font-family="'Outfit', 'Inter', sans-serif" font-weight="900" font-size="24" fill="#0F172A" letter-spacing="2">Jaquar</text>
+    <line x1="5" y1="33" x2="145" y2="33" stroke="#0B3A63" stroke-width="2"/>
+    <text x="5" y="42" font-family="Inter, sans-serif" font-weight="600" font-size="7.5" fill="#475569" letter-spacing="1.5">LIGHTING &amp; SWITCHES</text>
+  </g>
+</svg>

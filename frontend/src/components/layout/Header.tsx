@@ -122,7 +122,7 @@ export default function Header() {
 
   const navLinks = [
     { label: "Shop", to: "/shop" },
-    { label: "Categories", to: "/shop?view=categories" },
+    { label: "Categories", to: "/categories" },
     { label: "Brands", to: "/shop?view=brands" },
     { label: "About", to: "/about" },
     { label: "Contact", to: "/contact" },
@@ -133,6 +133,8 @@ export default function Header() {
     const searchParams = new URLSearchParams(location.search);
     const currentView = searchParams.get("view");
 
+    if (currentPath === "/categories") return 1;
+    if (currentPath === "/brands") return 2;
     if (currentPath === "/shop") {
       if (currentView === "categories") return 1;
       if (currentView === "brands") return 2;

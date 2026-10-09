@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60">
+  <rect width="200" height="60" rx="8" fill="#FFFFFF"/>
+  <g transform="translate(10, 10)">
+    <rect x="2" y="2" width="36" height="36" rx="6" fill="#D32F2F"/>
+    <polygon points="20,8 24,16 32,20 24,24 20,32 16,24 8,20 16,16" fill="#FFFFFF"/>
+    <text x="46" y="27" font-family="'Outfit', 'Inter', sans-serif" font-weight="900" font-size="21" fill="#D32F2F" letter-spacing="0.5">HAVELLS</text>
+  </g>
+</svg>

@@ -112,7 +112,7 @@ export default function Account() {
     fetchOrders(1);
   }, [fetchOrders]);
 
-  // Load addresses on mount or tab change
+  // Load addresses on tab change
   const loadAddresses = useCallback(async () => {
     try {
       setAddressesLoading(true);
@@ -137,13 +137,13 @@ export default function Account() {
     return orders.filter((order) => {
       const s = (order.status || "").toUpperCase();
       if (orderFilter === "in_progress") {
-        return ["PENDING", "CONFIRMED", "PACKED", "SHIPPED"].includes(s);
+        return ["PENDING", "CONFIRMED", "PACKED", "SHIPPED", "PROCESSING"].includes(s);
       }
       if (orderFilter === "delivered") {
         return s === "DELIVERED";
       }
       if (orderFilter === "cancelled_returns") {
-        return ["CANCELLED", "RETURN_REQUESTED", "RETURN_APPROVED", "RETURN_REJECTED", "RETURN_COMPLETED"].includes(s);
+        return ["CANCELLED", "RETURN_REQUESTED", "RETURN_APPROVED", "RETURN_REJECTED", "RETURN_COMPLETED", "REFUNDED"].includes(s);
       }
       return true;
     });
@@ -311,10 +311,10 @@ export default function Account() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Breadcrumb Navigation */}
         <nav
-          className="flex items-center gap-2 text-xs font-medium text-[#667085] mb-5 sm:mb-6"
+          className="flex items-center gap-2 text-xs font-medium text-[#667085] mb-5 sm:mb-6 flex-wrap min-w-0"
           aria-label="Breadcrumb"
         >
-          <Link to="/" className="hover:text-[#1769AA] transition-colors">
+          <Link to="/" className="hover:text-[#1769AA] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#1769AA] rounded">
             Home
           </Link>
           <span>/</span>
@@ -361,11 +361,11 @@ export default function Account() {
               <>
                 {/* TAB 1: MY ORDERS */}
                 {tab === "orders" && (
-                  <div className="space-y-6">
+                  <div className="space-y-6 min-w-0">
                     {/* Orders Header */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 min-w-0">
                       <div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 flex-wrap">
                           <h1
                             className="text-2xl sm:text-3xl font-bold text-[#0B3A63] tracking-tight"
                             style={{ fontFamily: "Outfit, sans-serif" }}
@@ -388,10 +388,10 @@ export default function Account() {
                         <button
                           type="button"
                           onClick={() => fetchOrders(currentPage)}
-                          className="self-start sm:self-center inline-flex items-center gap-1.5 text-xs font-semibold text-[#1769AA] hover:text-[#0B3A63] bg-white border border-[#D9E1E8] hover:border-[#1769AA] px-3 py-1.5 rounded-lg shadow-2xs transition-all"
+                          className="self-start sm:self-center inline-flex items-center gap-1.5 text-xs font-semibold text-[#1769AA] hover:text-[#0B3A63] bg-white border border-[#D9E1E8] hover:border-[#1769AA] px-3 py-1.5 rounded-lg shadow-2xs transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-[#1769AA] cursor-pointer"
                           title="Refresh order history"
                         >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                           </svg>
                           <span>Refresh</span>
@@ -399,7 +399,7 @@ export default function Account() {
                       )}
                     </div>
 
-                    {/* Status Filter Pills (if orders exist) */}
+                    {/* Status Filter Pills */}
                     {orders.length > 0 && (
                       <div className="w-full min-w-0 max-w-full flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
                         {(
@@ -416,9 +416,9 @@ export default function Account() {
                               key={pill.id}
                               type="button"
                               onClick={() => setOrderFilter(pill.id)}
-                              className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all shrink-0 ${
+                              className={`px-3.5 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all duration-150 shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-[#1769AA] ${
                                 isActive
-                                  ? "bg-[#0B3A63] text-white shadow-2xs"
+                                  ? "bg-[#0B3A63] text-white shadow-2xs font-semibold"
                                   : "bg-white text-[#667085] hover:text-[#17212B] border border-[#D9E1E8] hover:bg-slate-50"
                               }`}
                             >
@@ -431,11 +431,11 @@ export default function Account() {
 
                     {/* STATE 1: Loading Skeleton */}
                     {ordersLoading && (
-                      <div className="space-y-4">
+                      <div className="space-y-4 min-w-0">
                         {[1, 2, 3].map((n) => (
                           <div
                             key={n}
-                            className="bg-white border border-[#D9E1E8] rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-xs animate-pulse"
+                            className="bg-white border border-[#D9E1E8] rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-2xs animate-pulse"
                           >
                             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                               <div className="space-y-2">
@@ -460,7 +460,7 @@ export default function Account() {
                     {!ordersLoading && ordersError && (
                       <div className="bg-white border border-rose-200 rounded-2xl p-8 sm:p-10 text-center shadow-xs">
                         <div className="w-14 h-14 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-100">
-                          <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                           </svg>
                         </div>
@@ -476,9 +476,9 @@ export default function Account() {
                         <button
                           type="button"
                           onClick={() => fetchOrders(currentPage)}
-                          className="inline-flex items-center gap-2 bg-[#1769AA] hover:bg-[#0B3A63] text-white px-6 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors shadow-xs"
+                          className="inline-flex items-center gap-2 bg-[#1769AA] hover:bg-[#0B3A63] text-white px-6 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-[#1769AA] cursor-pointer"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                           </svg>
                           <span>Retry</span>
@@ -490,7 +490,7 @@ export default function Account() {
                     {!ordersLoading && !ordersError && orders.length === 0 && (
                       <div className="bg-white border border-[#D9E1E8] rounded-2xl p-8 sm:p-12 text-center shadow-xs">
                         <div className="w-16 h-16 bg-[#EFF6FF] text-[#1769AA] rounded-full flex items-center justify-center mx-auto mb-4 border border-[#BFDBFE]">
-                          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                           </svg>
                         </div>
@@ -505,10 +505,10 @@ export default function Account() {
                         </p>
                         <Link
                           to="/shop"
-                          className="inline-flex items-center gap-2 bg-[#0B3A63] hover:bg-[#1769AA] text-white px-6 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-xs"
+                          className="inline-flex items-center gap-2 bg-[#0B3A63] hover:bg-[#1769AA] text-white px-6 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-2xs outline-none focus-visible:ring-2 focus-visible:ring-[#1769AA]"
                         >
                           <span>Start Shopping</span>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                           </svg>
                         </Link>
@@ -527,7 +527,7 @@ export default function Account() {
                         <button
                           type="button"
                           onClick={() => setOrderFilter("all")}
-                          className="text-xs font-semibold text-[#1769AA] hover:underline"
+                          className="text-xs font-semibold text-[#1769AA] hover:underline outline-none focus-visible:ring-1 focus-visible:ring-[#1769AA]"
                         >
                           Show All Orders
                         </button>
@@ -536,19 +536,20 @@ export default function Account() {
 
                     {/* STATE 5: Orders List */}
                     {!ordersLoading && !ordersError && filteredOrders.length > 0 && (
-                      <div className="space-y-4">
-                        {filteredOrders.map((order) => (
+                      <div className="space-y-4 min-w-0">
+                        {filteredOrders.map((order, idx) => (
                           <OrderCard
                             key={order.id}
                             order={order}
                             onViewDetails={handleViewOrder}
                             isLoadingDetails={selectedOrderLoading}
+                            style={{ animationDelay: `${idx * 60}ms` }}
                           />
                         ))}
 
                         {/* Pagination Bar */}
                         {totalPages > 1 && (
-                          <div className="bg-white border border-[#D9E1E8] rounded-xl px-4 py-3 flex items-center justify-between gap-3 text-xs shadow-2xs mt-6">
+                          <div className="bg-white border border-[#D9E1E8] rounded-xl px-4 py-3 flex items-center justify-between gap-3 text-xs shadow-2xs mt-6 flex-wrap">
                             <span className="text-[#667085]">
                               Page <strong className="text-[#17212B]">{currentPage}</strong> of{" "}
                               <strong className="text-[#17212B]">{totalPages}</strong>
@@ -558,7 +559,7 @@ export default function Account() {
                                 type="button"
                                 disabled={currentPage <= 1 || ordersLoading}
                                 onClick={() => fetchOrders(currentPage - 1)}
-                                className="px-3 py-1.5 border border-[#D9E1E8] rounded-lg font-medium text-[#17212B] hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                                className="px-3 py-1.5 border border-[#D9E1E8] rounded-lg font-medium text-[#17212B] hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#1769AA]"
                               >
                                 Previous
                               </button>
@@ -566,7 +567,7 @@ export default function Account() {
                                 type="button"
                                 disabled={currentPage >= totalPages || ordersLoading}
                                 onClick={() => fetchOrders(currentPage + 1)}
-                                className="px-3 py-1.5 border border-[#D9E1E8] rounded-lg font-medium text-[#17212B] hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                                className="px-3 py-1.5 border border-[#D9E1E8] rounded-lg font-medium text-[#17212B] hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#1769AA]"
                               >
                                 Next
                               </button>
@@ -580,7 +581,7 @@ export default function Account() {
 
                 {/* TAB 2: SAVED ADDRESSES */}
                 {tab === "addresses" && (
-                  <div className="space-y-6">
+                  <div className="space-y-6 min-w-0">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2">
                       <div>
                         <h2
@@ -597,7 +598,7 @@ export default function Account() {
                         <button
                           type="button"
                           onClick={openAddAddress}
-                          className="self-start sm:self-center inline-flex items-center gap-2 bg-[#1769AA] hover:bg-[#0B3A63] text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl shadow-xs transition-colors"
+                          className="self-start sm:self-center inline-flex items-center gap-2 bg-[#1769AA] hover:bg-[#0B3A63] text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl shadow-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#1769AA]"
                         >
                           <span>+</span>
                           <span>Add New Address</span>
@@ -845,7 +846,7 @@ export default function Account() {
 
                 {/* TAB 3: PROFILE SETTINGS */}
                 {tab === "profile" && (
-                  <div className="space-y-6">
+                  <div className="space-y-6 min-w-0">
                     <div>
                       <h2
                         className="text-2xl sm:text-3xl font-bold text-[#0B3A63] tracking-tight"
@@ -861,7 +862,7 @@ export default function Account() {
                     <div className="bg-white border border-[#D9E1E8] rounded-2xl p-6 sm:p-8 shadow-xs">
                       {profileSuccess && (
                         <div className="bg-emerald-50 text-emerald-700 p-3.5 rounded-xl text-xs sm:text-sm border border-emerald-200 mb-6 flex items-center gap-2">
-                          <svg className="w-4 h-4 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-4 h-4 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                           </svg>
                           <span>Profile updated successfully!</span>
@@ -869,7 +870,7 @@ export default function Account() {
                       )}
                       {profileError && (
                         <div className="bg-red-50 text-red-600 p-3.5 rounded-xl text-xs sm:text-sm border border-red-100 mb-6 flex items-center gap-2">
-                          <svg className="w-4 h-4 shrink-0 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-4 h-4 shrink-0 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                           <span>{profileError}</span>
@@ -923,7 +924,7 @@ export default function Account() {
                         <div className="mt-8 pt-5 border-t border-[#F1F5F9] flex justify-end">
                           <button
                             type="submit"
-                            className="bg-[#0B3A63] text-white px-6 py-2.5 rounded-xl text-xs sm:text-sm font-semibold hover:bg-[#1769AA] transition-colors shadow-xs"
+                            className="bg-[#0B3A63] text-white px-6 py-2.5 rounded-xl text-xs sm:text-sm font-semibold hover:bg-[#1769AA] transition-colors shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-[#1769AA]"
                           >
                             Save Changes
                           </button>

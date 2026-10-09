@@ -102,7 +102,7 @@ export default function Login() {
       headlineAccent="World Safely."
       description="Access your dashboard, manage orders, and explore exclusive deals on top electrical brands."
     >
-      <div className="relative min-h-[460px] flex flex-col justify-center">
+      <div className="relative flex flex-col justify-center py-2">
         {/* VEE ELECTRICALS Animated Loading Overlay */}
         <VeeElectricalsLoader
           status={authStatus}
@@ -110,8 +110,8 @@ export default function Login() {
           successMessage="Access Granted"
         />
 
-        <h2 className="text-3xl font-bold text-charcoal mb-2" style={{ fontFamily: "Outfit" }}>Welcome Back</h2>
-        <p className="text-muted mb-6">Please enter your details to sign in.</p>
+        <h2 className="text-2xl sm:text-3xl font-bold text-[#17212B] mb-1" style={{ fontFamily: "Outfit" }}>Welcome Back</h2>
+        <p className="text-xs sm:text-sm text-[#667085] mb-5">Please enter your details to sign in.</p>
 
         {isRegistered && (
           <div className="bg-emerald-50 text-emerald-700 p-3.5 rounded-xl text-sm border border-emerald-200 flex items-center gap-2.5 mb-5">

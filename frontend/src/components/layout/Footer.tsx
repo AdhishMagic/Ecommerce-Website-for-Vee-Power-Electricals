@@ -17,7 +17,7 @@ export default function Footer() {
               <VeeElectricalsLogo variant="full" size="md" theme="white" id="footer-logo" />
             </Link>
             <p className="text-white/70 text-sm leading-relaxed mb-4">
-              Your trusted electrical products partner in Coimbatore. Genuine products from established brands at competitive prices.
+              Your trusted electrical products partner delivering all around India. Genuine products from established brands at competitive prices.
             </p>
             <div className="text-sm text-white/60">
               <p>GST No: 33CKXPK4525R1Z9</p>
@@ -88,7 +88,7 @@ export default function Footer() {
 
         <div className="mt-8 pt-6 border-t border-white/10 flex flex-col sm:flex-row justify-between items-center gap-3 text-white/50 text-xs">
           <p>© 2024 {COMPANY_NAME}. All rights reserved.</p>
-          <p>Designed with ❤️ for Coimbatore</p>
+          <p>Delivering Genuine Electrical Products All Around India 🇮🇳</p>
         </div>
       </div>
     </footer>

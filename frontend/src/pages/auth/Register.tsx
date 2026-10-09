@@ -89,7 +89,7 @@ export default function Register() {
       headlineAccent="Future of Power."
       description="Create an account to track your orders, save your addresses, and unlock professional discounts."
     >
-      <div className="relative min-h-[480px] flex flex-col justify-center">
+      <div className="relative flex flex-col justify-center py-2">
         {/* VEE ELECTRICALS Animated Loading Overlay */}
         <VeeElectricalsLoader
           status={authStatus}
@@ -97,35 +97,35 @@ export default function Register() {
           successMessage="Account Created!"
         />
 
-        <h2 className="text-3xl font-bold text-charcoal mb-2" style={{ fontFamily: "Outfit" }}>Create Account</h2>
-        <p className="text-muted mb-6">Join us to manage orders and get exclusive deals.</p>
+        <h2 className="text-2xl sm:text-3xl font-bold text-charcoal mb-1" style={{ fontFamily: "Outfit" }}>Create Account</h2>
+        <p className="text-muted text-xs sm:text-sm mb-4">Join us to manage orders and get exclusive deals.</p>
 
         {error && (
-          <div className="bg-red-50 text-red-600 p-3.5 rounded-xl text-sm border border-red-100 flex items-center gap-2 mb-5">
+          <div className="bg-red-50 text-red-600 p-3 rounded-xl text-xs sm:text-sm border border-red-100 flex items-center gap-2 mb-4">
             <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             {error}
           </div>
         )}
 
-        <form onSubmit={handleRegister} className="space-y-4" noValidate>
+        <form onSubmit={handleRegister} className="space-y-3" noValidate>
           <div>
-            <label className="block text-sm font-medium text-charcoal mb-1.5">Full Name</label>
+            <label className="block text-xs sm:text-sm font-medium text-charcoal mb-1">Full Name</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-3 bg-bg border border-border rounded-xl focus:bg-white focus:border-electric focus:ring-4 focus:ring-electric/10 outline-none transition-all text-sm"
+              className="w-full px-3.5 py-2.5 bg-bg border border-border rounded-xl focus:bg-white focus:border-electric focus:ring-4 focus:ring-electric/10 outline-none transition-all text-sm"
               placeholder="John Doe"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-charcoal mb-1.5">Email Address</label>
+            <label className="block text-xs sm:text-sm font-medium text-charcoal mb-1">Email Address</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className={`w-full px-4 py-3 bg-bg border ${fieldErrors.email ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-border focus:border-electric focus:ring-electric/10'} rounded-xl focus:bg-white focus:ring-4 outline-none transition-all text-sm`}
+              className={`w-full px-3.5 py-2.5 bg-bg border ${fieldErrors.email ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-border focus:border-electric focus:ring-electric/10'} rounded-xl focus:bg-white focus:ring-4 outline-none transition-all text-sm`}
               placeholder="name@example.com"
             />
             {fieldErrors.email && (
@@ -134,19 +134,19 @@ export default function Register() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-charcoal mb-1.5">Password</label>
+            <label className="block text-xs sm:text-sm font-medium text-charcoal mb-1">Password</label>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className={`w-full px-4 py-3 bg-bg border ${fieldErrors.password ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-border focus:border-electric focus:ring-electric/10'} rounded-xl focus:bg-white focus:ring-4 outline-none transition-all text-sm pr-11`}
+                className={`w-full px-3.5 py-2.5 bg-bg border ${fieldErrors.password ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-border focus:border-electric focus:ring-electric/10'} rounded-xl focus:bg-white focus:ring-4 outline-none transition-all text-sm pr-10`}
                 placeholder="At least 8 characters"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted hover:text-charcoal focus:outline-none transition-colors p-1"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-charcoal focus:outline-none transition-colors p-1"
                 aria-label={showPassword ? "Hide password" : "Show password"}
               >
                 {showPassword ? (
@@ -162,19 +162,19 @@ export default function Register() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-charcoal mb-1.5">Confirm Password</label>
+            <label className="block text-xs sm:text-sm font-medium text-charcoal mb-1">Confirm Password</label>
             <div className="relative">
               <input
                 type={showConfirmPassword ? "text" : "password"}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-bg border border-border rounded-xl focus:bg-white focus:border-electric focus:ring-4 focus:ring-electric/10 outline-none transition-all text-sm pr-11"
+                className="w-full px-3.5 py-2.5 bg-bg border border-border rounded-xl focus:bg-white focus:border-electric focus:ring-4 focus:ring-electric/10 outline-none transition-all text-sm pr-10"
                 placeholder="Repeat your password"
               />
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted hover:text-charcoal focus:outline-none transition-colors p-1"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-charcoal focus:outline-none transition-colors p-1"
                 aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
               >
                 {showConfirmPassword ? (
@@ -186,11 +186,11 @@ export default function Register() {
             </div>
           </div>
 
-          <div className="pt-2">
+          <div className="pt-1">
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3.5 bg-electric hover:bg-electric-dark text-white font-semibold rounded-xl transition-all shadow-md shadow-electric/20 hover:shadow-lg hover:shadow-electric/30 active:scale-[0.99] disabled:opacity-50 text-sm"
+              className="w-full py-2.5 sm:py-3 bg-electric hover:bg-electric-dark text-white font-semibold rounded-xl transition-all shadow-md shadow-electric/20 hover:shadow-lg hover:shadow-electric/30 active:scale-[0.99] disabled:opacity-50 text-sm"
             >
               Create Account
             </button>

@@ -138,13 +138,13 @@ export default function HeroSection() {
       {/* Hero Container: Single responsive container with fluid margins */}
       <div className="hero-container relative z-10 pt-4 sm:pt-6 lg:pt-8">
         {/* Main Hero Surface Canvas */}
-        <div className="bg-white rounded-2xl lg:rounded-3xl shadow-xl shadow-[#0B3A63]/10 border border-[#D9E1E8]/80 px-6 sm:px-8 lg:px-10 xl:px-12 py-8 sm:py-9 lg:py-11 xl:py-12 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-lg shadow-[#0B3A63]/10 border border-[#D9E1E8]/80 px-5 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 overflow-hidden">
 
-          {/* Responsive Two-Column Grid: Left Content (0.82fr) + Right Showcase (1.18fr) */}
-          <div className="grid grid-cols-1 lg:grid-cols-[minmax(380px,0.85fr)_minmax(540px,1.15fr)] xl:grid-cols-[minmax(420px,0.82fr)_minmax(660px,1.18fr)] gap-7 lg:gap-8 xl:gap-10 items-center">
+          {/* Responsive Two-Column Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-center">
 
             {/* Left Column: Direct Commercial Action Engine */}
-            <div className="flex flex-col justify-center space-y-4.5 sm:space-y-5 lg:space-y-6 relative z-20">
+            <div className="lg:col-span-5 flex flex-col justify-center space-y-4 sm:space-y-4.5 relative z-20">
 
               {/* Top Badge Row */}
               <div className="flex flex-wrap items-center gap-2">
@@ -161,10 +161,10 @@ export default function HeroSection() {
 
               {/* Headline with Outfit typography */}
               <h1
-                className="font-bold text-[#17212B] leading-[1.1] tracking-tight"
+                className="font-bold text-[#17212B] leading-[1.15] tracking-tight"
                 style={{
                   fontFamily: "Outfit",
-                  fontSize: "clamp(1.85rem, 4.5vw, 3.45rem)",
+                  fontSize: "clamp(1.75rem, 3.2vw, 2.75rem)",
                 }}
               >
                 <span className="block">
@@ -254,7 +254,7 @@ export default function HeroSection() {
             </div>
 
             {/* Right Column: Commercial Promotional Showcase Studio (Exactly 4 Primary Visual Components) */}
-            <div className="relative w-full min-h-[530px] sm:min-h-[550px] lg:h-[565px] xl:h-[585px] rounded-2xl lg:rounded-3xl overflow-hidden bg-gradient-to-br from-[#F8FAFC] via-white to-[#F1F5F9] border border-[#D9E1E8]/90 p-4 sm:p-4.5 lg:p-5 flex flex-col justify-between gap-3 shadow-xs">
+            <div className="lg:col-span-7 relative w-full min-h-[530px] sm:min-h-[550px] lg:h-[565px] xl:h-[585px] rounded-2xl lg:rounded-3xl overflow-hidden bg-gradient-to-br from-[#F8FAFC] via-white to-[#F1F5F9] border border-[#D9E1E8]/90 p-4 sm:p-4.5 lg:p-5 flex flex-col justify-between gap-3 shadow-xs">
 
               {/* Top Promotional Header Bar */}
               <div className="relative z-20 w-full flex items-center justify-between px-4 py-2.5 bg-white/95 backdrop-blur-md rounded-xl border border-[#D9E1E8]/80 shadow-2xs text-[11px] sm:text-xs">

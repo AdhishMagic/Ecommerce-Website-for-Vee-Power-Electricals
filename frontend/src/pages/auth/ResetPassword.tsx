@@ -55,8 +55,8 @@ export default function ResetPassword() {
 
   return (
     <div className="min-h-screen bg-[#F6F8FA] flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 sm:p-10 border border-[#D9E1E8]">
-        <div className="flex justify-center mb-6">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 sm:p-8 border border-[#D9E1E8]">
+        <div className="flex justify-center mb-5">
           <Link to="/">
             <VeeElectricalsLogo variant="full" size="md" id="reset-password-logo" />
           </Link>
@@ -64,23 +64,23 @@ export default function ResetPassword() {
 
         {!isSuccess ? (
           <>
-            <h2 className="text-2xl font-bold text-[#17212B] text-center mb-2" style={{ fontFamily: "Outfit" }}>
+            <h2 className="text-xl sm:text-2xl font-bold text-[#17212B] text-center mb-1.5" style={{ fontFamily: "Outfit" }}>
               Set New Password
             </h2>
-            <p className="text-[#667085] text-center text-sm mb-8">
+            <p className="text-[#667085] text-center text-xs sm:text-sm mb-6">
               Please choose a secure new password for your Vee Power Electricals account.
             </p>
 
-            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+            <form onSubmit={handleSubmit} className="space-y-3.5" noValidate>
               {error && (
-                <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-100 flex items-center gap-2">
+                <div className="bg-red-50 text-red-600 p-3 rounded-lg text-xs sm:text-sm border border-red-100 flex items-center gap-2">
                   <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   {error}
                 </div>
               )}
 
               {(!searchParams.get("uid") || !searchParams.get("token")) && (
-                <div className="space-y-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                <div className="space-y-2.5 p-3 bg-gray-50 rounded-xl border border-gray-200">
                   <div>
                     <label className="block text-xs font-medium text-[#475569] mb-1">UID Code</label>
                     <input

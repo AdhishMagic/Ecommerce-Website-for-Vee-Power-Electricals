@@ -21,6 +21,8 @@ const OrderSuccess = lazy(() => import("./pages/customer/OrderSuccess"));
 const Account = lazy(() => import("./pages/customer/Account"));
 const About = lazy(() => import("./pages/customer/About"));
 const Contact = lazy(() => import("./pages/customer/Contact"));
+const CategoriesPage = lazy(() => import("./pages/customer/CategoriesPage"));
+const BrandsPage = lazy(() => import("./pages/customer/BrandsPage"));
 const PolicyPage = lazy(() => import("./pages/customer/PolicyPage"));
 
 // Lazy-loaded admin pages
@@ -75,6 +77,8 @@ export default function App() {
                 {/* Customer routes */}
                 <Route path="/" element={<CustomerLayout><Home /></CustomerLayout>} />
                 <Route path="/shop" element={<CustomerLayout><Shop /></CustomerLayout>} />
+                <Route path="/categories" element={<CustomerLayout><CategoriesPage /></CustomerLayout>} />
+                <Route path="/brands" element={<CustomerLayout><BrandsPage /></CustomerLayout>} />
                 <Route path="/product/:id" element={<CustomerLayout><ProductDetail /></CustomerLayout>} />
                 <Route path="/cart" element={<CustomerLayout><Cart /></CustomerLayout>} />
                 <Route path="/about" element={<CustomerLayout><About /></CustomerLayout>} />

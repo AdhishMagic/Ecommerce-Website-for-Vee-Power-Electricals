@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60">
+  <rect width="200" height="60" rx="8" fill="#FFFFFF"/>
+  <g transform="translate(10, 10)">
+    <path d="M 5 28 C 12 10, 28 10, 35 28 C 28 34, 12 34, 5 28 Z" fill="#E31B23"/>
+    <path d="M 10 24 C 15 14, 25 14, 30 24" stroke="#FFFFFF" stroke-width="2.5" fill="none"/>
+    <text x="44" y="27" font-family="'Outfit', 'Inter', sans-serif" font-weight="900" font-size="22" fill="#0B2545" letter-spacing="-0.5">Finolex</text>
+    <text x="45" y="37" font-family="Inter, sans-serif" font-weight="600" font-size="8.5" fill="#E31B23" letter-spacing="1">WIRES &amp; CABLES</text>
+  </g>
+</svg>

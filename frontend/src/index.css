@@ -89,10 +89,10 @@ a, button {
 
 /* Responsive Layout System & Fluid Containers */
 :root {
-  --page-gutter: clamp(16px, 2.5vw, 48px);
-  --content-max-width: 1980px;
-  --hero-max-width: 1860px;
-  --hero-gutter: clamp(20px, 3vw, 56px);
+  --page-gutter: clamp(16px, 2.5vw, 32px);
+  --content-max-width: 1380px;
+  --hero-max-width: 1380px;
+  --hero-gutter: clamp(16px, 2.5vw, 32px);
 }
 
 .site-container {
@@ -426,8 +426,24 @@ input[type="password"]::-ms-clear {
   animation: dashboardFadeIn 0.42s cubic-bezier(0.16, 1, 0.3, 1) 0.22s forwards;
 }
 
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 /* Accessibility: Reduced Motion for Dashboard & Promo Animations */
 @media (prefers-reduced-motion: reduce) {
+  .animate-fadeIn,
   .animate-dashboard-header,
   .animate-dashboard-card,
   .animate-dashboard-chart,

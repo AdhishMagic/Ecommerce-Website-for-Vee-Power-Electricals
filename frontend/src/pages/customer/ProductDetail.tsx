@@ -279,7 +279,7 @@ export default function ProductDetail() {
                 <span className="text-xl">🚚</span>
                 <div>
                   <h4 className="font-semibold text-[#17212B] mb-1">Delivery</h4>
-                  <p>Free shipping on orders above ₹999. Standard delivery 3–5 business days within Tamil Nadu. Express delivery available on request.</p>
+                  <p>Free shipping on orders above ₹999. Standard delivery 3–5 business days all around India. Express delivery available on request.</p>
                 </div>
               </div>
               <div className="flex gap-3 p-4 bg-[#F6F8FA] rounded-lg">

@@ -141,6 +141,7 @@ export function isInappropriateOrPlaceholderImage(imageUrl?: string | null): boo
   // Known irrelevant Unsplash stock photos:
   if (trimmed.includes('photo-1544716278-ca5e3f4abd8c') || // Books / library
       trimmed.includes('photo-1550985616-10810253b84d') || // Groceries / coffee
+      trimmed.includes('photo-1558618666-fcd25c85cd64') || // Mechanic / tool portrait
       trimmed.includes('photo-1581092160607-ee22621dd758')) { // Factory worker portrait
     return true;
   }

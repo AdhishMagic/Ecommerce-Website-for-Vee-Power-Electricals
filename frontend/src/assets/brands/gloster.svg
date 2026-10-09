@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60">
+  <rect width="200" height="60" rx="8" fill="#FFFFFF"/>
+  <g transform="translate(10, 10)">
+    <path d="M 6 6 L 34 6 L 34 26 L 20 36 L 6 26 Z" fill="#0B3A63"/>
+    <path d="M 12 12 L 28 12 L 28 22 L 20 28 L 12 22 Z" fill="#DC2626"/>
+    <text x="20" y="21" text-anchor="middle" font-family="'Outfit', sans-serif" font-weight="900" font-size="12" fill="#FFFFFF">G</text>
+    <text x="44" y="27" font-family="'Outfit', 'Inter', sans-serif" font-weight="900" font-size="20" fill="#0B3A63" letter-spacing="1">GLOSTER</text>
+    <text x="45" y="37" font-family="Inter, sans-serif" font-weight="600" font-size="8" fill="#DC2626" letter-spacing="1.5">CABLES LIMITED</text>
+  </g>
+</svg>

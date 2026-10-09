@@ -122,6 +122,24 @@ class Command(BaseCommand):
             customer_user.save()
             self.stdout.write(f"  + Created Retail Customer: {customer_user.email}")
 
+        e2e_customer, created = User.objects.get_or_create(
+            email="e2e_verified_customer@veepower.com",
+            defaults={
+                "username": "e2e_verified_customer@veepower.com",
+                "first_name": "Verified",
+                "last_name": "Customer",
+                "phone": "+919842100099",
+                "role": UserRole.CUSTOMER,
+                "is_staff": False,
+                "is_superuser": False,
+                "is_active": True,
+            },
+        )
+        if created or not e2e_customer.check_password("SecurePass123!"):
+            e2e_customer.set_password("SecurePass123!")
+            e2e_customer.save()
+            self.stdout.write(f"  + Configured Verified Customer: {e2e_customer.email}")
+
         # -------------------------------------------------------------------------
         # 2. IDENTITY: CustomerAddress
         # -------------------------------------------------------------------------
@@ -356,9 +374,9 @@ class Command(BaseCommand):
         cat_objs = {}
         subcat_objs = {}
         for cat_name, cat_slug, cat_desc, subcats in cats_data:
-            c, _ = Category.objects.get_or_create(
-                slug=cat_slug, defaults={"name": cat_name, "is_active": True}
-            )
+            c = Category.objects.filter(slug=cat_slug).first() or Category.objects.filter(name=cat_name).first()
+            if not c:
+                c = Category.objects.create(name=cat_name, slug=cat_slug, is_active=True)
             cat_objs[cat_slug] = c
             for sub_name, sub_slug in subcats:
                 sc, _ = Subcategory.objects.get_or_create(
@@ -599,6 +617,74 @@ class Command(BaseCommand):
                 reason="Order confirmed upon full payment receipt",
             )
             self.stdout.write(f"  + Created Order: {order.order_number}")
+
+        order_num_e2e = "ORD-2026-0002"
+        order_e2e, created_e2e = Order.objects.get_or_create(
+            order_number=order_num_e2e,
+            defaults={
+                "user": e2e_customer,
+                "customer_name": "Verified Customer",
+                "customer_email": "e2e_verified_customer@veepower.com",
+                "customer_phone": "+919842100099",
+                "shipping_address": {
+                    "recipient_name": "Verified Customer",
+                    "address_line1": "42, Cross Cut Road, Gandhipuram",
+                    "city": "Coimbatore",
+                    "state": "Tamil Nadu",
+                    "pincode": "641012",
+                    "phone": "+919842100099",
+                },
+                "billing_address": None,
+                "is_business_order": False,
+                "subtotal": sample_prod.price * 2,
+                "product_discount": Decimal("0.00"),
+                "order_discount": Decimal("0.00"),
+                "total_discount": Decimal("0.00"),
+                "taxable_amount": sample_prod.price * 2,
+                "tax_amount": (sample_prod.price * 2 * Decimal("0.18")),
+                "cgst_amount": (sample_prod.price * 2 * Decimal("0.09")),
+                "sgst_amount": (sample_prod.price * 2 * Decimal("0.09")),
+                "igst_amount": Decimal("0.00"),
+                "shipping_fee": Decimal("0.00"),
+                "shipping_discount": Decimal("0.00"),
+                "total_amount": (sample_prod.price * 2 * Decimal("1.18")),
+                "status": OrderStatus.DELIVERED,
+                "payment_status": OrderPaymentStatus.PAID,
+                "payment_method": "Razorpay",
+                "tracking_number": "TRK-2026-COIM-002",
+                "notes": "Deliver at security desk",
+                "calculation_snapshot": {
+                    "tax_mode": "TAX_EXCLUSIVE",
+                    "tax_rate": 18.0,
+                    "applied_shipping_rule": "Tamil Nadu",
+                },
+            },
+        )
+        if created_e2e:
+            OrderItem.objects.create(
+                order=order_e2e,
+                product=sample_prod,
+                product_name=sample_prod.name,
+                sku=sample_prod.sku,
+                image_url=sample_prod.primary_image,
+                mrp=sample_prod.mrp,
+                unit_price=sample_prod.price,
+                quantity=2,
+                line_discount=Decimal("0.00"),
+                taxable_amount=sample_prod.price * 2,
+                tax_rate=Decimal("18.00"),
+                tax_amount=sample_prod.price * 2 * Decimal("0.18"),
+                subtotal=sample_prod.price * 2,
+                total_amount=sample_prod.price * 2 * Decimal("1.18"),
+            )
+            OrderStatusHistory.objects.create(
+                order=order_e2e,
+                previous_status=OrderStatus.SHIPPED,
+                new_status=OrderStatus.DELIVERED,
+                changed_by=sales_staff,
+                reason="Package delivered to recipient",
+            )
+            self.stdout.write(f"  + Created Order: {order_e2e.order_number}")
 
         # -------------------------------------------------------------------------
         # 13. FINANCE: Clients

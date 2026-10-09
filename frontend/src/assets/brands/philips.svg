@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60">
+  <rect width="200" height="60" rx="8" fill="#FFFFFF"/>
+  <g transform="translate(10, 10)">
+    <path d="M 6 4 L 34 4 L 34 24 C 34 32, 20 38, 20 38 C 20 38, 6 32, 6 24 Z" fill="#0B5FFF"/>
+    <circle cx="14" cy="14" r="2" fill="#FFFFFF"/>
+    <circle cx="26" cy="14" r="2" fill="#FFFFFF"/>
+    <circle cx="14" cy="26" r="2" fill="#FFFFFF"/>
+    <circle cx="26" cy="26" r="2" fill="#FFFFFF"/>
+    <path d="M 12 20 Q 20 16 28 20" stroke="#FFFFFF" stroke-width="2" fill="none"/>
+    <text x="46" y="27" font-family="'Outfit', 'Inter', sans-serif" font-weight="900" font-size="21" fill="#0B5FFF" letter-spacing="1">PHILIPS</text>
+  </g>
+</svg>
