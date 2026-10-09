@@ -3,8 +3,19 @@ import { UserProfile } from '../types/api';
 import { User } from '../types/user';
 
 export const mapProfileToUser = (profile: UserProfile): User => {
+  const rawFirstName = (profile.first_name || '').trim();
+  const rawLastName = (profile.last_name || '').trim();
+  const cleanLastName = rawLastName.toLowerCase() === 'user' ? '' : rawLastName;
+
+  const nameParts = [rawFirstName, cleanLastName].filter(Boolean);
+  let resolvedName = nameParts.join(' ');
+  if (resolvedName && resolvedName.toLowerCase().endsWith(' user') && resolvedName.toLowerCase() !== 'user') {
+    resolvedName = resolvedName.replace(/\s+user$/i, '').trim();
+  }
+
   const name =
-    [profile.first_name, profile.last_name].filter(Boolean).join(' ') ||
+    resolvedName ||
+    rawFirstName ||
     profile.username ||
     profile.email.split('@')[0];
   const isAdmin =
@@ -19,6 +30,9 @@ export const mapProfileToUser = (profile: UserProfile): User => {
     phone: profile.phone,
     role: isAdmin ? 'admin' : 'customer',
     is_admin: isAdmin,
+    first_name: rawFirstName,
+    last_name: cleanLastName,
+    username: profile.username,
   };
 };
 
@@ -66,7 +80,7 @@ export const authService = {
     email: string;
     password: string;
     first_name: string;
-    last_name: string;
+    last_name?: string;
     phone?: string;
   }): Promise<{ user: User; token: string }> {
     const res = await authApi.register(data);

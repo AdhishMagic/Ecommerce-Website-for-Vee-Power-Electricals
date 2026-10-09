@@ -49,7 +49,7 @@ class UserRegistrationSerializer(serializers.Serializer):
         trim_whitespace=False
     )
     first_name = serializers.CharField(required=True, max_length=150, allow_blank=False)
-    last_name = serializers.CharField(required=True, max_length=150, allow_blank=False)
+    last_name = serializers.CharField(required=False, max_length=150, allow_blank=True, default='')
     phone = serializers.CharField(required=False, max_length=20, allow_blank=True, default='')
 
     def validate_email(self, value):
@@ -65,10 +65,9 @@ class UserRegistrationSerializer(serializers.Serializer):
         return stripped
 
     def validate_last_name(self, value):
-        stripped = value.strip()
-        if not stripped:
-            raise serializers.ValidationError("Last name cannot be blank.")
-        return stripped
+        if not value:
+            return ''
+        return value.strip()
 
     def validate_password(self, value):
         try:
@@ -82,7 +81,7 @@ class UserRegistrationSerializer(serializers.Serializer):
         email = validated_data['email']
         password = validated_data['password']
         first_name = validated_data['first_name']
-        last_name = validated_data['last_name']
+        last_name = validated_data.get('last_name', '').strip()
         phone = validated_data.get('phone', '')
 
         user = User.objects.create_user(

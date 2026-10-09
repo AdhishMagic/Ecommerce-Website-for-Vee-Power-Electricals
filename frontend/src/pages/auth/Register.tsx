@@ -56,8 +56,8 @@ export default function Register() {
     setAuthStatus("submitting");
 
     const parts = name.trim().split(/\s+/);
-    const first_name = parts[0] || "Customer";
-    const last_name = parts.slice(1).join(" ") || "User";
+    const first_name = parts[0] || name.trim() || "Customer";
+    const last_name = parts.slice(1).join(" ");
 
     try {
       await authService.register({

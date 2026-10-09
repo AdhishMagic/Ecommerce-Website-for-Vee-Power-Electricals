@@ -10,6 +10,9 @@ export interface User {
   role: "admin" | "customer" | "ADMIN" | "CUSTOMER";
   phone?: string | null;
   is_admin?: boolean;
+  first_name?: string;
+  last_name?: string;
+  username?: string;
 }
 
 interface AuthContextType {

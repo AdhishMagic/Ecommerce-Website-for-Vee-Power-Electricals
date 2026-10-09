@@ -1,38 +1,39 @@
-import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { ordersApi } from "../../api/orders";
 import { addressesApi } from "../../api/addresses";
 import { authService } from "../../services/authService";
-import { OrderSummary, OrderDetailData, CustomerAddress, OrderStatus } from "../../types/api";
-import { resolveProductImage, handleProductImageError } from "../../utils/productImageResolver";
+import {
+  OrderSummary,
+  OrderDetailData,
+  CustomerAddress,
+} from "../../types/api";
+import CustomerSidebar, { CustomerTabId } from "../../components/customer/CustomerSidebar";
+import OrderCard from "../../components/customer/OrderCard";
+import OrderDetailView from "../../components/customer/OrderDetailView";
 
-const statusColors: Record<string, string> = {
-  PENDING: "bg-slate-100 text-slate-700",
-  CONFIRMED: "bg-blue-100 text-blue-700",
-  PACKED: "bg-amber-100 text-amber-700",
-  SHIPPED: "bg-indigo-100 text-indigo-700",
-  DELIVERED: "bg-emerald-100 text-emerald-700",
-  CANCELLED: "bg-red-100 text-red-700",
-  RETURN_REQUESTED: "bg-orange-100 text-orange-700",
-  RETURN_APPROVED: "bg-purple-100 text-purple-700",
-  RETURN_REJECTED: "bg-rose-100 text-rose-700",
-  RETURN_COMPLETED: "bg-gray-100 text-gray-700",
-  // Legacy string mappings
-  Delivered: "bg-emerald-100 text-emerald-700",
-  Shipped: "bg-indigo-100 text-indigo-700",
-  Packed: "bg-amber-100 text-amber-700",
-  Confirmed: "bg-blue-100 text-blue-700",
-  Pending: "bg-slate-100 text-slate-700",
-  Cancelled: "bg-red-100 text-red-700",
-};
+type OrderFilterType = "all" | "in_progress" | "delivered" | "cancelled_returns";
 
 export default function Account() {
-  const [tab, setTab] = useState("orders");
+  const location = useLocation();
+  const [tab, setTab] = useState<CustomerTabId>(() => {
+    if (location.pathname.includes("/orders")) return "orders";
+    return "orders";
+  });
+
+  // Orders State
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<OrderDetailData | null>(null);
   const [selectedOrderLoading, setSelectedOrderLoading] = useState(false);
+  const [orderFilter, setOrderFilter] = useState<OrderFilterType>("all");
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalOrdersCount, setTotalOrdersCount] = useState<number | undefined>(undefined);
 
   const { user, logout, refreshUser } = useAuth();
 
@@ -64,40 +65,55 @@ export default function Account() {
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState("");
 
+  // Sync profile data when user changes
   useEffect(() => {
     if (user) {
-      const parts = user.name?.split(" ") || ["", ""];
-      setProfileFirstName(parts[0] || "");
-      setProfileLastName(parts.slice(1).join(" ") || "");
+      const cleanLastName = (user.last_name || "").trim().toLowerCase() === "user" ? "" : (user.last_name || "").trim();
+      let cleanName = user.name?.trim() || "";
+      if (cleanName.toLowerCase().endsWith(" user") && cleanName.toLowerCase() !== "user") {
+        cleanName = cleanName.replace(/\s+user$/i, "").trim();
+      }
+      const parts = cleanName ? cleanName.split(/\s+/) : [];
+      setProfileFirstName(user.first_name || parts[0] || "");
+      setProfileLastName(cleanLastName || (parts.length > 1 ? parts.slice(1).join(" ") : ""));
       setProfilePhone(user.phone || "");
     }
   }, [user]);
 
-  // Load orders on mount
-  useEffect(() => {
-    let isMounted = true;
-    const fetchOrders = async () => {
-      try {
-        setOrdersLoading(true);
-        const res = await ordersApi.getMyOrders();
-        if (isMounted) {
-          setOrders(Array.isArray(res) ? res : res.results || []);
-        }
-      } catch (err) {
-        console.error("Failed to load orders:", err);
-      } finally {
-        if (isMounted) setOrdersLoading(false);
+  // Fetch orders with pagination
+  const fetchOrders = useCallback(async (page = 1) => {
+    try {
+      setOrdersLoading(true);
+      setOrdersError(null);
+      const res = await ordersApi.getMyOrders({ page });
+      if (Array.isArray(res)) {
+        setOrders(res);
+        setTotalOrdersCount(res.length);
+        setTotalPages(1);
+        setCurrentPage(1);
+      } else if (res && Array.isArray(res.results)) {
+        setOrders(res.results);
+        setTotalOrdersCount(res.count ?? res.results.length);
+        setTotalPages(res.total_pages || Math.ceil((res.count || 0) / 10) || 1);
+        setCurrentPage(page);
+      } else {
+        setOrders([]);
+        setTotalOrdersCount(0);
       }
-    };
-
-    fetchOrders();
-    return () => {
-      isMounted = false;
-    };
+    } catch (err: any) {
+      console.error("Failed to load orders:", err);
+      setOrdersError(err?.message || "Failed to load your orders. Please check your connection and try again.");
+    } finally {
+      setOrdersLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    fetchOrders(1);
+  }, [fetchOrders]);
+
   // Load addresses on mount or tab change
-  const loadAddresses = async () => {
+  const loadAddresses = useCallback(async () => {
     try {
       setAddressesLoading(true);
       const data = await addressesApi.getAddresses();
@@ -107,14 +123,33 @@ export default function Account() {
     } finally {
       setAddressesLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (tab === "addresses") {
       loadAddresses();
     }
-  }, [tab]);
+  }, [tab, loadAddresses]);
 
+  // Filtered orders calculation
+  const filteredOrders = useMemo(() => {
+    if (orderFilter === "all") return orders;
+    return orders.filter((order) => {
+      const s = (order.status || "").toUpperCase();
+      if (orderFilter === "in_progress") {
+        return ["PENDING", "CONFIRMED", "PACKED", "SHIPPED"].includes(s);
+      }
+      if (orderFilter === "delivered") {
+        return s === "DELIVERED";
+      }
+      if (orderFilter === "cancelled_returns") {
+        return ["CANCELLED", "RETURN_REQUESTED", "RETURN_APPROVED", "RETURN_REJECTED", "RETURN_COMPLETED"].includes(s);
+      }
+      return true;
+    });
+  }, [orders, orderFilter]);
+
+  // Address Actions
   const openAddAddress = () => {
     setEditingId(null);
     setAddressError("");
@@ -155,7 +190,7 @@ export default function Account() {
     if (window.confirm("Are you sure you want to delete this address?")) {
       try {
         await addressesApi.deleteAddress(id);
-        setAddresses(prev => prev.filter(a => a.id !== id));
+        setAddresses((prev) => prev.filter((a) => a.id !== id));
       } catch (err: any) {
         alert(err?.message || "Failed to delete address.");
       }
@@ -178,13 +213,13 @@ export default function Account() {
           ...addressForm,
           pincode: pinClean,
         });
-        setAddresses(prev => prev.map(a => a.id === editingId ? updated : a));
+        setAddresses((prev) => prev.map((a) => (a.id === editingId ? updated : a)));
       } else {
         const created = await addressesApi.createAddress({
           ...addressForm,
           pincode: pinClean,
         });
-        setAddresses(prev => [created, ...prev]);
+        setAddresses((prev) => [created, ...prev]);
       }
       setIsAddressFormOpen(false);
       loadAddresses();
@@ -202,11 +237,14 @@ export default function Account() {
     }
   };
 
+  // Order Details Action
   const handleViewOrder = async (id: number) => {
     setSelectedOrderLoading(true);
+    setActionError("");
     try {
       const detail = await ordersApi.getOrderDetail(id);
       setSelectedOrder(detail);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err: any) {
       alert(err?.message || "Failed to load order details.");
     } finally {
@@ -221,8 +259,7 @@ export default function Account() {
     try {
       const updated = await ordersApi.cancelOrder(orderId, reason);
       setSelectedOrder(updated);
-      const res = await ordersApi.getMyOrders();
-      setOrders(Array.isArray(res) ? res : res.results || []);
+      fetchOrders(currentPage);
     } catch (err: any) {
       setActionError(err?.message || "Failed to cancel order.");
     } finally {
@@ -241,8 +278,7 @@ export default function Account() {
     try {
       const updated = await ordersApi.requestReturn(orderId, reason.trim());
       setSelectedOrder(updated);
-      const res = await ordersApi.getMyOrders();
-      setOrders(Array.isArray(res) ? res : res.results || []);
+      fetchOrders(currentPage);
     } catch (err: any) {
       setActionError(err?.message || "Failed to submit return request.");
     } finally {
@@ -250,6 +286,7 @@ export default function Account() {
     }
   };
 
+  // Profile Save Action
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileError("");
@@ -263,431 +300,641 @@ export default function Account() {
       });
       await refreshUser();
       setProfileSuccess(true);
-      setTimeout(() => setProfileSuccess(false), 3000);
+      setTimeout(() => setProfileSuccess(false), 3500);
     } catch (err: any) {
       setProfileError(err?.message || "Failed to update profile settings.");
     }
   };
 
-  if (selectedOrder) {
-    const shipping = selectedOrder.shipping_address || {};
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        <button onClick={() => setSelectedOrder(null)} className="flex items-center gap-2 text-sm text-[#667085] hover:text-[#1769AA] mb-4 font-medium">
-          ← Back to Orders
-        </button>
-        <div className="bg-white border border-[#D9E1E8] rounded-xl p-6 shadow-sm">
-          <div className="flex flex-wrap justify-between items-start gap-3 mb-6 pb-4 border-b border-gray-100">
-            <div>
-              <h2 className="text-xl font-bold text-[#0B3A63] font-mono">Order #{selectedOrder.order_number}</h2>
-              <p className="text-sm text-[#667085] mt-1">Placed on {new Date(selectedOrder.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}</p>
-            </div>
-            <span className={`text-sm font-semibold px-3 py-1 rounded-full ${statusColors[selectedOrder.status] || "bg-gray-100 text-gray-700"}`}>
-              {selectedOrder.status}
-            </span>
-          </div>
-
-          {/* Timeline */}
-          {selectedOrder.status_history && selectedOrder.status_history.length > 0 && (
-            <div className="mb-6 p-4 bg-[#F8FAFC] rounded-xl border border-gray-100">
-              <h3 className="font-semibold text-[#0B3A63] mb-4 text-sm uppercase tracking-wider">Status History & Audit Trail</h3>
-              <div className="space-y-3">
-                {selectedOrder.status_history.map((event, i) => (
-                  <div key={event.id || i} className="flex items-start gap-3">
-                    <div className="w-5 h-5 rounded-full bg-[#12773D] flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                    </div>
-                    <div className="flex-1 text-sm">
-                      <p className="font-semibold text-[#17212B]">{event.new_status} <span className="font-normal text-xs text-[#667085]">({new Date(event.created_at).toLocaleString("en-IN")})</span></p>
-                      {event.reason && <p className="text-xs text-[#667085] mt-0.5">{event.reason}</p>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Items */}
-          <div className="mb-6">
-            <h3 className="font-semibold text-[#0B3A63] mb-3">Items Ordered ({selectedOrder.items?.length || 0})</h3>
-            <div className="space-y-3">
-              {selectedOrder.items?.map((item, i) => (
-                <div key={item.id || i} className="flex gap-4 py-3 border-b border-[#D9E1E8] last:border-0 items-center">
-                  <img
-                    src={resolveProductImage(item.image_url)}
-                    alt={item.product_name}
-                    className="w-14 h-14 object-contain p-1 rounded-lg bg-[#F8FAFC] border border-gray-200"
-                    onError={(e) => handleProductImageError(e)}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[#17212B] line-clamp-1">{item.product_name}</p>
-                    <p className="text-xs text-[#667085] mt-0.5">SKU: {item.sku} · Qty: {item.quantity} × ₹{Number(item.unit_price).toLocaleString("en-IN")}</p>
-                  </div>
-                  <p className="font-bold text-[#0B3A63] text-sm">₹{Number(item.total_amount).toLocaleString("en-IN")}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Billing & Delivery */}
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div className="bg-[#F6F8FA] rounded-xl p-4 border border-[#D9E1E8]">
-              <h4 className="font-semibold text-[#0B3A63] mb-2 text-sm">Delivery Address</h4>
-              <p className="text-sm font-bold text-[#17212B]">{shipping.recipient_name || selectedOrder.customer_name}</p>
-              <p className="text-sm text-[#667085] mt-0.5">{shipping.address_line1 || shipping.address}</p>
-              {shipping.address_line2 && <p className="text-sm text-[#667085]">{shipping.address_line2}</p>}
-              <p className="text-sm text-[#667085]">{shipping.city}, {shipping.state} - {shipping.pincode}</p>
-              <p className="text-xs text-[#1769AA] mt-1 font-medium">📞 {shipping.phone || selectedOrder.customer_phone}</p>
-            </div>
-            <div className="bg-[#F6F8FA] rounded-xl p-4 border border-[#D9E1E8] space-y-1.5">
-              <h4 className="font-semibold text-[#0B3A63] mb-2 text-sm">Financial Snapshot</h4>
-              <div className="flex justify-between text-xs text-[#667085]"><span>Subtotal:</span><span>₹{Number(selectedOrder.subtotal).toLocaleString("en-IN")}</span></div>
-              {Number(selectedOrder.total_discount) > 0 && (
-                <div className="flex justify-between text-xs text-[#12773D]"><span>Discount:</span><span>−₹{Number(selectedOrder.total_discount).toLocaleString("en-IN")}</span></div>
-              )}
-              <div className="flex justify-between text-xs text-[#667085]"><span>Delivery Fee:</span><span>₹{Number(selectedOrder.shipping_fee).toLocaleString("en-IN")}</span></div>
-              <div className="flex justify-between text-xs text-[#667085]"><span>GST:</span><span>₹{(Number(selectedOrder.cgst_amount || 0) + Number(selectedOrder.sgst_amount || 0) + Number(selectedOrder.igst_amount || 0)).toLocaleString("en-IN")}</span></div>
-              <div className="flex justify-between text-sm font-bold text-[#0B3A63] pt-2 border-t border-gray-200">
-                <span>Total Amount:</span>
-                <span className="text-[#1769AA] text-base">₹{Number(selectedOrder.total_amount).toLocaleString("en-IN")}</span>
-              </div>
-              <div className="pt-2 text-xs text-[#667085] flex justify-between">
-                <span>Payment: {selectedOrder.payment_method}</span>
-                <span className="font-semibold text-emerald-700">{selectedOrder.payment_status}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Action alerts & buttons */}
-          {actionError && (
-            <div className="mt-4 p-3 bg-red-50 text-red-700 text-xs rounded-lg border border-red-200">
-              {actionError}
-            </div>
-          )}
-
-          <div className="mt-6 pt-4 border-t border-[#D9E1E8] flex flex-wrap justify-between items-center gap-3">
-            <div>
-              {selectedOrder.status === 'CANCELLED' && (
-                <p className="text-xs text-red-600 font-medium">This order was cancelled. Stock has been returned to inventory.</p>
-              )}
-              {selectedOrder.status === 'RETURN_REQUESTED' && (
-                <p className="text-xs text-orange-600 font-medium">Return request submitted and pending warehouse review.</p>
-              )}
-              {selectedOrder.status === 'RETURN_APPROVED' && (
-                <p className="text-xs text-purple-600 font-medium">Return approved. Please dispatch items for inspection.</p>
-              )}
-              {selectedOrder.status === 'RETURN_REJECTED' && (
-                <p className="text-xs text-rose-600 font-medium">Return request rejected.</p>
-              )}
-              {selectedOrder.status === 'RETURN_COMPLETED' && (
-                <p className="text-xs text-slate-600 font-medium">Return completed and merchandise restocked.</p>
-              )}
-            </div>
-
-            <div className="flex gap-3">
-              {['PENDING', 'CONFIRMED', 'PACKED'].includes(selectedOrder.status) && (
-                <button
-                  type="button"
-                  onClick={() => handleCancelOrder(selectedOrder.id)}
-                  disabled={actionLoading}
-                  className="px-4 py-2 text-xs font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50 transition-colors"
-                >
-                  {actionLoading ? "Processing..." : "Cancel Order"}
-                </button>
-              )}
-
-              {selectedOrder.status === 'DELIVERED' && (
-                <button
-                  type="button"
-                  onClick={() => handleRequestReturn(selectedOrder.id)}
-                  disabled={actionLoading}
-                  className="px-4 py-2 text-xs font-semibold text-orange-700 border border-orange-300 rounded-lg hover:bg-orange-50 disabled:opacity-50 transition-colors"
-                >
-                  {actionLoading ? "Processing..." : "Request Return"}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-
   return (
-    <div className="max-w-7xl mx-auto px-3.5 sm:px-4 py-6 sm:py-8">
-      <div className="grid lg:grid-cols-12 gap-6 lg:gap-8">
-        {/* Sidebar */}
-        <div className="lg:col-span-3 animate-dashboard-header">
-          <div className="bg-white border border-[#D9E1E8] rounded-2xl overflow-hidden shadow-sm sticky top-24">
-            <div className="bg-[#0B3A63] p-4 sm:p-6 text-center">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#F2A900] rounded-full flex items-center justify-center mx-auto mb-3 shadow-md border-4 border-[#0B3A63]/50">
-                <span className="text-[#0B3A63] font-bold text-2xl sm:text-3xl" style={{ fontFamily: "Outfit" }}>
-                  {user?.name?.charAt(0) || "U"}
-                </span>
-              </div>
-              <p className="font-semibold text-white text-base truncate" style={{ fontFamily: "Outfit" }}>{user?.name || "Customer"}</p>
-              <p className="text-white/70 text-xs sm:text-sm mt-0.5 truncate">{user?.email || "customer@email.com"}</p>
-            </div>
-            <div className="p-3 sm:p-4 space-y-1">
-              {[
-                { id: "orders", label: "My Orders", icon: "📦" },
-                { id: "addresses", label: "Addresses", icon: "📍" },
-                { id: "profile", label: "Profile Settings", icon: "👤" },
-              ].map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => setTab(item.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-sm rounded-xl transition-all text-left ${tab === item.id ? "bg-[#1769AA] text-white font-medium shadow-md shadow-[#1769AA]/20" : "text-[#667085] hover:text-[#17212B] hover:bg-[#F6F8FA]"}`}
-                >
-                  <span className="text-lg">{item.icon}</span>
-                  {item.label}
-                </button>
-              ))}
-              <div className="pt-2 mt-2 border-t border-[#D9E1E8]">
-                <button
-                  onClick={logout}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[#C0392B] hover:bg-[#FEF2F2] rounded-xl transition-colors font-medium"
-                >
-                  <span className="text-lg">🚪</span> Logout
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+    <div className="w-full bg-[#F6F8FA] min-h-[calc(100vh-140px)] py-6 sm:py-8 lg:py-10">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Breadcrumb Navigation */}
+        <nav
+          className="flex items-center gap-2 text-xs font-medium text-[#667085] mb-5 sm:mb-6"
+          aria-label="Breadcrumb"
+        >
+          <Link to="/" className="hover:text-[#1769AA] transition-colors">
+            Home
+          </Link>
+          <span>/</span>
+          <span className="text-[#17212B]">
+            {tab === "orders" ? "My Orders" : tab === "addresses" ? "Saved Addresses" : "Profile Settings"}
+          </span>
+          {selectedOrder && (
+            <>
+              <span>/</span>
+              <span className="text-[#1769AA] font-mono font-semibold">#{selectedOrder.order_number}</span>
+            </>
+          )}
+        </nav>
 
-        {/* Content */}
-        <div className="lg:col-span-9 animate-dashboard-card">
-          {tab === "orders" && (
-            <div>
-              <h2 className="text-2xl font-bold text-[#0B3A63] mb-6" style={{ fontFamily: "Outfit" }}>My Orders</h2>
-              {ordersLoading ? (
-                <div className="space-y-4">
-                  {[...Array(3)].map((_, i) => (
-                    <div key={i} className="animate-pulse bg-white border border-[#D9E1E8] rounded-2xl p-6 h-36"></div>
-                  ))}
-                </div>
-              ) : orders.length === 0 ? (
-                <div className="bg-white border border-[#D9E1E8] rounded-2xl p-12 text-center shadow-sm">
-                  <div className="text-5xl mb-4">📦</div>
-                  <h3 className="text-lg font-bold text-[#0B3A63] mb-2">No orders placed yet</h3>
-                  <p className="text-sm text-[#667085] mb-6">Explore our wide catalog of genuine electrical merchandise.</p>
-                  <Link to="/shop" className="bg-[#0B3A63] hover:bg-[#1769AA] text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors">
-                    Start Shopping
-                  </Link>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {orders.map(order => (
-                    <div key={order.id} className="bg-white border border-[#D9E1E8] rounded-2xl p-6 hover:shadow-md transition-shadow">
-                      <div className="flex flex-wrap justify-between items-start gap-4 mb-4">
-                        <div>
-                          <p className="font-semibold text-[#17212B] text-base font-mono">#{order.order_number}</p>
-                          <p className="text-sm text-[#667085] mt-1">{new Date(order.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}</p>
+        {/* 2-Column Responsive Layout */}
+        <div className="w-full min-w-0 grid lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+          {/* Left Column: Customer Sidebar */}
+          <aside className="w-full min-w-0 lg:col-span-4 xl:col-span-3 animate-dashboard-header">
+            <CustomerSidebar
+              user={user}
+              activeTab={tab}
+              onSelectTab={(newTab) => {
+                setTab(newTab);
+                setSelectedOrder(null);
+              }}
+              onLogout={logout}
+              ordersCount={totalOrdersCount}
+            />
+          </aside>
+
+          {/* Right Column: Main Content Area */}
+          <main className="w-full min-w-0 lg:col-span-8 xl:col-span-9 animate-dashboard-card">
+            {/* View Details View */}
+            {selectedOrder ? (
+              <OrderDetailView
+                order={selectedOrder}
+                onBack={() => setSelectedOrder(null)}
+                onCancelOrder={handleCancelOrder}
+                onRequestReturn={handleRequestReturn}
+                actionLoading={actionLoading}
+                actionError={actionError}
+              />
+            ) : (
+              <>
+                {/* TAB 1: MY ORDERS */}
+                {tab === "orders" && (
+                  <div className="space-y-6">
+                    {/* Orders Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
+                      <div>
+                        <div className="flex items-center gap-3">
+                          <h1
+                            className="text-2xl sm:text-3xl font-bold text-[#0B3A63] tracking-tight"
+                            style={{ fontFamily: "Outfit, sans-serif" }}
+                          >
+                            My Orders
+                          </h1>
+                          {typeof totalOrdersCount === "number" && (
+                            <span className="px-2.5 py-0.5 text-xs font-bold bg-[#EFF6FF] text-[#1769AA] border border-[#BFDBFE] rounded-full">
+                              {totalOrdersCount} {totalOrdersCount === 1 ? "Order" : "Orders"}
+                            </span>
+                          )}
                         </div>
-                        <span className={`text-xs font-semibold px-3 py-1.5 rounded-full ${statusColors[order.status] || "bg-gray-100 text-gray-700"}`}>
-                          {order.status}
-                        </span>
+                        <p className="text-xs sm:text-sm text-[#667085] mt-1">
+                          Track your purchases and view your order details.
+                        </p>
                       </div>
-                      <div className="flex justify-between items-center pt-4 border-t border-[#F6F8FA]">
-                        <div>
-                          <p className="text-base font-bold text-[#0B3A63]">₹{Number(order.total_amount).toLocaleString("en-IN")}</p>
-                          <p className="text-xs text-[#667085] mt-0.5">{order.items_count} item{order.items_count === 1 ? '' : 's'} · {order.payment_method}</p>
-                        </div>
+
+                      {/* Refresh Button */}
+                      {!ordersLoading && (
                         <button
-                          onClick={() => handleViewOrder(order.id)}
-                          disabled={selectedOrderLoading}
-                          className="text-sm bg-[#F6F8FA] hover:bg-[#1769AA] text-[#1769AA] hover:text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                          type="button"
+                          onClick={() => fetchOrders(currentPage)}
+                          className="self-start sm:self-center inline-flex items-center gap-1.5 text-xs font-semibold text-[#1769AA] hover:text-[#0B3A63] bg-white border border-[#D9E1E8] hover:border-[#1769AA] px-3 py-1.5 rounded-lg shadow-2xs transition-all"
+                          title="Refresh order history"
                         >
-                          View Details
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          <span>Refresh</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Status Filter Pills (if orders exist) */}
+                    {orders.length > 0 && (
+                      <div className="w-full min-w-0 max-w-full flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                        {(
+                          [
+                            { id: "all", label: "All Orders" },
+                            { id: "in_progress", label: "In Progress" },
+                            { id: "delivered", label: "Delivered" },
+                            { id: "cancelled_returns", label: "Cancelled & Returns" },
+                          ] as const
+                        ).map((pill) => {
+                          const isActive = orderFilter === pill.id;
+                          return (
+                            <button
+                              key={pill.id}
+                              type="button"
+                              onClick={() => setOrderFilter(pill.id)}
+                              className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all shrink-0 ${
+                                isActive
+                                  ? "bg-[#0B3A63] text-white shadow-2xs"
+                                  : "bg-white text-[#667085] hover:text-[#17212B] border border-[#D9E1E8] hover:bg-slate-50"
+                              }`}
+                            >
+                              {pill.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* STATE 1: Loading Skeleton */}
+                    {ordersLoading && (
+                      <div className="space-y-4">
+                        {[1, 2, 3].map((n) => (
+                          <div
+                            key={n}
+                            className="bg-white border border-[#D9E1E8] rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-xs animate-pulse"
+                          >
+                            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                              <div className="space-y-2">
+                                <div className="h-4 bg-slate-200 rounded w-36" />
+                                <div className="h-3 bg-slate-100 rounded w-28" />
+                              </div>
+                              <div className="h-6 bg-slate-200 rounded-full w-20" />
+                            </div>
+                            <div className="pt-4 flex items-center justify-between">
+                              <div className="space-y-2">
+                                <div className="h-5 bg-slate-200 rounded w-24" />
+                                <div className="h-3 bg-slate-100 rounded w-32" />
+                              </div>
+                              <div className="h-9 bg-slate-200 rounded-xl w-28" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* STATE 2: API Failure / Error State */}
+                    {!ordersLoading && ordersError && (
+                      <div className="bg-white border border-rose-200 rounded-2xl p-8 sm:p-10 text-center shadow-xs">
+                        <div className="w-14 h-14 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-100">
+                          <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                        </div>
+                        <h3
+                          className="text-lg font-bold text-[#0B3A63] mb-2"
+                          style={{ fontFamily: "Outfit, sans-serif" }}
+                        >
+                          Unable to Load Orders
+                        </h3>
+                        <p className="text-xs sm:text-sm text-[#667085] max-w-md mx-auto mb-6">
+                          {ordersError}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => fetchOrders(currentPage)}
+                          className="inline-flex items-center gap-2 bg-[#1769AA] hover:bg-[#0B3A63] text-white px-6 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors shadow-xs"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          <span>Retry</span>
                         </button>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+                    )}
 
-          {tab === "addresses" && (
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-[#0B3A63]" style={{ fontFamily: "Outfit" }}>Saved Addresses</h2>
-                {!isAddressFormOpen && (
-                  <button
-                    onClick={openAddAddress}
-                    className="bg-[#1769AA] hover:bg-[#0B3A63] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
-                  >
-                    <span>+</span> Add New
-                  </button>
-                )}
-              </div>
-
-              {isAddressFormOpen && (
-                <div className="bg-white border border-[#D9E1E8] rounded-2xl p-6 shadow-sm mb-6">
-                  <h3 className="text-lg font-bold text-[#0B3A63] mb-4">{editingId ? 'Edit Address' : 'Add New Address'}</h3>
-
-                  {addressError && (
-                    <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-4 border border-red-100">
-                      {addressError}
-                    </div>
-                  )}
-
-                  <form onSubmit={saveAddress} className="space-y-4">
-                    <div className="grid sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-[#17212B] mb-1.5">Recipient Full Name *</label>
-                        <input required value={addressForm.recipient_name} onChange={e => setAddressForm({...addressForm, recipient_name: e.target.value})} className="w-full px-4 py-2.5 bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl text-sm focus:bg-white focus:border-[#1769AA] outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-[#17212B] mb-1.5">Phone Number *</label>
-                        <input required value={addressForm.phone} onChange={e => setAddressForm({...addressForm, phone: e.target.value})} className="w-full px-4 py-2.5 bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl text-sm focus:bg-white focus:border-[#1769AA] outline-none" />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-[#17212B] mb-1.5">Address Line 1 *</label>
-                      <input required value={addressForm.address_line1} onChange={e => setAddressForm({...addressForm, address_line1: e.target.value})} className="w-full px-4 py-2.5 bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl text-sm focus:bg-white focus:border-[#1769AA] outline-none" placeholder="Door No., Building, Street" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-[#17212B] mb-1.5">Address Line 2 (Optional)</label>
-                      <input value={addressForm.address_line2} onChange={e => setAddressForm({...addressForm, address_line2: e.target.value})} className="w-full px-4 py-2.5 bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl text-sm focus:bg-white focus:border-[#1769AA] outline-none" placeholder="Area, Landmark" />
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                      <div className="col-span-2 sm:col-span-1">
-                        <label className="block text-sm font-medium text-[#17212B] mb-1.5">City *</label>
-                        <input required value={addressForm.city} onChange={e => setAddressForm({...addressForm, city: e.target.value})} className="w-full px-4 py-2.5 bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl text-sm focus:bg-white focus:border-[#1769AA] outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-[#17212B] mb-1.5">State *</label>
-                        <input required value={addressForm.state} onChange={e => setAddressForm({...addressForm, state: e.target.value})} className="w-full px-4 py-2.5 bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl text-sm focus:bg-white focus:border-[#1769AA] outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-[#17212B] mb-1.5">PIN Code (6 digits) *</label>
-                        <input required value={addressForm.pincode} onChange={e => setAddressForm({...addressForm, pincode: e.target.value})} className="w-full px-4 py-2.5 bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl text-sm focus:bg-white focus:border-[#1769AA] outline-none" placeholder="641001" />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 mt-4 pt-2">
-                      <input type="checkbox" id="is_default" checked={addressForm.is_default} onChange={e => setAddressForm({...addressForm, is_default: e.target.checked})} className="rounded text-[#1769AA] focus:ring-[#1769AA]" />
-                      <label htmlFor="is_default" className="text-sm text-[#17212B]">Set as default shipping address</label>
-                    </div>
-                    <div className="flex gap-3 pt-4 border-t border-[#F6F8FA]">
-                      <button type="submit" className="bg-[#1769AA] text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-[#0B3A63] transition-colors">
-                        Save Address
-                      </button>
-                      <button type="button" onClick={() => setIsAddressFormOpen(false)} className="bg-[#F6F8FA] text-[#667085] px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-[#D9E1E8] hover:text-[#17212B] transition-colors">
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              )}
-
-              {addressesLoading ? (
-                <div className="grid sm:grid-cols-2 gap-6">
-                  {[...Array(2)].map((_, i) => (
-                    <div key={i} className="animate-pulse bg-white rounded-2xl p-6 h-48 border border-[#D9E1E8]"></div>
-                  ))}
-                </div>
-              ) : (
-                <div className="grid sm:grid-cols-2 gap-6">
-                  {addresses.map(addr => (
-                    <div key={addr.id} className={`bg-white rounded-2xl p-6 relative transition-all shadow-sm ${addr.is_default ? 'border-2 border-[#1769AA]' : 'border border-[#D9E1E8] hover:border-[#1769AA]/50'}`}>
-                      {addr.is_default && (
-                        <span className="absolute top-4 right-4 text-xs bg-[#EFF6FF] text-[#1769AA] font-bold px-2.5 py-1 rounded-full tracking-wide">DEFAULT</span>
-                      )}
-                      <p className="font-bold text-[#17212B] text-lg mb-2 pr-20" style={{ fontFamily: "Outfit" }}>{addr.recipient_name}</p>
-                      <div className="space-y-1">
-                        <p className="text-sm text-[#667085] leading-relaxed">{addr.address_line1}{addr.address_line2 ? `, ${addr.address_line2}` : ''}</p>
-                        <p className="text-sm text-[#667085] leading-relaxed">{addr.city}, {addr.state} - {addr.pincode}</p>
-                        <p className="text-sm text-[#17212B] font-medium mt-2 pt-2 border-t border-[#F6F8FA]">📞 {addr.phone}</p>
-                      </div>
-                      <div className="flex items-center justify-between mt-5 pt-4 border-t border-[#F6F8FA]">
-                        <div className="flex gap-4">
-                          <button onClick={() => openEditAddress(addr)} className="text-sm font-medium text-[#1769AA] hover:text-[#0B3A63] transition-colors">Edit</button>
-                          <button onClick={() => handleDeleteAddress(addr.id)} className="text-sm font-medium text-[#C0392B] hover:text-[#992D22] transition-colors">Delete</button>
+                    {/* STATE 3: Empty State (Zero orders) */}
+                    {!ordersLoading && !ordersError && orders.length === 0 && (
+                      <div className="bg-white border border-[#D9E1E8] rounded-2xl p-8 sm:p-12 text-center shadow-xs">
+                        <div className="w-16 h-16 bg-[#EFF6FF] text-[#1769AA] rounded-full flex items-center justify-center mx-auto mb-4 border border-[#BFDBFE]">
+                          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                          </svg>
                         </div>
-                        {!addr.is_default && (
-                          <button onClick={() => handleSetDefaultAddress(addr.id)} className="text-xs text-slate-500 hover:text-[#1769AA] underline">
-                            Set as Default
+                        <h3
+                          className="text-lg sm:text-xl font-bold text-[#0B3A63] mb-2"
+                          style={{ fontFamily: "Outfit, sans-serif" }}
+                        >
+                          No Orders Placed Yet
+                        </h3>
+                        <p className="text-xs sm:text-sm text-[#667085] max-w-md mx-auto mb-6">
+                          Explore our wide catalog of genuine electrical switches, cables, fans, and appliances.
+                        </p>
+                        <Link
+                          to="/shop"
+                          className="inline-flex items-center gap-2 bg-[#0B3A63] hover:bg-[#1769AA] text-white px-6 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-xs"
+                        >
+                          <span>Start Shopping</span>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                          </svg>
+                        </Link>
+                      </div>
+                    )}
+
+                    {/* STATE 4: Filter Empty State */}
+                    {!ordersLoading && !ordersError && orders.length > 0 && filteredOrders.length === 0 && (
+                      <div className="bg-white border border-[#D9E1E8] rounded-2xl p-8 text-center shadow-xs">
+                        <p className="text-sm font-semibold text-[#17212B] mb-1">
+                          No orders found matching this filter
+                        </p>
+                        <p className="text-xs text-[#667085] mb-4">
+                          Try switching to "All Orders" to view your full history.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setOrderFilter("all")}
+                          className="text-xs font-semibold text-[#1769AA] hover:underline"
+                        >
+                          Show All Orders
+                        </button>
+                      </div>
+                    )}
+
+                    {/* STATE 5: Orders List */}
+                    {!ordersLoading && !ordersError && filteredOrders.length > 0 && (
+                      <div className="space-y-4">
+                        {filteredOrders.map((order) => (
+                          <OrderCard
+                            key={order.id}
+                            order={order}
+                            onViewDetails={handleViewOrder}
+                            isLoadingDetails={selectedOrderLoading}
+                          />
+                        ))}
+
+                        {/* Pagination Bar */}
+                        {totalPages > 1 && (
+                          <div className="bg-white border border-[#D9E1E8] rounded-xl px-4 py-3 flex items-center justify-between gap-3 text-xs shadow-2xs mt-6">
+                            <span className="text-[#667085]">
+                              Page <strong className="text-[#17212B]">{currentPage}</strong> of{" "}
+                              <strong className="text-[#17212B]">{totalPages}</strong>
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                disabled={currentPage <= 1 || ordersLoading}
+                                onClick={() => fetchOrders(currentPage - 1)}
+                                className="px-3 py-1.5 border border-[#D9E1E8] rounded-lg font-medium text-[#17212B] hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                              >
+                                Previous
+                              </button>
+                              <button
+                                type="button"
+                                disabled={currentPage >= totalPages || ordersLoading}
+                                onClick={() => fetchOrders(currentPage + 1)}
+                                className="px-3 py-1.5 border border-[#D9E1E8] rounded-lg font-medium text-[#17212B] hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                              >
+                                Next
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* TAB 2: SAVED ADDRESSES */}
+                {tab === "addresses" && (
+                  <div className="space-y-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2">
+                      <div>
+                        <h2
+                          className="text-2xl sm:text-3xl font-bold text-[#0B3A63] tracking-tight"
+                          style={{ fontFamily: "Outfit, sans-serif" }}
+                        >
+                          Saved Addresses
+                        </h2>
+                        <p className="text-xs sm:text-sm text-[#667085] mt-1">
+                          Manage your delivery addresses for quick and easy checkout.
+                        </p>
+                      </div>
+                      {!isAddressFormOpen && (
+                        <button
+                          type="button"
+                          onClick={openAddAddress}
+                          className="self-start sm:self-center inline-flex items-center gap-2 bg-[#1769AA] hover:bg-[#0B3A63] text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl shadow-xs transition-colors"
+                        >
+                          <span>+</span>
+                          <span>Add New Address</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {isAddressFormOpen && (
+                      <div className="bg-white border border-[#D9E1E8] rounded-2xl p-5 sm:p-7 shadow-xs">
+                        <h3
+                          className="text-base sm:text-lg font-bold text-[#0B3A63] mb-4"
+                          style={{ fontFamily: "Outfit, sans-serif" }}
+                        >
+                          {editingId ? "Edit Address" : "Add New Address"}
+                        </h3>
+
+                        {addressError && (
+                          <div className="bg-red-50 text-red-600 p-3 rounded-xl text-xs sm:text-sm mb-4 border border-red-100">
+                            {addressError}
+                          </div>
+                        )}
+
+                        <form onSubmit={saveAddress} className="space-y-4">
+                          <div className="grid sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-xs font-semibold text-[#17212B] mb-1.5">
+                                Recipient Full Name *
+                              </label>
+                              <input
+                                required
+                                value={addressForm.recipient_name}
+                                onChange={(e) =>
+                                  setAddressForm({ ...addressForm, recipient_name: e.target.value })
+                                }
+                                className="w-full px-3.5 py-2.5 bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl text-xs sm:text-sm focus:bg-white focus:border-[#1769AA] outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-[#17212B] mb-1.5">
+                                Phone Number *
+                              </label>
+                              <input
+                                required
+                                value={addressForm.phone}
+                                onChange={(e) =>
+                                  setAddressForm({ ...addressForm, phone: e.target.value })
+                                }
+                                className="w-full px-3.5 py-2.5 bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl text-xs sm:text-sm focus:bg-white focus:border-[#1769AA] outline-none"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-[#17212B] mb-1.5">
+                              Address Line 1 *
+                            </label>
+                            <input
+                              required
+                              value={addressForm.address_line1}
+                              onChange={(e) =>
+                                setAddressForm({ ...addressForm, address_line1: e.target.value })
+                              }
+                              className="w-full px-3.5 py-2.5 bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl text-xs sm:text-sm focus:bg-white focus:border-[#1769AA] outline-none"
+                              placeholder="Door No., Building, Street"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-[#17212B] mb-1.5">
+                              Address Line 2 (Optional)
+                            </label>
+                            <input
+                              value={addressForm.address_line2}
+                              onChange={(e) =>
+                                setAddressForm({ ...addressForm, address_line2: e.target.value })
+                              }
+                              className="w-full px-3.5 py-2.5 bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl text-xs sm:text-sm focus:bg-white focus:border-[#1769AA] outline-none"
+                              placeholder="Area, Landmark"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                            <div className="col-span-2 sm:col-span-1">
+                              <label className="block text-xs font-semibold text-[#17212B] mb-1.5">
+                                City *
+                              </label>
+                              <input
+                                required
+                                value={addressForm.city}
+                                onChange={(e) =>
+                                  setAddressForm({ ...addressForm, city: e.target.value })
+                                }
+                                className="w-full px-3.5 py-2.5 bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl text-xs sm:text-sm focus:bg-white focus:border-[#1769AA] outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-[#17212B] mb-1.5">
+                                State *
+                              </label>
+                              <input
+                                required
+                                value={addressForm.state}
+                                onChange={(e) =>
+                                  setAddressForm({ ...addressForm, state: e.target.value })
+                                }
+                                className="w-full px-3.5 py-2.5 bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl text-xs sm:text-sm focus:bg-white focus:border-[#1769AA] outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-[#17212B] mb-1.5">
+                                PIN Code (6 digits) *
+                              </label>
+                              <input
+                                required
+                                value={addressForm.pincode}
+                                onChange={(e) =>
+                                  setAddressForm({ ...addressForm, pincode: e.target.value })
+                                }
+                                className="w-full px-3.5 py-2.5 bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl text-xs sm:text-sm focus:bg-white focus:border-[#1769AA] outline-none"
+                                placeholder="641001"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 mt-4 pt-2">
+                            <input
+                              type="checkbox"
+                              id="is_default"
+                              checked={addressForm.is_default}
+                              onChange={(e) =>
+                                setAddressForm({ ...addressForm, is_default: e.target.checked })
+                              }
+                              className="rounded text-[#1769AA] focus:ring-[#1769AA]"
+                            />
+                            <label htmlFor="is_default" className="text-xs sm:text-sm text-[#17212B]">
+                              Set as default shipping address
+                            </label>
+                          </div>
+                          <div className="flex gap-3 pt-4 border-t border-[#F1F5F9]">
+                            <button
+                              type="submit"
+                              className="bg-[#1769AA] text-white px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold hover:bg-[#0B3A63] transition-colors"
+                            >
+                              Save Address
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsAddressFormOpen(false)}
+                              className="bg-[#F6F8FA] text-[#667085] px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold hover:bg-[#D9E1E8] hover:text-[#17212B] transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    )}
+
+                    {addressesLoading ? (
+                      <div className="grid sm:grid-cols-2 gap-5">
+                        {[1, 2].map((i) => (
+                          <div
+                            key={i}
+                            className="animate-pulse bg-white rounded-2xl p-6 h-48 border border-[#D9E1E8]"
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid sm:grid-cols-2 gap-5">
+                        {addresses.map((addr) => (
+                          <div
+                            key={addr.id}
+                            className={`bg-white rounded-2xl p-5 sm:p-6 relative transition-all shadow-xs ${
+                              addr.is_default
+                                ? "border-2 border-[#1769AA]"
+                                : "border border-[#D9E1E8] hover:border-[#1769AA]/50"
+                            }`}
+                          >
+                            {addr.is_default && (
+                              <span className="absolute top-4 right-4 text-[10px] bg-[#EFF6FF] text-[#1769AA] font-bold px-2 py-0.5 rounded-full tracking-wide">
+                                DEFAULT
+                              </span>
+                            )}
+                            <p
+                              className="font-bold text-[#17212B] text-base mb-2 pr-16"
+                              style={{ fontFamily: "Outfit, sans-serif" }}
+                            >
+                              {addr.recipient_name}
+                            </p>
+                            <div className="space-y-1 text-xs sm:text-sm text-[#667085] leading-relaxed">
+                              <p>
+                                {addr.address_line1}
+                                {addr.address_line2 ? `, ${addr.address_line2}` : ""}
+                              </p>
+                              <p>
+                                {addr.city}, {addr.state} - {addr.pincode}
+                              </p>
+                              <p className="text-[#17212B] font-medium pt-2 border-t border-[#F1F5F9]">
+                                📞 {addr.phone}
+                              </p>
+                            </div>
+                            <div className="flex items-center justify-between mt-5 pt-3 border-t border-[#F1F5F9]">
+                              <div className="flex gap-4">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditAddress(addr)}
+                                  className="text-xs font-semibold text-[#1769AA] hover:text-[#0B3A63] transition-colors"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAddress(addr.id)}
+                                  className="text-xs font-semibold text-[#C0392B] hover:text-[#992D22] transition-colors"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                              {!addr.is_default && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetDefaultAddress(addr.id)}
+                                  className="text-xs text-slate-500 hover:text-[#1769AA] underline"
+                                >
+                                  Set as Default
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+
+                        {!isAddressFormOpen && (
+                          <button
+                            type="button"
+                            onClick={openAddAddress}
+                            className="bg-white border-2 border-dashed border-[#D9E1E8] rounded-2xl p-6 text-center hover:border-[#1769AA] hover:bg-[#EFF6FF]/40 transition-colors group flex flex-col items-center justify-center min-h-[180px] shadow-2xs"
+                          >
+                            <div className="w-10 h-10 bg-[#EFF6FF] rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform text-[#1769AA]">
+                              <span className="text-xl font-bold leading-none">+</span>
+                            </div>
+                            <span className="text-xs sm:text-sm font-semibold text-[#667085] group-hover:text-[#1769AA]">
+                              Add New Address
+                            </span>
                           </button>
                         )}
                       </div>
-                    </div>
-                  ))}
-
-                  {!isAddressFormOpen && (
-                    <button onClick={openAddAddress} className="bg-[#F6F8FA] border-2 border-dashed border-[#D9E1E8] rounded-2xl p-6 text-center hover:border-[#1769AA] hover:bg-[#EFF6FF] transition-colors group flex flex-col items-center justify-center min-h-[200px]">
-                      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm mb-3 group-hover:scale-110 transition-transform">
-                        <span className="text-2xl text-[#1769AA] leading-none mb-1">+</span>
-                      </div>
-                      <span className="text-sm font-semibold text-[#667085] group-hover:text-[#1769AA]">Add New Address</span>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {tab === "profile" && (
-            <div>
-              <h2 className="text-2xl font-bold text-[#0B3A63] mb-6" style={{ fontFamily: "Outfit" }}>Profile Settings</h2>
-              <div className="bg-white border border-[#D9E1E8] rounded-2xl p-8 shadow-sm">
-                {profileSuccess && (
-                  <div className="bg-emerald-50 text-emerald-700 p-3.5 rounded-xl text-sm border border-emerald-200 mb-6">
-                    ✓ Profile updated successfully!
-                  </div>
-                )}
-                {profileError && (
-                  <div className="bg-red-50 text-red-600 p-3.5 rounded-xl text-sm border border-red-100 mb-6">
-                    {profileError}
+                    )}
                   </div>
                 )}
 
-                <form onSubmit={handleSaveProfile}>
-                  <div className="grid sm:grid-cols-2 gap-6">
+                {/* TAB 3: PROFILE SETTINGS */}
+                {tab === "profile" && (
+                  <div className="space-y-6">
                     <div>
-                      <label className="text-sm font-medium text-[#17212B] mb-2 block">First Name</label>
-                      <input
-                        value={profileFirstName}
-                        onChange={e => setProfileFirstName(e.target.value)}
-                        className="w-full bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:border-[#1769AA] focus:ring-4 focus:ring-[#1769AA]/10 transition-all"
-                      />
+                      <h2
+                        className="text-2xl sm:text-3xl font-bold text-[#0B3A63] tracking-tight"
+                        style={{ fontFamily: "Outfit, sans-serif" }}
+                      >
+                        Profile Settings
+                      </h2>
+                      <p className="text-xs sm:text-sm text-[#667085] mt-1">
+                        Update your personal details and contact information.
+                      </p>
                     </div>
-                    <div>
-                      <label className="text-sm font-medium text-[#17212B] mb-2 block">Last Name</label>
-                      <input
-                        value={profileLastName}
-                        onChange={e => setProfileLastName(e.target.value)}
-                        className="w-full bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:border-[#1769AA] focus:ring-4 focus:ring-[#1769AA]/10 transition-all"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-[#17212B] mb-2 block">Email Address (Read-only)</label>
-                      <input
-                        disabled
-                        value={user?.email || ""}
-                        className="w-full bg-gray-100 border border-[#D9E1E8] rounded-xl px-4 py-3 text-sm text-gray-500 cursor-not-allowed"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-[#17212B] mb-2 block">Mobile Number</label>
-                      <input
-                        value={profilePhone}
-                        onChange={e => setProfilePhone(e.target.value)}
-                        className="w-full bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:border-[#1769AA] focus:ring-4 focus:ring-[#1769AA]/10 transition-all"
-                        placeholder="+91 98765 43210"
-                      />
+
+                    <div className="bg-white border border-[#D9E1E8] rounded-2xl p-6 sm:p-8 shadow-xs">
+                      {profileSuccess && (
+                        <div className="bg-emerald-50 text-emerald-700 p-3.5 rounded-xl text-xs sm:text-sm border border-emerald-200 mb-6 flex items-center gap-2">
+                          <svg className="w-4 h-4 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span>Profile updated successfully!</span>
+                        </div>
+                      )}
+                      {profileError && (
+                        <div className="bg-red-50 text-red-600 p-3.5 rounded-xl text-xs sm:text-sm border border-red-100 mb-6 flex items-center gap-2">
+                          <svg className="w-4 h-4 shrink-0 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span>{profileError}</span>
+                        </div>
+                      )}
+
+                      <form onSubmit={handleSaveProfile}>
+                        <div className="grid sm:grid-cols-2 gap-5">
+                          <div>
+                            <label className="text-xs font-semibold text-[#17212B] mb-2 block">
+                              First Name
+                            </label>
+                            <input
+                              value={profileFirstName}
+                              onChange={(e) => setProfileFirstName(e.target.value)}
+                              className="w-full bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl px-4 py-2.5 text-xs sm:text-sm outline-none focus:bg-white focus:border-[#1769AA] focus:ring-2 focus:ring-[#1769AA]/15 transition-all"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs font-semibold text-[#17212B] mb-2 block">
+                              Last Name
+                            </label>
+                            <input
+                              value={profileLastName}
+                              onChange={(e) => setProfileLastName(e.target.value)}
+                              className="w-full bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl px-4 py-2.5 text-xs sm:text-sm outline-none focus:bg-white focus:border-[#1769AA] focus:ring-2 focus:ring-[#1769AA]/15 transition-all"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs font-semibold text-[#17212B] mb-2 block">
+                              Email Address (Read-only)
+                            </label>
+                            <input
+                              disabled
+                              value={user?.email || ""}
+                              className="w-full bg-slate-100 border border-[#D9E1E8] rounded-xl px-4 py-2.5 text-xs sm:text-sm text-slate-500 cursor-not-allowed"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs font-semibold text-[#17212B] mb-2 block">
+                              Mobile Number
+                            </label>
+                            <input
+                              value={profilePhone}
+                              onChange={(e) => setProfilePhone(e.target.value)}
+                              className="w-full bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl px-4 py-2.5 text-xs sm:text-sm outline-none focus:bg-white focus:border-[#1769AA] focus:ring-2 focus:ring-[#1769AA]/15 transition-all"
+                              placeholder="+91 98765 43210"
+                            />
+                          </div>
+                        </div>
+                        <div className="mt-8 pt-5 border-t border-[#F1F5F9] flex justify-end">
+                          <button
+                            type="submit"
+                            className="bg-[#0B3A63] text-white px-6 py-2.5 rounded-xl text-xs sm:text-sm font-semibold hover:bg-[#1769AA] transition-colors shadow-xs"
+                          >
+                            Save Changes
+                          </button>
+                        </div>
+                      </form>
                     </div>
                   </div>
-                  <div className="mt-8 pt-6 border-t border-[#F6F8FA] flex justify-end">
-                    <button type="submit" className="bg-[#0B3A63] text-white px-8 py-3 rounded-xl text-sm font-semibold hover:bg-[#1769AA] transition-colors shadow-md shadow-[#1769AA]/20">
-                      Save Changes
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
+                )}
+              </>
+            )}
+          </main>
         </div>
       </div>
     </div>
