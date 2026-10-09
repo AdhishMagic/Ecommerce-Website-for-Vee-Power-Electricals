@@ -104,4 +104,13 @@ export const catalogApi = {
       method: 'DELETE',
     });
   },
+
+  async uploadProductImage(file: File): Promise<{ image_url: string; url: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient<{ image_url: string; url: string }>('/catalog/products/upload-image/', {
+      method: 'POST',
+      body: formData,
+    });
+  },
 };

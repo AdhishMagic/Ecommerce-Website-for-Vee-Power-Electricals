@@ -5,6 +5,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound
 from rest_framework.permissions import AllowAny
+from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from rest_framework.response import Response
 
 from apps.users.permissions import IsAdminUser
@@ -196,6 +197,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     Master catalog product endpoints with rich filtering, search, and protected stock deletion safety.
     """
     queryset = Product.objects.select_related('category', 'subcategory', 'brand').prefetch_related('images', 'specifications')
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
@@ -370,6 +372,74 @@ class ProductViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_200_OK
             )
+
+    @action(
+        detail=False,
+        methods=['post'],
+        url_path='upload-image',
+        permission_classes=[IsAdminUser],
+        parser_classes=[MultiPartParser, FormParser]
+    )
+    def upload_image(self, request):
+        """
+        Secure administrator product image upload.
+        Validates content using Pillow, enforces 5MB size limit, accepts JPEG/PNG/WebP,
+        and saves with safe UUID filenames into media/products/.
+        """
+        uploaded_file = request.FILES.get('file') or request.FILES.get('image')
+        if not uploaded_file:
+            return Response(
+                {"detail": "No image file provided. Please attach a file under 'file' or 'image'."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        max_size = 5 * 1024 * 1024  # 5 MB
+        if uploaded_file.size > max_size:
+            return Response(
+                {"detail": f"File size ({uploaded_file.size / 1024 / 1024:.2f}MB) exceeds the maximum allowed limit of 5MB."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            from PIL import Image
+            uploaded_file.seek(0)
+            img = Image.open(uploaded_file)
+            img.verify()
+            img_format = (img.format or '').upper()
+        except Exception:
+            return Response(
+                {"detail": "Invalid or corrupted image file. Please upload a valid JPEG, PNG, or WebP image."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        allowed_formats = {'JPEG': 'jpg', 'PNG': 'png', 'WEBP': 'webp'}
+        if img_format not in allowed_formats:
+            return Response(
+                {"detail": f"Unsupported image format: {img_format}. Allowed formats are JPEG, PNG, and WebP."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        import uuid
+        from pathlib import Path
+        from django.conf import settings
+
+        ext = allowed_formats[img_format]
+        filename = f"{uuid.uuid4().hex}.{ext}"
+        media_dir = Path(settings.MEDIA_ROOT) / 'products'
+        media_dir.mkdir(parents=True, exist_ok=True)
+        file_path = media_dir / filename
+
+        uploaded_file.seek(0)
+        with open(file_path, 'wb') as destination:
+            for chunk in uploaded_file.chunks():
+                destination.write(chunk)
+
+        relative_url = f"{settings.MEDIA_URL}products/{filename}"
+        return Response({
+            "image_url": relative_url,
+            "url": relative_url,
+            "filename": filename
+        }, status=status.HTTP_201_CREATED)
 
 
 class ProductImageViewSet(viewsets.ModelViewSet):

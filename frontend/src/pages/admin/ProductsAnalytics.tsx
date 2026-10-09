@@ -6,6 +6,7 @@ import {
 import { Package, TrendingUp, IndianRupee, AlertTriangle, RefreshCw } from "lucide-react";
 import { catalogApi, financeApi, ordersApi } from "../../api";
 import type { ProductSummary, FinanceSummary } from "../../types/api";
+import { resolveProductImage, handleProductImageError } from "../../utils/productImageResolver";
 
 const COLORS = ['#0A2540', '#F2A900', '#1E4B7A', '#3A7CA5', '#81C3D7', '#E09B00'];
 
@@ -117,7 +118,7 @@ export default function ProductsAnalytics() {
         units: units,
         revenue: rev > 0 ? rev : parseFloat(String(p.price || "0")) * (p.stock || 0),
         stock: p.stock ?? 0,
-        img: p.primary_image || "",
+        img: resolveProductImage({ image: p.primary_image, category: p.category }),
       };
     });
   }, [products, orders]);
@@ -322,15 +323,16 @@ export default function ProductsAnalytics() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {sortedProducts.slice(0, 10).map(product => (
-                      <tr key={product.id} className="hover:bg-slate-50 transition-colors">
+                      <tr key={product.id} className="hover:bg-slate-50/50">
                         <td className="px-5 py-4 flex items-center gap-3">
-                          {product.img ? (
-                            <img src={product.img} alt={product.name} className="w-10 h-10 rounded border border-slate-200 object-cover" />
-                          ) : (
-                            <div className="w-10 h-10 rounded bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-400">
-                              VP
-                            </div>
-                          )}
+                          <div className="w-10 h-10 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center p-0.5 overflow-hidden shrink-0">
+                            <img
+                              src={product.img}
+                              alt={product.name}
+                              className="w-full h-full object-contain"
+                              onError={(e) => handleProductImageError(e, product.category)}
+                            />
+                          </div>
                           <span className="text-sm font-bold text-[#0A2540]">{product.name}</span>
                         </td>
                         <td className="px-5 py-4 text-sm text-slate-600">{product.brand}</td>

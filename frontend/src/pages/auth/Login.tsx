@@ -59,7 +59,9 @@ export default function Login() {
     try {
       const { user: authUser, token: authToken } = await authService.login(email, password);
       setAuthStatus("success");
-      login(authToken, authUser, redirect);
+      setTimeout(() => {
+        login(authToken, authUser, redirect);
+      }, 400);
     } catch (err: any) {
       setError(err?.message || "Invalid email or password");
       setAuthStatus("idle");
@@ -82,7 +84,9 @@ export default function Login() {
       if (linkedExistingAccount) {
         setGoogleNotice("Signed in with Google using your existing account.");
       }
-      login(authToken, authUser, redirect);
+      setTimeout(() => {
+        login(authToken, authUser, redirect);
+      }, 400);
     } catch (err: any) {
       setError(err?.message || "Google sign-in failed. Please try again or use email and password.");
       setAuthStatus("idle");

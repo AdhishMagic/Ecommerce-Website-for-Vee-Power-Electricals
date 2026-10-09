@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { productService } from "../../services/productService";
 import { Category } from "../../types/product";
+import { getCategoryDefaultImage, handleProductImageError } from "../../utils/productImageResolver";
 
 export default function AdminCategories() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -457,9 +458,10 @@ export default function AdminCategories() {
                     <div className="bg-white p-2.5 rounded-2xl border border-[#D9E1E8] shadow-xs w-full max-w-[220px] flex items-center gap-2.5 relative">
                       <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 bg-slate-100 border border-gray-100">
                         <img
-                          src={cat.image || "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop"}
+                          src={cat.image || getCategoryDefaultImage(cat.slug || cat.id)}
                           alt={cat.name}
                           className="w-full h-full object-cover"
+                          onError={(e) => handleProductImageError(e, cat.slug || cat.id)}
                         />
                       </div>
                       <div className="min-w-0 flex-1">

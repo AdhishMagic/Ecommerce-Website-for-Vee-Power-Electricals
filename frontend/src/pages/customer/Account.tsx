@@ -5,6 +5,7 @@ import { ordersApi } from "../../api/orders";
 import { addressesApi } from "../../api/addresses";
 import { authService } from "../../services/authService";
 import { OrderSummary, OrderDetailData, CustomerAddress, OrderStatus } from "../../types/api";
+import { resolveProductImage, handleProductImageError } from "../../utils/productImageResolver";
 
 const statusColors: Record<string, string> = {
   PENDING: "bg-slate-100 text-slate-700",
@@ -312,11 +313,12 @@ export default function Account() {
             <div className="space-y-3">
               {selectedOrder.items?.map((item, i) => (
                 <div key={item.id || i} className="flex gap-4 py-3 border-b border-[#D9E1E8] last:border-0 items-center">
-                  {item.image_url ? (
-                    <img src={item.image_url} alt={item.product_name} className="w-14 h-14 object-cover rounded-lg bg-[#F6F8FA] border border-gray-200" />
-                  ) : (
-                    <div className="w-14 h-14 bg-gray-100 rounded-lg flex items-center justify-center text-xl text-gray-400">⚡</div>
-                  )}
+                  <img
+                    src={resolveProductImage(item.image_url)}
+                    alt={item.product_name}
+                    className="w-14 h-14 object-contain p-1 rounded-lg bg-[#F8FAFC] border border-gray-200"
+                    onError={(e) => handleProductImageError(e)}
+                  />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-[#17212B] line-clamp-1">{item.product_name}</p>
                     <p className="text-xs text-[#667085] mt-0.5">SKU: {item.sku} · Qty: {item.quantity} × ₹{Number(item.unit_price).toLocaleString("en-IN")}</p>
@@ -413,21 +415,21 @@ export default function Account() {
 
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      <div className="grid lg:grid-cols-12 gap-8">
+    <div className="max-w-7xl mx-auto px-3.5 sm:px-4 py-6 sm:py-8">
+      <div className="grid lg:grid-cols-12 gap-6 lg:gap-8">
         {/* Sidebar */}
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-3 animate-dashboard-header">
           <div className="bg-white border border-[#D9E1E8] rounded-2xl overflow-hidden shadow-sm sticky top-24">
-            <div className="bg-[#0B3A63] p-6 text-center">
-              <div className="w-20 h-20 bg-[#F2A900] rounded-full flex items-center justify-center mx-auto mb-3 shadow-md border-4 border-[#0B3A63]/50">
-                <span className="text-[#0B3A63] font-bold text-3xl" style={{ fontFamily: "Outfit" }}>
+            <div className="bg-[#0B3A63] p-4 sm:p-6 text-center">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#F2A900] rounded-full flex items-center justify-center mx-auto mb-3 shadow-md border-4 border-[#0B3A63]/50">
+                <span className="text-[#0B3A63] font-bold text-2xl sm:text-3xl" style={{ fontFamily: "Outfit" }}>
                   {user?.name?.charAt(0) || "U"}
                 </span>
               </div>
-              <p className="font-semibold text-white text-base" style={{ fontFamily: "Outfit" }}>{user?.name || "Customer"}</p>
-              <p className="text-white/70 text-sm mt-0.5">{user?.email || "customer@email.com"}</p>
+              <p className="font-semibold text-white text-base truncate" style={{ fontFamily: "Outfit" }}>{user?.name || "Customer"}</p>
+              <p className="text-white/70 text-xs sm:text-sm mt-0.5 truncate">{user?.email || "customer@email.com"}</p>
             </div>
-            <div className="p-4 space-y-1">
+            <div className="p-3 sm:p-4 space-y-1">
               {[
                 { id: "orders", label: "My Orders", icon: "📦" },
                 { id: "addresses", label: "Addresses", icon: "📍" },
@@ -455,7 +457,7 @@ export default function Account() {
         </div>
 
         {/* Content */}
-        <div className="lg:col-span-9">
+        <div className="lg:col-span-9 animate-dashboard-card">
           {tab === "orders" && (
             <div>
               <h2 className="text-2xl font-bold text-[#0B3A63] mb-6" style={{ fontFamily: "Outfit" }}>My Orders</h2>

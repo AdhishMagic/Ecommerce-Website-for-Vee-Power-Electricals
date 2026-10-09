@@ -29,6 +29,7 @@ const VIEWPORTS = [
   { name: '414x896', width: 414, height: 896 },
   { name: '390x844', width: 390, height: 844 },
   { name: '375x812', width: 375, height: 812 },
+  { name: '320x568', width: 320, height: 568 },
 ];
 
 // Public routes are open; account/checkout need an authenticated customer,

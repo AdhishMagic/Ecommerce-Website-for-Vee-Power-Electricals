@@ -1,6 +1,11 @@
 import { Product, Category, HeroCategory } from '../types/product';
 import { catalogApi, ProductFilterParams } from '../api/catalog';
 import { ProductSummary, ProductDetail, Category as ApiCategory } from '../types/api';
+import {
+  resolveProductImage,
+  getCategoryDefaultImage,
+  isInappropriateOrPlaceholderImage,
+} from '../utils/productImageResolver';
 
 const mapApiProductToProduct = (item: ProductSummary | ProductDetail): Product => {
   const brandName =
@@ -30,11 +35,20 @@ const mapApiProductToProduct = (item: ProductSummary | ProductDetail): Product =
   };
 
   const detailImages = (item as ProductDetail).images;
-  const imageList: string[] = Array.isArray(detailImages) && detailImages.length > 0
-    ? detailImages.map((img) => normalizeImageUrl(img.image))
-    : item.primary_image
-    ? [normalizeImageUrl(item.primary_image)]
-    : ['https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=600&fit=crop'];
+  const validDetailImages = Array.isArray(detailImages) && detailImages.length > 0
+    ? detailImages
+        .map((img: any) => normalizeImageUrl(img.image || img.image_url))
+        .filter((url) => !isInappropriateOrPlaceholderImage(url))
+    : [];
+
+  const resolvedPrimary = resolveProductImage({
+    image: item.primary_image,
+    category: item.category,
+  });
+
+  const imageList: string[] = validDetailImages.length > 0
+    ? validDetailImages
+    : [resolvedPrimary];
 
   const detailSpecs = (item as ProductDetail).specifications;
   const specsMap: Record<string, string> = {};
@@ -56,6 +70,8 @@ const mapApiProductToProduct = (item: ProductSummary | ProductDetail): Product =
     stock: item.stock !== undefined ? Number(item.stock) : item.in_stock ? 10 : 0,
     lowStockThreshold: item.low_stock_threshold !== undefined ? Number(item.low_stock_threshold) : 5,
     images: imageList,
+    image: imageList[0],
+    primary_image: resolvedPrimary,
     description: (item as ProductDetail).description || '',
     specifications: specsMap,
     tags: [],
@@ -158,7 +174,9 @@ export const productService = {
         name: item.name,
         slug: item.slug || String(item.id),
         link: `/shop?category=${item.slug || item.id}`,
-        image: item.image || 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop',
+        image: item.image && !isInappropriateOrPlaceholderImage(item.image)
+          ? item.image
+          : getCategoryDefaultImage(item.slug || item.id || item.name),
         subtitle: item.subtitle || 'Genuine Brands',
         heroOrder: Number(item.hero_order ?? item.heroOrder ?? 99),
         heroBadge: item.hero_badge || item.heroBadge || '',

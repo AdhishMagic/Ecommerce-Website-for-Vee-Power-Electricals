@@ -207,7 +207,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* 1. Header & Period Selector */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-5">
+      <div className="animate-dashboard-header flex flex-col md:flex-row md:items-end justify-between gap-5">
         <div>
           <h1 className="text-2xl font-bold text-[#0B3A63]">Overview</h1>
           <p className="text-sm text-slate-500 mt-1">Live operational and financial status from Vee Power backend.</p>
@@ -220,7 +220,7 @@ export default function Dashboard() {
               key={filter.label}
               data-testid={`dashboard-filter-${filter.apiFilter}`}
               onClick={() => setActiveFilter(filter.label)}
-              className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${
                 activeFilter === filter.label 
                   ? "bg-[#0B3A63] text-white shadow-sm" 
                   : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
@@ -232,7 +232,7 @@ export default function Dashboard() {
           <button
             onClick={() => loadDashboard(activeFilter, { keepPreviousData: true })}
             disabled={isRefreshing}
-            className="p-2 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-full transition-colors ml-1 disabled:opacity-60"
+            className="p-2 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-full transition-colors ml-1 disabled:opacity-60 active:scale-95"
             title="Refresh Live Data"
           >
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -243,7 +243,7 @@ export default function Dashboard() {
       {/* Refresh failure: previous authoritative values stay visible, the failure is explicit. */}
       {error && summary && (
         <div
-          className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 flex items-center justify-between text-sm"
+          className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 flex items-center justify-between text-sm animate-dashboard-header"
           data-testid="dashboard-error"
         >
           <div className="flex items-center gap-2">
@@ -261,16 +261,20 @@ export default function Dashboard() {
 
       {/* 2. KPI Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpiCards.map((card) => (
-          <div key={card.key} className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+        {kpiCards.map((card, idx) => (
+          <div
+            key={card.key}
+            style={{ animationDelay: `${idx * 45}ms` }}
+            className="animate-dashboard-card card-interactive group bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-lg hover:-translate-y-1 hover:border-[#1769AA]/40"
+          >
             <div className="flex justify-between items-start mb-4">
-              <h3 className="text-sm font-semibold text-slate-600">{card.title}</h3>
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${card.iconBg}`}>
+              <h3 className="text-sm font-semibold text-slate-600 group-hover:text-[#0B3A63] transition-colors">{card.title}</h3>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${card.iconBg} group-hover:scale-110 transition-transform duration-200`}>
                 {card.icon}
               </div>
             </div>
             <div>
-              <p className="text-2xl font-bold text-[#0B3A63]" data-testid={`kpi-${card.key}`}>{card.value}</p>
+              <p className="text-2xl font-bold text-[#0B3A63] tracking-tight" data-testid={`kpi-${card.key}`}>{card.value}</p>
               <p className="text-xs text-slate-500 font-medium mt-1">{card.subtext}</p>
             </div>
           </div>
@@ -278,9 +282,9 @@ export default function Dashboard() {
       </div>
 
       {/* 3. Charts & Data Visualization */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="animate-dashboard-chart grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Order Overview Chart */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-6 hover:shadow-md transition-shadow">
           <div className="mb-6 flex justify-between items-center">
             <div>
               <h2 className="text-lg font-bold text-[#0B3A63]">Revenue Overview</h2>
@@ -309,14 +313,14 @@ export default function Dashboard() {
                   formatter={(value: any) => [`₹${Number(value || 0).toLocaleString("en-IN")}`, 'Revenue']}
                   labelStyle={{ color: '#0B3A63', fontWeight: 'bold' }}
                 />
-                <Area type="monotone" dataKey="revenue" stroke="#0B3A63" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
+                <Area type="monotone" dataKey="revenue" stroke="#0B3A63" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" isAnimationActive={true} animationDuration={600} animationEasing="ease-out" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Live Delivery / Regional Overview */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between hover:shadow-md transition-shadow">
           <div>
             <h2 className="text-lg font-bold text-[#0B3A63]">Delivery Hubs</h2>
             <p className="text-sm text-slate-500">Regional dispatch & distribution status</p>
@@ -348,7 +352,7 @@ export default function Dashboard() {
       </div>
 
       {/* 4. Bottom Data Tables: Live Recent Orders */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+      <div className="animate-dashboard-table bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
         <div className="flex justify-between items-center p-5 border-b border-slate-200">
           <div>
             <h2 className="font-bold text-[#0B3A63]">Recent Orders</h2>
@@ -382,7 +386,7 @@ export default function Dashboard() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {recentOrders.slice(0, RECENT_ORDERS_LIMIT).map(order => (
-                  <tr key={order.id} className="hover:bg-slate-50/50 transition-colors" data-testid="recent-order-row">
+                  <tr key={order.id} className="table-row-interactive hover:bg-slate-50/70" data-testid="recent-order-row">
                     <td className="px-5 py-4 text-sm font-bold text-[#0B3A63]">
                       <Link to={`/admin/orders`} className="hover:underline">
                         {order.order_number || `ORD-${order.id}`}

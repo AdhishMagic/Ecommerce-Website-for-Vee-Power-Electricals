@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "../../context/CartContext";
+import { resolveProductImage, handleProductImageError } from "../../utils/productImageResolver";
 
 export default function Cart() {
   const { items, removeFromCart, updateQty, subtotal, totalItems } = useCart();
@@ -33,7 +34,12 @@ export default function Cart() {
             const disc = Math.round(((item.product.mrp - item.product.price) / item.product.mrp) * 100);
             return (
               <div key={item.product.id} className="bg-white border border-[#D9E1E8] rounded-xl p-5 flex flex-col sm:flex-row gap-5 hover:-translate-y-1 hover:shadow-lg transition-all duration-300">
-                <img src={item.product.images[0]} alt={item.product.name} className="w-24 h-24 object-cover rounded-xl bg-[#F6F8FA] flex-shrink-0" />
+                <img
+                  src={resolveProductImage(item.product)}
+                  alt={item.product.name}
+                  className="w-24 h-24 object-contain p-1.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] shrink-0"
+                  onError={(e) => handleProductImageError(e, item.product.category)}
+                />
                 <div className="flex-1 min-w-0 flex flex-col justify-between">
                   <div className="flex justify-between gap-3">
                     <div>

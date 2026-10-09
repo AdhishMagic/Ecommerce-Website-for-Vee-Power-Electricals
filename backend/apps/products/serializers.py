@@ -98,9 +98,11 @@ class BrandSerializer(serializers.ModelSerializer):
 
 
 class ProductImageSerializer(serializers.ModelSerializer):
+    image = serializers.CharField(source='image_url', read_only=True)
+
     class Meta:
         model = ProductImage
-        fields = ['id', 'product', 'image_url', 'alt_text', 'sort_order', 'is_primary', 'created_at']
+        fields = ['id', 'product', 'image_url', 'image', 'alt_text', 'sort_order', 'is_primary', 'created_at']
         read_only_fields = ['id', 'created_at']
 
     def validate_image_url(self, value):
@@ -196,23 +198,65 @@ class ProductAdminCreateUpdateSerializer(serializers.ModelSerializer):
         if not data.get('primary_image') and data.get('image'):
             data['primary_image'] = data['image']
 
-        # Handle base64 image data URI or oversized string in primary_image
+        # Handle uploaded file object or base64 image data URI
         img_val = data.get('primary_image')
-        if img_val and isinstance(img_val, str) and (img_val.startswith('data:image/') or len(img_val) > 500):
+        if img_val and hasattr(img_val, 'read'):
+            import uuid
+            from pathlib import Path
+            from PIL import Image
+            from django.conf import settings
+
+            if getattr(img_val, 'size', 0) > 5 * 1024 * 1024:
+                raise serializers.ValidationError({"primary_image": "Uploaded image file exceeds maximum 5MB size limit."})
+
+            try:
+                img_val.seek(0)
+                pil_img = Image.open(img_val)
+                pil_img.verify()
+                fmt = (pil_img.format or '').upper()
+            except Exception:
+                raise serializers.ValidationError({"primary_image": "Invalid or corrupted image file. Please upload a valid JPEG, PNG, or WebP image."})
+
+            allowed = {'JPEG': 'jpg', 'PNG': 'png', 'WEBP': 'webp'}
+            if fmt not in allowed:
+                raise serializers.ValidationError({"primary_image": f"Unsupported image format: {fmt}. Allowed formats: JPEG, PNG, WebP."})
+
+            ext = allowed[fmt]
+            filename = f"{uuid.uuid4().hex}.{ext}"
+            media_dir = Path(settings.MEDIA_ROOT) / 'products'
+            media_dir.mkdir(parents=True, exist_ok=True)
+            file_path = media_dir / filename
+
+            img_val.seek(0)
+            with open(file_path, 'wb') as f:
+                if hasattr(img_val, 'chunks'):
+                    for chunk in img_val.chunks():
+                        f.write(chunk)
+                else:
+                    f.write(img_val.read())
+
+            data['primary_image'] = f"{settings.MEDIA_URL}products/{filename}"
+
+        elif img_val and isinstance(img_val, str) and (img_val.startswith('data:image/') or len(img_val) > 500):
             import base64
             import uuid
+            import io
+            from PIL import Image
             from django.conf import settings
             from pathlib import Path
             try:
                 if ';base64,' in img_val:
                     header, encoded = img_val.split(';base64,', 1)
-                    mime = header.replace('data:image/', '').split(';')[0]
-                    ext = 'jpg' if mime == 'jpeg' else mime.split('+')[0]
-                    if not ext or len(ext) > 5:
-                        ext = 'png'
                 else:
                     encoded = img_val
-                    ext = 'png'
+
+                raw_bytes = base64.b64decode(encoded)
+                # Verify image content with Pillow
+                pil_img = Image.open(io.BytesIO(raw_bytes))
+                pil_img.verify()
+                fmt = (pil_img.format or 'PNG').upper()
+                allowed = {'JPEG': 'jpg', 'PNG': 'png', 'WEBP': 'webp'}
+                ext = allowed.get(fmt, 'png')
 
                 media_dir = Path(settings.MEDIA_ROOT) / 'products'
                 media_dir.mkdir(parents=True, exist_ok=True)
@@ -220,7 +264,7 @@ class ProductAdminCreateUpdateSerializer(serializers.ModelSerializer):
                 file_path = media_dir / filename
 
                 with open(file_path, 'wb') as f:
-                    f.write(base64.b64decode(encoded))
+                    f.write(raw_bytes)
 
                 data['primary_image'] = f"{settings.MEDIA_URL}products/{filename}"
             except Exception:
@@ -315,6 +359,26 @@ class ProductAdminCreateUpdateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         specs_data = self.initial_data.get('specifications') or self.initial_data.get('specs')
         product = super().create(validated_data)
+
+        # Ensure primary_image has category default if not provided
+        if not product.primary_image and product.category:
+            from apps.products.management.commands.correct_product_images import CATEGORY_DEFAULT_MAP, GENERIC_DEFAULT
+            cat_slug = product.category.slug or ''
+            default_img = CATEGORY_DEFAULT_MAP.get(cat_slug, GENERIC_DEFAULT)
+            product.primary_image = default_img
+            product.save(update_fields=['primary_image'])
+
+        if product.primary_image:
+            from apps.products.models import ProductImage
+            if not product.images.filter(is_primary=True, image_url=product.primary_image).exists():
+                product.images.filter(is_primary=True).update(is_primary=False)
+                ProductImage.objects.create(
+                    product=product,
+                    image_url=product.primary_image,
+                    is_primary=True,
+                    sort_order=0
+                )
+
         if specs_data and isinstance(specs_data, list):
             from apps.products.models import ProductSpecification
             for idx, item in enumerate(specs_data):
@@ -333,6 +397,18 @@ class ProductAdminCreateUpdateSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         specs_data = self.initial_data.get('specifications') or self.initial_data.get('specs')
         product = super().update(instance, validated_data)
+
+        if product.primary_image:
+            from apps.products.models import ProductImage
+            if not product.images.filter(is_primary=True, image_url=product.primary_image).exists():
+                product.images.filter(is_primary=True).update(is_primary=False)
+                ProductImage.objects.create(
+                    product=product,
+                    image_url=product.primary_image,
+                    is_primary=True,
+                    sort_order=0
+                )
+
         if specs_data is not None and isinstance(specs_data, list):
             from apps.products.models import ProductSpecification
             product.specifications.all().delete()

@@ -304,17 +304,17 @@ export default function Shop() {
           )}
 
           {/* Toolbar */}
-          <div className="flex items-center justify-between gap-3 mb-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
             <div>
               <h1 className="text-xl font-bold text-[#0B3A63]">
                 {activeCategoryObj ? activeCategoryObj.name : "All Products"}
               </h1>
               <p className="text-sm text-[#667085]">{filtered.length} products</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
               {/* Mobile filter button */}
               <button
-                className="lg:hidden flex items-center gap-2 bg-white border border-[#D9E1E8] rounded-lg px-3 py-2 text-sm font-medium text-[#17212B]"
+                className="lg:hidden flex items-center gap-2 bg-white border border-[#D9E1E8] rounded-lg px-3 py-2 text-sm font-medium text-[#17212B] shrink-0"
                 onClick={() => setFilterOpen(true)}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" /></svg>
@@ -323,7 +323,7 @@ export default function Shop() {
               <select
                 value={sort}
                 onChange={(e) => setSort(e.target.value)}
-                className="bg-white border border-[#D9E1E8] rounded-lg px-3 py-2 text-sm text-[#17212B] outline-none focus:border-[#1769AA]"
+                className="bg-white border border-[#D9E1E8] rounded-lg px-2.5 py-2 text-sm text-[#17212B] outline-none focus:border-[#1769AA] max-w-[180px] sm:max-w-none truncate"
               >
                 {sortOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
               </select>

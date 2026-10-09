@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Search, PackageCheck, AlertTriangle, AlertOctagon, Plus, Minus, X } from "lucide-react";
 import { useShop, calculateStockStatus, Product } from "../../context/ShopContext";
+import { resolveProductImage, handleProductImageError } from "../../utils/productImageResolver";
 
 export default function AdminInventory() {
   const { products: inventory, updateStock } = useShop();
@@ -150,10 +151,17 @@ export default function AdminInventory() {
                 else statusBadge = "bg-emerald-100 text-emerald-700";
 
                 return (
-                  <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                  <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
-                        <img src={item.image || "https://placehold.co/100x100/F1F5F9/0A2540?text=Product"} alt={item.name} className="w-10 h-10 rounded-lg object-cover bg-slate-100 border border-slate-200 flex-shrink-0" />
+                        <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center flex-shrink-0 p-0.5 overflow-hidden">
+                          <img
+                            src={resolveProductImage(item)}
+                            alt={item.name}
+                            className="w-full h-full object-contain"
+                            onError={(e) => handleProductImageError(e, item.category)}
+                          />
+                        </div>
                         <p className="text-sm font-bold text-[#0A2540] line-clamp-1 max-w-xs">{item.name}</p>
                       </div>
                     </td>
@@ -198,9 +206,16 @@ export default function AdminInventory() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-5 flex flex-col items-center">
-              <div className="flex items-center gap-3 w-full mb-6 p-3 bg-slate-50 rounded-lg border border-slate-100">
-                <img src={adjustingItem.image || "https://placehold.co/100x100/F1F5F9/0A2540?text=Product"} alt={adjustingItem.name} className="w-12 h-12 rounded bg-white border border-slate-200 object-cover flex-shrink-0" />
+            <div className="p-5">
+              <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200 mb-6">
+                <div className="w-12 h-12 rounded-lg bg-white border border-slate-200 flex items-center justify-center flex-shrink-0 p-1 overflow-hidden">
+                  <img
+                    src={resolveProductImage(adjustingItem)}
+                    alt={adjustingItem.name}
+                    className="w-full h-full object-contain"
+                    onError={(e) => handleProductImageError(e, adjustingItem.category)}
+                  />
+                </div>
                 <div className="overflow-hidden">
                   <p className="text-sm font-bold text-[#0A2540] truncate">{adjustingItem.name}</p>
                   <p className="text-xs text-slate-500 font-mono mt-0.5">{adjustingItem.sku}</p>

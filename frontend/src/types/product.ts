@@ -10,6 +10,8 @@ export interface Product {
   stock: number;
   lowStockThreshold: number;
   images: string[];
+  image?: string;
+  primary_image?: string;
   description: string;
   specifications: Record<string, string>;
   tags: string[];

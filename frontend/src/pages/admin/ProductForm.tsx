@@ -2,6 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useShop } from "../../context/ShopContext";
 import { catalogApi } from "../../api/catalog";
+import {
+  resolveProductImage,
+  getCategoryDefaultImage,
+  normalizeMediaUrl,
+  handleProductImageError,
+} from "../../utils/productImageResolver";
 
 export default function ProductForm() {
   const navigate = useNavigate();
@@ -14,13 +20,20 @@ export default function ProductForm() {
   const [errorMsg, setErrorMsg] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [categoriesList, setCategoriesList] = useState<Array<{ id: number | string; name: string }>>([
-    { id: "Fans", name: "Fans" },
-    { id: "Wires & Cables", name: "Wires & Cables" },
-    { id: "Switches", name: "Switches" },
-    { id: "Lighting", name: "Lighting" },
-    { id: "MCB & Protection", name: "MCB & Protection" },
-    { id: "Accessories", name: "Accessories" },
+  // Image management state
+  const [isCustomImage, setIsCustomImage] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imageSuccessMsg, setImageSuccessMsg] = useState("");
+  const [imageErrorMsg, setImageErrorMsg] = useState("");
+
+  const [categoriesList, setCategoriesList] = useState<Array<{ id: number | string; name: string; slug?: string }>>([
+    { id: "Fans", name: "Fans", slug: "fans" },
+    { id: "Wires & Cables", name: "Wires & Cables", slug: "wires-cables" },
+    { id: "Switches", name: "Switches", slug: "switches" },
+    { id: "Modular Switches", name: "Modular Switches", slug: "modular-switches" },
+    { id: "Lighting", name: "LED & Lighting", slug: "lighting" },
+    { id: "MCB & Protection", name: "MCB & Protection", slug: "mcb" },
+    { id: "Accessories", name: "Electrical Accessories", slug: "electrical-accessories" },
   ]);
 
   const [brandsList, setBrandsList] = useState<Array<{ id: number | string; name: string }>>([
@@ -37,10 +50,18 @@ export default function ProductForm() {
   ]);
 
   const [formData, setFormData] = useState({
-    name: "", brand: "", category: "", sku: "", description: "",
-    price: "", stock: "", lowStockThreshold: "10", active: true, image: ""
+    name: "",
+    brand: "",
+    category: "",
+    sku: "",
+    description: "",
+    price: "",
+    stock: "",
+    lowStockThreshold: "10",
+    active: true,
+    image: "",
   });
-  
+
   const [specs, setSpecs] = useState([{ key: "", value: "" }]);
 
   useEffect(() => {
@@ -53,7 +74,7 @@ export default function ProductForm() {
       const cats = Array.isArray(catData) ? catData : (catData as any)?.results || [];
       const brs = Array.isArray(brandData) ? brandData : (brandData as any)?.results || [];
       if (cats.length > 0) {
-        setCategoriesList(cats.map((c: any) => ({ id: c.id, name: c.name })));
+        setCategoriesList(cats.map((c: any) => ({ id: c.id, name: c.name, slug: c.slug })));
       }
       if (brs.length > 0) {
         setBrandsList(brs.map((b: any) => ({ id: b.id, name: b.name })));
@@ -66,6 +87,14 @@ export default function ProductForm() {
     if (id) {
       const existing = products.find(p => p.id === id);
       if (existing) {
+        const rawImg = existing.image || existing.primary_image || (existing.images && existing.images[0]) || "";
+        const hasCustom = Boolean(
+          rawImg &&
+          !rawImg.includes('/media/defaults/') &&
+          !rawImg.includes('/images/defaults/') &&
+          (rawImg.includes('/media/products/') || rawImg.startsWith('data:') || rawImg.startsWith('http'))
+        );
+
         setFormData({
           name: existing.name,
           brand: existing.brand,
@@ -76,8 +105,11 @@ export default function ProductForm() {
           stock: existing.stock.toString(),
           lowStockThreshold: existing.lowStockThreshold?.toString() || "10",
           active: existing.active,
-          image: existing.image || ""
+          image: rawImg,
         });
+
+        setIsCustomImage(hasCustom);
+
         if (existing.specs && existing.specs.length > 0) {
           setSpecs(existing.specs);
         }
@@ -85,11 +117,23 @@ export default function ProductForm() {
     }
   }, [id, products]);
 
+  // When category changes in form, if no custom image is selected, update image to category default
+  const handleCategoryChange = (newCat: string) => {
+    setFormData(prev => {
+      const updated = { ...prev, category: newCat };
+      if (!isCustomImage || !prev.image) {
+        const catObj = categoriesList.find(c => String(c.id) === String(newCat) || c.slug === newCat || c.name === newCat);
+        updated.image = getCategoryDefaultImage(catObj || newCat);
+      }
+      return updated;
+    });
+  };
+
   const sections = [
     { id: "basic", label: "Basic Info" },
     { id: "pricing", label: "Pricing" },
     { id: "inventory", label: "Inventory" },
-    { id: "images", label: "Images" },
+    { id: "images", label: "Product Image" },
     { id: "specs", label: "Specifications" },
   ];
 
@@ -172,15 +216,67 @@ export default function ProductForm() {
     setActiveSectionIndex(prev => Math.max(prev - 1, 0));
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Image Upload handler with client-side & authoritative server-side validation
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, image: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    setImageErrorMsg("");
+    setImageSuccessMsg("");
+
+    // 1. Client-side MIME type and extension validation
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const lowerName = file.name.toLowerCase();
+    const hasValidExt = lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg') || lowerName.endsWith('.png') || lowerName.endsWith('.webp');
+
+    if (!allowedTypes.includes(file.type) && !hasValidExt) {
+      setImageErrorMsg("Invalid file format. Please upload a JPEG, PNG, or WebP image.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
     }
+
+    // 2. Client-side Size limit validation (5MB max)
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setImageErrorMsg(`File size (${(file.size / (1024 * 1024)).toFixed(2)} MB) exceeds the maximum allowed limit of 5MB.`);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    // 3. Server-side upload with Pillow validation
+    setIsUploadingImage(true);
+    try {
+      const res = await catalogApi.uploadProductImage(file);
+      setFormData(prev => ({ ...prev, image: res.image_url || res.url }));
+      setIsCustomImage(true);
+      setImageSuccessMsg(`✓ Custom image uploaded and verified successfully (${file.name})`);
+    } catch (err: any) {
+      console.error("Image upload failed:", err);
+      setImageErrorMsg(err?.message || "Failed to upload image. Please verify the file is a valid image.");
+    } finally {
+      setIsUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // Switch to Category Default Action
+  const handleUseCategoryDefault = () => {
+    setImageErrorMsg("");
+    const catObj = categoriesList.find(c => String(c.id) === String(formData.category) || c.slug === formData.category || c.name === formData.category);
+    const defaultImg = getCategoryDefaultImage(catObj || formData.category);
+    setFormData(prev => ({ ...prev, image: defaultImg }));
+    setIsCustomImage(false);
+    setImageSuccessMsg("✓ Using category-appropriate default image.");
+  };
+
+  // Remove / Reset Image Action
+  const handleRemoveImage = () => {
+    setImageErrorMsg("");
+    const catObj = categoriesList.find(c => String(c.id) === String(formData.category) || c.slug === formData.category || c.name === formData.category);
+    const defaultImg = getCategoryDefaultImage(catObj || formData.category);
+    setFormData(prev => ({ ...prev, image: defaultImg }));
+    setIsCustomImage(false);
+    setImageSuccessMsg("Image removed. Switched to category default.");
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -189,8 +285,12 @@ export default function ProductForm() {
 
     const validSpecs = specs.filter(s => s.key.trim() && s.value.trim());
 
+    // Resolve final image to persist
+    const finalImage = formData.image || getCategoryDefaultImage(formData.category);
+
     const submitData = {
       ...formData,
+      image: finalImage,
       price: parseFloat(formData.price),
       stock: parseInt(formData.stock),
       lowStockThreshold: parseInt(formData.lowStockThreshold) || 10,
@@ -214,6 +314,17 @@ export default function ProductForm() {
       setIsSaving(false);
     }
   };
+
+  const selectedCategoryObj = categoriesList.find(
+    c => String(c.id) === String(formData.category) || c.name === formData.category || c.slug === formData.category
+  );
+  const displayCategoryName = selectedCategoryObj ? selectedCategoryObj.name : formData.category;
+
+  // Compute preview URL
+  const previewImageUrl = resolveProductImage({
+    image: formData.image,
+    category: selectedCategoryObj || formData.category,
+  });
 
   return (
     <div>
@@ -257,6 +368,7 @@ export default function ProductForm() {
               </div>
             )}
 
+            {/* Section 0: Basic Information */}
             {activeSectionIndex === 0 && (
               <div className="bg-white border border-[#D9E1E8] rounded-xl p-6">
                 <h2 className="font-bold text-[#0B3A63] mb-5">Basic Information</h2>
@@ -280,11 +392,31 @@ export default function ProductForm() {
                     <div>
                       <label className="text-sm font-medium text-[#17212B] mb-1.5 block">Category *</label>
                       <select 
-                        value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}
+                        value={formData.category} onChange={e => handleCategoryChange(e.target.value)}
                         className="w-full border border-[#D9E1E8] rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#1769AA] bg-white">
                         <option value="">Select Category</option>
                         {categoriesList.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
+                      {formData.category && (
+                        <div className="mt-2.5 flex items-center gap-2.5 p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                          <div className="w-10 h-10 rounded-md bg-white border border-slate-200 p-0.5 overflow-hidden shrink-0 flex items-center justify-center">
+                            <img
+                              src={getCategoryDefaultImage(selectedCategoryObj || formData.category)}
+                              alt="Category Default"
+                              className="w-full h-full object-contain"
+                              onError={(e) => handleProductImageError(e, selectedCategoryObj || formData.category)}
+                            />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold text-[#0B3A63] truncate">
+                              Default Image: {displayCategoryName}
+                            </p>
+                            <p className="text-[11px] text-slate-500 truncate">
+                              Assigned automatically • Change in Product Image tab
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div>
@@ -303,6 +435,7 @@ export default function ProductForm() {
               </div>
             )}
 
+            {/* Section 1: Pricing */}
             {activeSectionIndex === 1 && (
               <div className="bg-white border border-[#D9E1E8] rounded-xl p-6">
                 <h2 className="font-bold text-[#0B3A63] mb-5">Pricing</h2>
@@ -317,6 +450,7 @@ export default function ProductForm() {
               </div>
             )}
 
+            {/* Section 2: Inventory */}
             {activeSectionIndex === 2 && (
               <div className="bg-white border border-[#D9E1E8] rounded-xl p-6">
                 <h2 className="font-bold text-[#0B3A63] mb-5">Inventory</h2>
@@ -345,43 +479,183 @@ export default function ProductForm() {
               </div>
             )}
 
+            {/* Section 3: Product Image Management */}
             {activeSectionIndex === 3 && (
               <div className="bg-white border border-[#D9E1E8] rounded-xl p-6">
-                <h2 className="font-bold text-[#0B3A63] mb-5">Product Images</h2>
-                
-                {formData.image ? (
-                  <div className="relative inline-block border border-[#D9E1E8] rounded-xl overflow-hidden">
-                    <img src={formData.image} alt="Preview" className="h-48 object-cover" />
-                    <button type="button" onClick={() => setFormData({...formData, image: ""})} className="absolute top-2 right-2 bg-red-600 text-white p-1.5 rounded hover:bg-red-700">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5">
+                  <div>
+                    <h2 className="font-bold text-[#0B3A63] text-lg">Product Image Management</h2>
+                    <p className="text-xs text-[#667085] mt-0.5">
+                      Choose to upload a custom product image or automatically use the recommended category default.
+                    </p>
                   </div>
-                ) : (
-                  <div 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-[#D9E1E8] rounded-xl p-10 text-center hover:border-[#1769AA] transition-colors cursor-pointer mb-4">
-                    <div className="text-4xl mb-3">📷</div>
-                    <p className="font-medium text-[#17212B] mb-1">Click to upload image</p>
-                    <p className="text-sm text-[#667085]">PNG, JPG up to 5MB.</p>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <label className="text-xs font-semibold text-slate-600">Category:</label>
+                    <select
+                      value={formData.category}
+                      onChange={e => handleCategoryChange(e.target.value)}
+                      className="border border-[#D9E1E8] rounded-lg px-3 py-1.5 text-xs font-semibold text-[#0B3A63] outline-none focus:border-[#1769AA] bg-white cursor-pointer shadow-xs"
+                    >
+                      <option value="">Select Category</option>
+                      {categoriesList.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Upload Feedback Messages */}
+                {imageErrorMsg && (
+                  <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-lg text-sm flex items-center gap-2">
+                    <span>⚠</span>
+                    <span>{imageErrorMsg}</span>
                   </div>
                 )}
-                <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageUpload} className="hidden" />
+                {imageSuccessMsg && (
+                  <div className="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-2.5 rounded-lg text-sm flex items-center gap-2">
+                    <span>✓</span>
+                    <span>{imageSuccessMsg}</span>
+                  </div>
+                )}
 
-                <div>
-                  <label className="text-sm font-medium text-[#17212B] mb-1.5 block">Or Enter Direct Image URL</label>
-                  <input
-                    value={formData.image && formData.image.startsWith('data:') ? '' : formData.image}
-                    onChange={e => setFormData({...formData, image: e.target.value})}
-                    className="w-full border border-[#D9E1E8] rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#1769AA]"
-                    placeholder="https://images.unsplash.com/photo-..."
-                  />
-                  {formData.image && formData.image.startsWith('data:') && (
-                    <p className="text-xs text-green-600 mt-1 font-medium">✓ Local image file selected and ready to save</p>
-                  )}
+                {/* Image Preview & Controls Grid */}
+                <div className="grid md:grid-cols-2 gap-6 items-start">
+                  {/* Left: Active Image Preview Card */}
+                  <div className="border border-[#D9E1E8] rounded-2xl p-4 bg-[#F8FAFC] flex flex-col items-center">
+                    <div className="relative w-full max-w-[240px] aspect-square rounded-xl overflow-hidden bg-white border border-[#E2E8F0] shadow-sm flex items-center justify-center p-2 mb-3">
+                      {isUploadingImage ? (
+                        <div className="flex flex-col items-center justify-center text-slate-500 gap-2">
+                          <div className="w-8 h-8 border-3 border-[#1769AA] border-t-transparent rounded-full animate-spin"></div>
+                          <span className="text-xs font-medium">Validating &amp; Uploading...</span>
+                        </div>
+                      ) : previewImageUrl ? (
+                        <img
+                          key={previewImageUrl}
+                          src={previewImageUrl}
+                          alt={formData.name || "Product Preview"}
+                          className="w-full h-full object-contain"
+                          loading="eager"
+                          decoding="async"
+                          onError={(e) => handleProductImageError(e, selectedCategoryObj || formData.category)}
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-slate-400 p-4 text-center">
+                          <span className="text-3xl mb-1.5">⚡</span>
+                          <span className="text-xs font-medium text-slate-500">Select a category to view default image</span>
+                        </div>
+                      )}
+
+                      {/* Image Source Badge */}
+                      {!isUploadingImage && previewImageUrl && (
+                        <div className="absolute top-2 left-2">
+                          {isCustomImage ? (
+                            <span className="bg-[#1769AA] text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1">
+                              <span>★</span> Custom Image
+                            </span>
+                          ) : (
+                            <span className="bg-[#12773D] text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1">
+                              <span>✓</span> Category Default
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="text-center w-full">
+                      <p className="text-xs font-semibold text-[#17212B] truncate mb-0.5">
+                        {formData.name || "Product Image Preview"}
+                      </p>
+                      <p className="text-[11px] text-[#667085] truncate">
+                        {isCustomImage ? "Stored in secure media storage" : `Automatic default for ${displayCategoryName || "category"}`}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Right: Actions & Upload Controls */}
+                  <div className="space-y-4">
+                    <div className="bg-white border border-[#D9E1E8] rounded-xl p-4 space-y-3">
+                      <h3 className="text-sm font-bold text-[#0B3A63]">Select Image Source</h3>
+                      
+                      {/* Action 1: Upload Custom Image */}
+                      <div>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          ref={fileInputRef}
+                          onChange={handleImageFileChange}
+                          className="hidden"
+                          id="product-image-file-input"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isUploadingImage}
+                          className="w-full flex items-center justify-center gap-2 bg-[#0B3A63] hover:bg-[#1769AA] text-white text-sm font-semibold py-2.5 px-4 rounded-lg shadow-xs hover:shadow transition-all cursor-pointer disabled:opacity-50"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                          </svg>
+                          <span>{isCustomImage ? "Replace With New Upload" : "Upload Custom Image"}</span>
+                        </button>
+                        <p className="text-[11px] text-[#667085] mt-1.5 text-center">
+                          JPEG, PNG, or WebP • Max 5MB • Validated on server
+                        </p>
+                      </div>
+
+                      <div className="relative flex py-1 items-center">
+                        <div className="flex-grow border-t border-slate-200"></div>
+                        <span className="flex-shrink mx-2 text-[10px] text-slate-400 uppercase font-semibold">Or</span>
+                        <div className="flex-grow border-t border-slate-200"></div>
+                      </div>
+
+                      {/* Action 2: Use Category Default */}
+                      <button
+                        type="button"
+                        onClick={handleUseCategoryDefault}
+                        className={`w-full flex items-center justify-center gap-2 text-sm font-semibold py-2.5 px-4 rounded-lg border transition-all cursor-pointer ${
+                          !isCustomImage
+                            ? "bg-emerald-50 text-emerald-800 border-emerald-300 font-bold"
+                            : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:border-slate-400"
+                        }`}
+                      >
+                        <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>Use Category Default Image</span>
+                      </button>
+
+                      {/* Action 3: Remove custom image */}
+                      {isCustomImage && (
+                        <button
+                          type="button"
+                          onClick={handleRemoveImage}
+                          className="w-full text-xs text-[#C0392B] hover:text-red-700 font-medium py-1.5 text-center transition-colors cursor-pointer"
+                        >
+                          Reset to category default
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Direct URL entry optional fallback */}
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                      <label className="text-xs font-medium text-slate-700 mb-1 block">
+                        Direct Image URL (Optional)
+                      </label>
+                      <input
+                        value={formData.image && formData.image.startsWith('data:') ? '' : formData.image}
+                        onChange={e => {
+                          const val = e.target.value.trim();
+                          setFormData({ ...formData, image: val });
+                          setIsCustomImage(Boolean(val && !val.includes('/defaults/')));
+                        }}
+                        className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:border-[#1769AA] bg-white font-mono"
+                        placeholder="e.g. /media/products/... or https://..."
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
 
+            {/* Section 4: Specifications */}
             {activeSectionIndex === 4 && (
               <div className="bg-white border border-[#D9E1E8] rounded-xl p-6">
                 <h2 className="font-bold text-[#0B3A63] mb-5">Technical Specifications</h2>

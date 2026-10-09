@@ -157,14 +157,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthenticated(true);
 
     const isAdmin = newUser.role?.toLowerCase() === "admin" || newUser.is_admin === true;
-    if (redirectPath) {
-      if (!isAdmin && redirectPath.startsWith('/admin')) {
-        navigate("/account");
+    const dashboardPath = isAdmin ? "/admin" : "/account";
+
+    // If a specific deep link was requested (e.g., /checkout, /cart), honor it;
+    // otherwise (empty, root "/", or auth URLs), route directly to the dashboard.
+    if (
+      redirectPath &&
+      redirectPath !== "/" &&
+      redirectPath !== "/login" &&
+      redirectPath !== "/admin/login" &&
+      redirectPath !== "/register"
+    ) {
+      if (!isAdmin && redirectPath.startsWith("/admin")) {
+        navigate(dashboardPath);
       } else {
         navigate(redirectPath);
       }
     } else {
-      navigate(isAdmin ? "/admin" : "/account");
+      navigate(dashboardPath);
     }
   };
 

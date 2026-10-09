@@ -14,6 +14,8 @@ export interface Product {
   brand: string;
   lowStockThreshold?: number;
   image?: string;
+  primary_image?: string;
+  images?: string[];
   description?: string;
   specs?: Array<{ key: string; value: string }>;
 }
@@ -80,17 +82,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       const items = await productService.getProducts();
       setProducts(items.map(p => ({
-        id: p.id,
-        name: p.name,
-        price: p.price,
-        stock: p.stock,
-        active: p.active,
-        category: p.category,
-        sku: p.sku,
-        brand: p.brand,
-        lowStockThreshold: p.lowStockThreshold,
-        image: p.images?.[0] || '',
-        description: p.description,
+        ...p,
+        image: p.images?.[0] || p.image || '',
       })));
     } catch (err) {
       console.error("Failed to load products from API:", err);

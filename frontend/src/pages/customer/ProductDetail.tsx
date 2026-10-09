@@ -4,6 +4,7 @@ import { productService } from "../../services/productService";
 import { Product } from "../../types/product";
 import { useCart } from "../../context/CartContext";
 import ProductCard from "../../components/common/ProductCard";
+import { resolveProductImage, handleProductImageError } from "../../utils/productImageResolver";
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
@@ -15,6 +16,7 @@ export default function ProductDetail() {
   const [qty, setQty] = useState(1);
   const [activeTab, setActiveTab] = useState("description");
   const [added, setAdded] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -114,15 +116,40 @@ export default function ProductDetail() {
 
       <div className="grid lg:grid-cols-2 gap-8">
         {/* Image */}
-        <div className="bg-white border border-[#D9E1E8] rounded-xl overflow-hidden shadow-sm">
-          <img
-            src={product.images?.[0] || "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=600&fit=crop&auto=format"}
-            alt={product.name}
-            className="w-full h-80 sm:h-96 object-cover"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=600&fit=crop&auto=format";
-            }}
-          />
+        <div className="flex flex-col gap-3">
+          <div className="border border-[#D9E1E8] rounded-2xl overflow-hidden shadow-xs p-6 flex items-center justify-center min-h-[340px] sm:min-h-[420px] bg-[#F8FAFC]">
+            <img
+              src={resolveProductImage({
+                image: product.images?.[selectedImageIndex] || product.image,
+                category: product.category,
+              })}
+              alt={`${product.name} - ${product.brand}`}
+              className="max-h-80 sm:max-h-96 w-full object-contain"
+              onError={(e) => handleProductImageError(e, product.category)}
+            />
+          </div>
+          {/* Gallery Thumbnails if more than 1 image */}
+          {product.images && product.images.length > 1 && (
+            <div className="flex gap-2.5 overflow-x-auto pb-1">
+              {product.images.map((img, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setSelectedImageIndex(idx)}
+                  className={`w-16 h-16 rounded-xl border-2 p-1 bg-white shrink-0 cursor-pointer transition-all ${
+                    selectedImageIndex === idx ? "border-[#1769AA] shadow-xs" : "border-[#D9E1E8] hover:border-slate-400"
+                  }`}
+                >
+                  <img
+                    src={resolveProductImage({ image: img, category: product.category })}
+                    alt={`${product.name} view ${idx + 1}`}
+                    className="w-full h-full object-contain"
+                    onError={(e) => handleProductImageError(e, product.category)}
+                  />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Info */}

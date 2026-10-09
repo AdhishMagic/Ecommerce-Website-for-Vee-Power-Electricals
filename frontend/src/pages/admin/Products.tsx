@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Search, Plus, Upload, Eye, Edit, Trash2, Image as ImageIcon } from "lucide-react";
 import { useShop, Product } from "../../context/ShopContext";
+import { resolveProductImage, handleProductImageError } from "../../utils/productImageResolver";
 
 export default function AdminProducts() {
   const { products, deleteProduct } = useShop();
@@ -91,13 +92,14 @@ export default function AdminProducts() {
                 <tr key={product.id} className="hover:bg-slate-50 transition-colors group">
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
-                      {product.image ? (
-                        <img src={product.image} alt={product.name} className="w-10 h-10 rounded-lg object-cover bg-slate-100 border border-slate-200 flex-shrink-0" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center flex-shrink-0 text-slate-400">
-                          <ImageIcon className="w-5 h-5" />
-                        </div>
-                      )}
+                      <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center flex-shrink-0 p-0.5 overflow-hidden">
+                        <img
+                          src={resolveProductImage(product)}
+                          alt={product.name}
+                          className="w-full h-full object-contain"
+                          onError={(e) => handleProductImageError(e, product.category)}
+                        />
+                      </div>
                       <div>
                         <p className="text-sm font-bold text-[#0A2540] line-clamp-1">{product.name}</p>
                         <p className="text-xs text-slate-500 mt-0.5">{product.category}</p>

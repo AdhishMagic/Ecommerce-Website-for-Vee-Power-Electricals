@@ -6,6 +6,7 @@ import { ordersApi } from "../../api/orders";
 import { paymentsApi } from "../../api/payments";
 import { configApi } from "../../api/config";
 import { CustomerAddress, DeliveryConfiguration } from "../../types/api";
+import { resolveProductImage, handleProductImageError } from "../../utils/productImageResolver";
 
 const steps = ["Address", "Review", "Payment", "Confirm"];
 
@@ -505,7 +506,12 @@ export default function Checkout() {
               <div className="space-y-3 mb-6">
                 {checkoutItems.map(item => (
                   <div key={item.product.id} className="flex gap-4 py-4 border-b border-[#D9E1E8] last:border-0">
-                    <img src={item.product.images[0]} alt={item.product.name} className="w-16 h-16 object-cover rounded-lg bg-[#F6F8FA]" />
+                    <img
+                      src={resolveProductImage(item.product)}
+                      alt={item.product.name}
+                      className="w-16 h-16 object-contain p-1 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0]"
+                      onError={(e) => handleProductImageError(e, item.product.category)}
+                    />
                     <div className="flex-1">
                       <p className="font-semibold text-[#17212B] line-clamp-1">{item.product.name}</p>
                       <p className="text-xs text-[#667085] mt-1">{item.product.brand} · Qty: {item.quantity}</p>
