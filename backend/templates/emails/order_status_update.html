@@ -29,7 +29,11 @@
   {% endif %}
 </div>
 
-{% if new_status == 'SHIPPED' %}
+{% if new_status == 'PACKED' %}
+<p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #334155;">
+  Your package has been carefully verified, packed, and queued for courier pickup.
+</p>
+{% elif new_status == 'SHIPPED' %}
 <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #334155;">
   Your package has been dispatched from our central warehouse and is in transit with our logistics courier partner.
 </p>

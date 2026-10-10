@@ -37,6 +37,13 @@ services:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-django-dev-secret-key-veepower-change-in-prod}
       DJANGO_DEBUG: ${DJANGO_DEBUG:-True}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,backend,*}
+      BREVO_API_KEY: ${BREVO_API_KEY}
+      BREVO_SENDER_EMAIL: ${BREVO_SENDER_EMAIL:-veepower.cbe@gmail.com}
+      BREVO_SENDER_NAME: ${BREVO_SENDER_NAME:-Vee Power Electricals}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:5173}
+      BACKEND_BASE_URL: ${BACKEND_BASE_URL:-http://localhost:8000}
+      EMAIL_TEST_MODE: ${EMAIL_TEST_MODE:-true}
+      EMAIL_ASYNC_DISPATCH: ${EMAIL_ASYNC_DISPATCH:-true}
     volumes:
       - ./backend:/app
     ports:

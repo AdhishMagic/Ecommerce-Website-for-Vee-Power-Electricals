@@ -1,0 +1,42 @@
+{% extends "emails/base.html" %}
+
+{% block title %}Verify Your Email - Vee Power Electricals{% endblock %}
+
+{% block content %}
+<h2 style="margin: 0 0 16px 0; font-size: 20px; font-weight: 700; color: #0B3A63;">
+  Verify Your Email Address
+</h2>
+
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #334155;">
+  Hello <strong>{{ customer_name|default:"Customer" }}</strong>,
+</p>
+
+<p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; color: #475569;">
+  Thank you for registering with <strong>Vee Power Electricals</strong>. To ensure the security of your account and activate customer access, please verify your email address using the One-Time Password (OTP) or the verification link below.
+</p>
+
+<!-- OTP Display Box -->
+<div style="background-color: #F0F9FF; border: 2px dashed #0284C7; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0;">
+  <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #0369A1;">
+    Your One-Time Verification Code
+  </p>
+  <span style="font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #0C4A6E; font-family: monospace;">
+    {{ otp }}
+  </span>
+  <p style="margin: 10px 0 0 0; font-size: 12px; color: #64748B;">
+    This code expires in <strong>{{ expires_minutes|default:"15" }} minutes</strong>.
+  </p>
+</div>
+
+{% if verify_url %}
+<div style="text-align: center; margin: 24px 0 16px 0;">
+  <a href="{{ verify_url }}" style="display: inline-block; background-color: #0B3A63; color: #FFFFFF; font-weight: 600; font-size: 14px; padding: 12px 28px; border-radius: 6px; text-decoration: none; letter-spacing: 0.3px;">
+    Verify Email Address
+  </a>
+</div>
+{% endif %}
+
+<p style="margin: 20px 0 0 0; font-size: 12px; color: #94A3B8; line-height: 1.5;">
+  If you did not create an account on Vee Power Electricals, please disregard this email or contact support at support@veepower.in.
+</p>
+{% endblock %}

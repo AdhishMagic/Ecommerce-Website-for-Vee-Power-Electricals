@@ -1,0 +1,69 @@
+{% extends "emails/base.html" %}
+
+{% block title %}Order Received: #{{ order_number }} - Vee Power Electricals{% endblock %}
+
+{% block content %}
+<h2 style="margin: 0 0 16px 0; font-size: 20px; font-weight: 700; color: #0B3A63;">
+  Order Placed Successfully
+</h2>
+
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #334155;">
+  Dear <strong>{{ customer_name }}</strong>,
+</p>
+
+<p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; color: #475569;">
+  Thank you for your purchase! We have received your order <strong>#{{ order_number }}</strong>. Our warehouse team is currently reviewing your order for fulfillment.
+</p>
+
+<!-- Order Summary Box -->
+<div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 20px; margin: 24px 0;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+    <tr>
+      <td style="padding-bottom: 8px; font-size: 13px; color: #64748B;">Order Number:</td>
+      <td align="right" style="padding-bottom: 8px; font-size: 13px; font-weight: 600; color: #1E293B;">#{{ order_number }}</td>
+    </tr>
+    <tr>
+      <td style="padding-bottom: 8px; font-size: 13px; color: #64748B;">Payment Method:</td>
+      <td align="right" style="padding-bottom: 8px; font-size: 13px; font-weight: 600; color: #1E293B;">{{ payment_method }}</td>
+    </tr>
+    <tr>
+      <td style="padding-bottom: 8px; font-size: 13px; color: #64748B;">Payment Status:</td>
+      <td align="right" style="padding-bottom: 8px; font-size: 13px; font-weight: 600; color: #0284C7;">{{ payment_status }}</td>
+    </tr>
+    <tr>
+      <td style="border-top: 1px solid #E2E8F0; padding-top: 12px; font-size: 15px; font-weight: 700; color: #0B3A63;">Total Payable:</td>
+      <td align="right" style="border-top: 1px solid #E2E8F0; padding-top: 12px; font-size: 16px; font-weight: 800; color: #0B3A63;">₹{{ total_amount }}</td>
+    </tr>
+  </table>
+</div>
+
+{% if items %}
+<h3 style="margin: 24px 0 12px 0; font-size: 15px; font-weight: 700; color: #1E293B;">Ordered Items</h3>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="8" border="0" style="border-collapse: collapse; margin-bottom: 24px;">
+  <thead>
+    <tr style="background-color: #F1F5F9; border-bottom: 2px solid #CBD5E1;">
+      <th align="left" style="font-size: 12px; color: #475569;">Item</th>
+      <th align="center" style="font-size: 12px; color: #475569;">Qty</th>
+      <th align="right" style="font-size: 12px; color: #475569;">Price</th>
+      <th align="right" style="font-size: 12px; color: #475569;">Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in items %}
+    <tr style="border-bottom: 1px solid #E2E8F0;">
+      <td style="font-size: 13px; color: #1E293B;">{{ item.product_name }}</td>
+      <td align="center" style="font-size: 13px; color: #475569;">{{ item.quantity }}</td>
+      <td align="right" style="font-size: 13px; color: #475569;">₹{{ item.unit_price }}</td>
+      <td align="right" style="font-size: 13px; font-weight: 600; color: #1E293B;">₹{{ item.total_amount }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<div style="text-align: center; margin: 28px 0 16px 0;">
+  <a href="{{ frontend_url }}/account" style="display: inline-block; background-color: #0B3A63; color: #FFFFFF; font-weight: 600; font-size: 14px; padding: 12px 28px; border-radius: 6px; text-decoration: none;">
+    View Order in Account
+  </a>
+</div>
+{% endblock %}

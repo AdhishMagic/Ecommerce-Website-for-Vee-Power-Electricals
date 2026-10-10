@@ -411,6 +411,11 @@ def _link_existing(user, claims: dict, request=None) -> dict:
         detail='linked_existing_account',
         request=request,
     )
+    try:
+        from apps.core.services.communication_service import CommunicationService
+        CommunicationService.send_google_linked_alert(user, google_email=claims.get('email', ''))
+    except Exception:
+        pass
     return {'user': user, 'created': False, 'linked': True}
 
 
@@ -500,4 +505,9 @@ def sign_in_with_google(claims: dict, request=None) -> dict:
             detail='google_first_registration',
             request=request,
         )
+        try:
+            from apps.core.services.communication_service import CommunicationService
+            CommunicationService.send_registration_welcome(user)
+        except Exception:
+            pass
         return {'user': user, 'created': True, 'linked': False}

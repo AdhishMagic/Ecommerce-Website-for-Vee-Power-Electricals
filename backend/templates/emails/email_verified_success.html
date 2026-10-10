@@ -1,0 +1,29 @@
+{% extends "emails/base.html" %}
+
+{% block title %}Email Verified Successfully - Vee Power Electricals{% endblock %}
+
+{% block content %}
+<div style="text-align: center; margin-bottom: 20px;">
+  <div style="display: inline-block; width: 56px; height: 56px; line-height: 56px; border-radius: 50%; background-color: #ECFDF5; color: #059669; font-size: 28px; font-weight: bold;">
+    ✓
+  </div>
+</div>
+
+<h2 style="margin: 0 0 16px 0; font-size: 20px; font-weight: 700; color: #0B3A63; text-align: center;">
+  Email Verified Successfully
+</h2>
+
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6; color: #334155;">
+  Hello <strong>{{ customer_name|default:"Customer" }}</strong>,
+</p>
+
+<p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; color: #475569;">
+  Your email address <strong>{{ customer_email }}</strong> has been successfully verified. Your account is fully active and you now have full access to retail ordering, order tracking, and commercial quotations.
+</p>
+
+<div style="text-align: center; margin: 28px 0 16px 0;">
+  <a href="{{ frontend_url }}/shop" style="display: inline-block; background-color: #0B3A63; color: #FFFFFF; font-weight: 600; font-size: 14px; padding: 12px 28px; border-radius: 6px; text-decoration: none; letter-spacing: 0.3px;">
+    Start Exploring Products
+  </a>
+</div>
+{% endblock %}

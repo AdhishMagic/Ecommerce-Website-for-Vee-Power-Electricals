@@ -1,0 +1,12 @@
+Email Verified Successfully - Vee Power Electricals
+
+Hello {{ customer_name|default:"Customer" }},
+
+Your email address {{ customer_email }} has been successfully verified. Your account is fully active and you now have access to all services on Vee Power Electricals.
+
+Visit our store: {{ frontend_url }}/shop
+
+---
+Vee Power Electricals Private Limited
+Coimbatore, Tamil Nadu, India
+Support: support@veepower.in | Phone: +91 98765 43210

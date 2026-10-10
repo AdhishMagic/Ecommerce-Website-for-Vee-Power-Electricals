@@ -1,0 +1,15 @@
+Google Account Linked - Vee Power Electricals
+
+Hello {{ customer_name|default:"Customer" }},
+
+Your Google Account ({{ google_email|default:customer_email }}) was successfully linked to your Vee Power Electricals customer profile on {{ event_time|default:"today" }}.
+
+You can now use Google Sign-In to securely access your account.
+
+SECURITY NOTICE:
+If you did not authorize this action, please contact our support team immediately at support@veepower.in to protect your account.
+
+---
+Vee Power Electricals Private Limited
+Coimbatore, Tamil Nadu, India
+Support: support@veepower.in | Phone: +91 98765 43210

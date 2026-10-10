@@ -89,10 +89,18 @@ class NotificationSettings(TimeStampedModel):
         ('QUOTATION_', 'quotation_notifications'),
         ('CUSTOMER_', 'customer_notifications'),
         ('INQUIRY_', 'customer_notifications'),
+        ('EMAIL_', 'customer_notifications'),
+        ('GOOGLE_', 'customer_notifications'),
     )
 
     #: Events that must never be suppressed (account-security critical).
-    ALWAYS_DELIVERED_EVENTS = frozenset({'PASSWORD_RESET'})
+    ALWAYS_DELIVERED_EVENTS = frozenset({
+        'PASSWORD_RESET',
+        'EMAIL_VERIFICATION',
+        'PASSWORD_RESET_SUCCESS',
+        'ACCOUNT_SECURITY_ALERT',
+        'GOOGLE_LINKED',
+    })
 
     class Meta:
         db_table = 'notification_settings'

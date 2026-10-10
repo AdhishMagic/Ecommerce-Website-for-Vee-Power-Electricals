@@ -56,6 +56,13 @@ class RegisterView(APIView):
         # Dispatch customer registration welcome communication
         CommunicationService.send_registration_welcome(user)
 
+        # Create initial email verification token in database
+        try:
+            from apps.users.services.verification_service import VerificationService
+            VerificationService.create_verification_token(user)
+        except Exception as e:
+            logger.error("Failed to generate email verification token: %s", e)
+
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
         refresh_token = str(refresh)
@@ -412,6 +419,10 @@ class CurrentUserView(APIView):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        try:
+            CommunicationService.send_account_security_alert(request.user, "Your profile details were updated.")
+        except Exception:
+            pass
         return Response(
             UserProfileSerializer(request.user).data,
             status=status.HTTP_200_OK,
@@ -433,7 +444,11 @@ class PasswordResetView(APIView):
         if 'token' in request.data and 'new_password' in request.data:
             confirm_serializer = PasswordResetConfirmSerializer(data=request.data)
             confirm_serializer.is_valid(raise_exception=True)
-            confirm_serializer.save()
+            user = confirm_serializer.save()
+            try:
+                CommunicationService.send_password_reset_success(user)
+            except Exception:
+                pass
             return Response(
                 {'message': 'Password has been successfully reset. You can now login with your new password.'},
                 status=status.HTTP_200_OK,
@@ -468,8 +483,70 @@ class PasswordResetConfirmView(APIView):
     def post(self, request):
         serializer = PasswordResetConfirmSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        user = serializer.save()
+        try:
+            CommunicationService.send_password_reset_success(user)
+        except Exception:
+            pass
         return Response(
             {'message': 'Password has been successfully reset. You can now login with your new password.'},
+            status=status.HTTP_200_OK,
+        )
+
+
+class RequestEmailVerificationView(APIView):
+    """
+    POST /api/v1/auth/verify-email/request/
+    Request or resend an email verification OTP / link with rate-limiting.
+    """
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
+
+    def post(self, request):
+        email = request.data.get('email', '').strip()
+        if not email:
+            return Response(
+                {'detail': 'Email address is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from apps.users.services.verification_service import VerificationService
+        success, message = VerificationService.resend_verification(email)
+        status_code = status.HTTP_200_OK if success else status.HTTP_429_TOO_MANY_REQUESTS
+        return Response({'message': message}, status=status_code)
+
+
+class ConfirmEmailVerificationView(APIView):
+    """
+    POST /api/v1/auth/verify-email/confirm/
+    Validates email verification OTP or token and activates verified email state.
+    """
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
+
+    def post(self, request):
+        email = request.data.get('email', '').strip()
+        code = (request.data.get('otp') or request.data.get('token') or request.data.get('code') or '').strip()
+
+        if not email or not code:
+            return Response(
+                {'detail': 'Both email and verification code (otp or token) are required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from apps.users.services.verification_service import VerificationService
+        success, user, message = VerificationService.verify_otp_or_token(email, code)
+
+        if not success:
+            return Response({'detail': message}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(
+            {
+                'message': message,
+                'email_verified': True,
+                'user': UserProfileSerializer(user).data if user else None,
+            },
             status=status.HTTP_200_OK,
         )

@@ -101,9 +101,12 @@ class CommunicationChannel(models.TextChoices):
 
 
 class CommunicationStatus(models.TextChoices):
+    QUEUED = 'QUEUED', 'Queued'
+    SENDING = 'SENDING', 'Sending'
     SENT = 'SENT', 'Sent'
     FAILED = 'FAILED', 'Failed'
     SKIPPED = 'SKIPPED', 'Skipped'
+    SUPPRESSED = 'SUPPRESSED', 'Suppressed'
 
 
 class CommunicationLog(TimeStampedModel):
@@ -130,6 +133,18 @@ class CommunicationLog(TimeStampedModel):
     context_snapshot = models.JSONField(default=dict, blank=True)
     sent_at = models.DateTimeField(null=True, blank=True)
 
+    # Provider & Outbox queue execution fields
+    provider = models.CharField(max_length=50, blank=True, default='brevo')
+    provider_message_id = models.CharField(max_length=255, blank=True, default='')
+    provider_status = models.CharField(max_length=50, blank=True, default='')
+    retry_count = models.PositiveIntegerField(default=0)
+    max_retries = models.PositiveIntegerField(default=3)
+    next_retry_at = models.DateTimeField(null=True, blank=True)
+    locked_at = models.DateTimeField(null=True, blank=True)
+    locked_by = models.CharField(max_length=100, blank=True, default='')
+    html_body = models.TextField(blank=True, default='')
+    text_body = models.TextField(blank=True, default='')
+
     class Meta:
         db_table = 'communication_logs'
         verbose_name = 'Communication Log'
@@ -140,6 +155,8 @@ class CommunicationLog(TimeStampedModel):
             models.Index(fields=['recipient', 'created_at'], name='idx_comm_recipient_date'),
             models.Index(fields=['status'], name='idx_comm_status'),
             models.Index(fields=['idempotency_key'], name='idx_comm_idempotency'),
+            models.Index(fields=['status', 'next_retry_at'], name='idx_comm_stat_retry'),
+            models.Index(fields=['provider_message_id'], name='idx_comm_prov_msgid'),
         ]
 
     def __str__(self):

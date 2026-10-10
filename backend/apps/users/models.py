@@ -54,6 +54,7 @@ class User(AbstractUser, TimeStampedModel):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
+    is_email_verified = models.BooleanField(default=False)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['first_name', 'last_name']
@@ -275,3 +276,49 @@ class CustomerAddress(TimeStampedModel):
 
     def __str__(self):
         return f"{self.recipient_name} - {self.city}, {self.pincode} ({self.address_type})"
+
+
+class VerificationTokenType(models.TextChoices):
+    EMAIL_VERIFY = 'EMAIL_VERIFY', 'Email Verification'
+    EMAIL_CHANGE = 'EMAIL_CHANGE', 'Email Change'
+
+
+class EmailVerificationToken(TimeStampedModel):
+    """
+    Authoritative state storage for email verification tokens and numeric OTPs.
+    Enforces expiration, rate limits, attempt bounding, and replay prevention.
+    """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='verification_tokens',
+    )
+    email = models.EmailField(max_length=255)
+    token = models.CharField(max_length=100, db_index=True)
+    otp = models.CharField(max_length=10, blank=True, default='')
+    token_type = models.CharField(
+        max_length=30,
+        choices=VerificationTokenType.choices,
+        default=VerificationTokenType.EMAIL_VERIFY,
+    )
+    is_used = models.BooleanField(default=False)
+    attempts = models.PositiveIntegerField(default=0)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        db_table = 'email_verification_tokens'
+        verbose_name = 'Email Verification Token'
+        verbose_name_plural = 'Email Verification Tokens'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['email', 'otp', 'is_used'], name='idx_evt_email_otp_used'),
+            models.Index(fields=['token', 'is_used'], name='idx_evt_token_used'),
+            models.Index(fields=['user', 'token_type'], name='idx_evt_user_type'),
+        ]
+
+    def is_expired(self) -> bool:
+        from django.utils import timezone
+        return timezone.now() >= self.expires_at
+
+    def __str__(self):
+        return f"[{self.token_type}] {self.email} (used={self.is_used})"

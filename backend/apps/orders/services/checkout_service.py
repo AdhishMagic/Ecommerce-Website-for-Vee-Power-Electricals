@@ -178,4 +178,11 @@ class CheckoutService:
             reason="Customer placed order at checkout",
         )
 
+        # 8. Dispatch Order Placed notification
+        try:
+            from apps.core.services.communication_service import CommunicationService
+            CommunicationService.send_order_placed(order=order)
+        except Exception:
+            pass
+
         return order

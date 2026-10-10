@@ -10,10 +10,14 @@ from .views import (
     PasswordResetConfirmView,
     PasswordResetView,
     RegisterView,
+    RequestEmailVerificationView,
+    ConfirmEmailVerificationView,
 )
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='auth-register'),
+    path('verify-email/request/', RequestEmailVerificationView.as_view(), name='auth-verify-email-request'),
+    path('verify-email/confirm/', ConfirmEmailVerificationView.as_view(), name='auth-verify-email-confirm'),
     path('login/', LoginView.as_view(), name='auth-login'),
     path('google/', GoogleLoginView.as_view(), name='auth-google'),
     path('google/login/', GoogleOAuthInitView.as_view(), name='auth-google-login'),

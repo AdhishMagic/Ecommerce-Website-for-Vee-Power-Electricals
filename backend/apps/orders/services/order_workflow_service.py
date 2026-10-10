@@ -94,10 +94,14 @@ class OrderWorkflowService:
             reason=reason or f"Order transitioned from {current_status} to {target_status}"
         )
 
-        # Authoritative customer communication dispatch
+        # Authoritative customer communication dispatch per minimal notification policy
         from apps.core.services.communication_service import CommunicationService
         if target_status == OrderStatus.CONFIRMED:
             CommunicationService.send_order_confirmation(order=order)
+        elif target_status == OrderStatus.PACKED:
+            # Internal operational warehouse state: recorded in DB and visible on order tracking UI,
+            # but customer email suppressed per minimal notification policy.
+            pass
         elif target_status in (
             OrderStatus.SHIPPED,
             OrderStatus.DELIVERED,
