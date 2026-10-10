@@ -507,6 +507,8 @@ class PaymentTransaction(TimeStampedModel):
         ]
         indexes = [
             models.Index(fields=['gateway_transaction_id'], name='idx_pay_gateway_id'),
+            models.Index(fields=['gateway_order_id'], name='idx_pay_gateway_order_id'),
+            models.Index(fields=['order', 'status'], name='idx_pay_order_status'),
         ]
 
     @property

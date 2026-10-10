@@ -4,3 +4,7 @@ class FinanceConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'apps.finance'
     verbose_name = 'B2B & Finance'
+
+    def ready(self):
+        import apps.finance.checks  # noqa: F401
+

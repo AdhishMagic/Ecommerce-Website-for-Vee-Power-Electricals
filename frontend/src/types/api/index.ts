@@ -492,6 +492,8 @@ export interface PaymentTransaction {
   amount: number | string;
   currency: string;
   status: string;
+  order_status?: string;
+  order_payment_status?: string;
   payment_method: string;
   created_at: string;
 }
@@ -540,6 +542,7 @@ export interface PaymentIntentResponse {
   customer_email: string;
   customer_phone: string;
   transaction_id: number;
+  is_mock?: boolean;
 }
 
 export interface PaymentVerifyPayload {

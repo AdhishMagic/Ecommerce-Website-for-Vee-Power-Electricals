@@ -462,3 +462,157 @@ class PaymentGatewayTests(TestCase):
         """Direct gateway refund is deferred for this release and raises NotImplementedError."""
         with self.assertRaises(NotImplementedError):
             PaymentGatewayService.process_refund(self.order1.id, self.customer1)
+
+    # -------------------------------------------------------------------------
+    # 8. Out-of-Order Webhook Protection & Hardening
+    # -------------------------------------------------------------------------
+    def test_out_of_order_failed_webhook_ignored_after_payment_success(self):
+        """
+        If a delayed or out-of-order 'payment.failed' webhook arrives after
+        payment was already confirmed, it must be ignored and not corrupt the order.
+        """
+        init_data = PaymentGatewayService.initiate_order_payment(self.order1.id, self.customer1)
+        gw_order_id = init_data['gateway_order_id']
+        sig = PaymentGatewayService.generate_signature(gw_order_id, 'pay_success_prior')
+
+        # First confirm payment
+        PaymentGatewayService.confirm_payment(
+            order_id=self.order1.id,
+            user=self.customer1,
+            razorpay_order_id=gw_order_id,
+            razorpay_payment_id='pay_success_prior',
+            razorpay_signature=sig,
+        )
+
+        self.order1.refresh_from_db()
+        self.assertEqual(self.order1.payment_status, PaymentStatus.PAID)
+
+        # Delayed failed webhook arrives
+        webhook_body = json.dumps({
+            "event": "payment.failed",
+            "payload": {
+                "payment": {
+                    "entity": {
+                        "id": "pay_late_fail_999",
+                        "order_id": gw_order_id,
+                        "error_code": "GATEWAY_TIMEOUT",
+                        "error_description": "Delayed timeout notice",
+                    }
+                }
+            }
+        }).encode('utf-8')
+        wh_sig = hmac.new(PaymentGatewayService.get_webhook_secret().encode('utf-8'), webhook_body, hashlib.sha256).hexdigest()
+
+        self.client.credentials()
+        res = self.client.post('/api/v1/payments/webhook/', data=webhook_body, content_type='application/json', HTTP_X_RAZORPAY_SIGNATURE=wh_sig)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['status'], 'ignored')
+
+        # Transaction and order must remain SUCCESS and PAID
+        txn = PaymentTransaction.objects.get(order=self.order1, gateway_order_id=gw_order_id)
+        self.assertEqual(txn.status, PaymentTxStatus.SUCCESS)
+        self.order1.refresh_from_db()
+        self.assertEqual(self.order1.payment_status, PaymentStatus.PAID)
+
+    def test_settlement_processed_webhook_records_payout_settlement(self):
+        """Settlement webhook creates or updates PayoutSettlement record with net amount and fees."""
+        from apps.finance.models import PayoutSettlement, SettlementStatus
+
+        webhook_body = json.dumps({
+            "event": "settlement.processed",
+            "payload": {
+                "settlement": {
+                    "entity": {
+                        "id": "setl_test_batch_12345",
+                        "amount": 100000,  # ₹1000.00
+                        "fees": 2000,     # ₹20.00
+                        "tax": 360,       # ₹3.60
+                        "utr": "UTR123456789",
+                    }
+                }
+            }
+        }).encode('utf-8')
+        wh_sig = hmac.new(PaymentGatewayService.get_webhook_secret().encode('utf-8'), webhook_body, hashlib.sha256).hexdigest()
+
+        self.client.credentials()
+        res = self.client.post('/api/v1/payments/webhook/', data=webhook_body, content_type='application/json', HTTP_X_RAZORPAY_SIGNATURE=wh_sig)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['status'], 'settlement_recorded')
+
+        settlement = PayoutSettlement.objects.get(settlement_id='setl_test_batch_12345')
+        self.assertEqual(settlement.status, SettlementStatus.SETTLED)
+        self.assertEqual(settlement.gross_amount, Decimal('1000.00'))
+        self.assertEqual(settlement.gateway_fee, Decimal('20.00'))
+        self.assertEqual(settlement.tax_on_fee, Decimal('3.60'))
+        self.assertEqual(settlement.net_amount, Decimal('976.40'))
+        self.assertEqual(settlement.bank_reference, 'UTR123456789')
+
+    def test_refund_processed_webhook_updates_transaction_and_metadata(self):
+        """Refund webhook updates transaction status to REFUNDED and updates order payment_status."""
+        init_data = PaymentGatewayService.initiate_order_payment(self.order1.id, self.customer1)
+        gw_order_id = init_data['gateway_order_id']
+        sig = PaymentGatewayService.generate_signature(gw_order_id, 'pay_refund_src')
+
+        PaymentGatewayService.confirm_payment(
+            order_id=self.order1.id,
+            user=self.customer1,
+            razorpay_order_id=gw_order_id,
+            razorpay_payment_id='pay_refund_src',
+            razorpay_signature=sig,
+        )
+
+        amount_in_paise = int(self.order1.total_amount * 100)
+        webhook_body = json.dumps({
+            "event": "refund.processed",
+            "payload": {
+                "refund": {
+                    "entity": {
+                        "id": "rfnd_test_67890",
+                        "payment_id": "pay_refund_src",
+                        "amount": amount_in_paise,
+                    }
+                }
+            }
+        }).encode('utf-8')
+        wh_sig = hmac.new(PaymentGatewayService.get_webhook_secret().encode('utf-8'), webhook_body, hashlib.sha256).hexdigest()
+
+        self.client.credentials()
+        res = self.client.post('/api/v1/payments/webhook/', data=webhook_body, content_type='application/json', HTTP_X_RAZORPAY_SIGNATURE=wh_sig)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['status'], 'refund_recorded')
+
+        txn = PaymentTransaction.objects.get(gateway_transaction_id='pay_refund_src')
+        self.assertEqual(txn.status, PaymentTxStatus.REFUNDED)
+        self.assertEqual(txn.metadata['refund_id'], 'rfnd_test_67890')
+        self.order1.refresh_from_db()
+        self.assertEqual(self.order1.payment_status, PaymentStatus.REFUNDED)
+
+    def test_payment_order_status_includes_authoritative_order_state(self):
+        """GET /api/v1/payments/order/<id>/ includes order_status and order_payment_status."""
+        PaymentGatewayService.initiate_order_payment(self.order1.id, self.customer1)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token_c1}')
+        res = self.client.get(f'/api/v1/payments/order/{self.order1.id}/')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['order_status'], OrderStatus.PENDING)
+        self.assertEqual(res.data['order_payment_status'], PaymentStatus.PENDING)
+
+    def test_system_checks_razorpay_configuration(self):
+        """System check validates Razorpay keys for production readiness."""
+        from django.test import override_settings
+        from apps.finance.checks import check_razorpay_configuration
+
+        # Development mode (DEBUG=True) -> 0 errors
+        with override_settings(DEBUG=True):
+            errors = check_razorpay_configuration(None)
+            self.assertEqual(len(errors), 0)
+
+        # Production with mock key -> 1 warning
+        with override_settings(DEBUG=False, RAZORPAY_KEY_ID='rzp_test_mock_veepower_key'):
+            errors = check_razorpay_configuration(None)
+            self.assertTrue(any(e.id == 'finance.W001' for e in errors))
+
+        # Production with live key but mock secret -> 1 error
+        with override_settings(DEBUG=False, RAZORPAY_KEY_ID='rzp_live_abc123', RAZORPAY_KEY_SECRET='mock_secret'):
+            errors = check_razorpay_configuration(None)
+            self.assertTrue(any(e.id == 'finance.E001' for e in errors))
+

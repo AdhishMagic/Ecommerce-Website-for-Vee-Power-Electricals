@@ -75,6 +75,11 @@ class PaymentVerifyView(APIView):
             return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
 
 
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+
+
+@method_decorator(csrf_exempt, name='dispatch')
 class PaymentWebhookView(APIView):
     """
     POST /api/v1/payments/webhook/
@@ -119,6 +124,15 @@ class PaymentOrderStatusView(APIView):
 
         txn = PaymentTransaction.objects.filter(order=order).order_by('-created_at').first()
         if not txn:
-            return Response({"detail": "No payment transactions found for this order."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({
+                "order_id": order.id,
+                "order_number": order.order_number,
+                "order_status": order.status,
+                "order_payment_status": order.payment_status,
+                "detail": "No payment transactions found for this order.",
+            }, status=status.HTTP_200_OK)
 
-        return Response(PaymentTransactionSerializer(txn).data, status=status.HTTP_200_OK)
+        data = PaymentTransactionSerializer(txn).data
+        data['order_status'] = order.status
+        data['order_payment_status'] = order.payment_status
+        return Response(data, status=status.HTTP_200_OK)

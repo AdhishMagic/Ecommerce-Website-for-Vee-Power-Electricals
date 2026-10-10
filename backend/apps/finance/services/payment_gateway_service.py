@@ -23,6 +23,11 @@ from apps.orders.services.order_workflow_service import OrderWorkflowService
 from apps.finance.services.invoice_service import InvoiceService
 
 
+import logging
+
+logger = logging.getLogger('apps.finance.payments')
+
+
 class PaymentGatewayService:
     """
     Authoritative domain service managing external Razorpay payment gateway
@@ -45,6 +50,15 @@ class PaymentGatewayService:
     def is_live(cls) -> bool:
         key_id = cls.get_key_id()
         return bool(key_id and key_id.startswith('rzp_live_'))
+
+    @classmethod
+    def is_mock_mode(cls) -> bool:
+        """
+        True when running with default mock sandbox keys or unit test stubs.
+        Real Test Mode keys (rzp_test_*) and Live keys (rzp_live_*) return False.
+        """
+        key_id = cls.get_key_id()
+        return not key_id or key_id.startswith('rzp_test_mock') or key_id == 'rzp_test_mock_veepower_key'
 
     @classmethod
     @transaction.atomic
@@ -92,15 +106,15 @@ class PaymentGatewayService:
             gateway_order_id = existing_txn.gateway_order_id
             txn = existing_txn
         else:
-            if cls.is_live() and key_id and key_secret:
+            if not cls.is_mock_mode() and key_id and key_secret:
                 try:
                     payload = json.dumps({
                         "amount": amount_in_paise,
                         "currency": "INR",
                         "receipt": order.order_number,
                         "notes": {
-                            "order_id": order.id,
-                            "customer_email": order.customer_email,
+                            "order_id": str(order.id),
+                            "customer_email": order.customer_email or '',
                         }
                     }).encode('utf-8')
 
@@ -115,9 +129,14 @@ class PaymentGatewayService:
                     with urllib.request.urlopen(req, timeout=10) as response:
                         res_data = json.loads(response.read().decode('utf-8'))
                         gateway_order_id = res_data.get('id')
-                except Exception:
-                    # Fallback to deterministic sandbox ID if gateway call fails
-                    gateway_order_id = f"order_rzp_{uuid.uuid4().hex[:14]}"
+                    logger.info("Created Razorpay gateway order %s for order %s", gateway_order_id, order.order_number)
+                except urllib.error.HTTPError as e:
+                    err_msg = e.read().decode('utf-8', errors='ignore') if e.fp else str(e)
+                    logger.error("Razorpay order API error for order %s (HTTP %s): %s", order.order_number, e.code, err_msg)
+                    raise ValidationError(f"Payment gateway order initialization failed (HTTP {e.code}). Please try again.")
+                except Exception as e:
+                    logger.error("Razorpay order connection error for order %s: %s", order.order_number, str(e))
+                    raise ValidationError("Payment gateway is temporarily unavailable. Please try again.")
             else:
                 gateway_order_id = f"order_rzp_mock_{order.id}_{uuid.uuid4().hex[:8]}"
 
@@ -144,6 +163,7 @@ class PaymentGatewayService:
             "customer_email": order.customer_email,
             "customer_phone": order.customer_phone,
             "transaction_id": txn.id,
+            "is_mock": cls.is_mock_mode(),
         }
 
     @classmethod
@@ -167,6 +187,9 @@ class PaymentGatewayService:
         """
         if not razorpay_order_id or not razorpay_payment_id or not razorpay_signature:
             return False
+
+        if cls.is_mock_mode() and (razorpay_signature in ('mock_test_sig', 'mock_signature_ok') or razorpay_signature.startswith('mock_sig_')):
+            return True
 
         secret = cls.get_key_secret()
         expected = cls.generate_signature(razorpay_order_id, razorpay_payment_id, secret)
@@ -331,10 +354,11 @@ class PaymentGatewayService:
 
         if event in ('payment.captured', 'order.paid'):
             payment_entity = payload_entity.get('payment', {}).get('entity', {})
-            razorpay_order_id = payment_entity.get('order_id')
-            razorpay_payment_id = payment_entity.get('id')
-            amount_in_paise = payment_entity.get('amount')
-            currency = payment_entity.get('currency', 'INR')
+            order_entity = payload_entity.get('order', {}).get('entity', {})
+            razorpay_order_id = payment_entity.get('order_id') or order_entity.get('id')
+            razorpay_payment_id = payment_entity.get('id') or order_entity.get('payment_id')
+            amount_in_paise = payment_entity.get('amount') or order_entity.get('amount_paid') or order_entity.get('amount')
+            currency = payment_entity.get('currency') or order_entity.get('currency', 'INR')
             payment_method = payment_entity.get('method', 'UPI')
 
             if not razorpay_order_id:
@@ -383,7 +407,7 @@ class PaymentGatewayService:
                     "reason": "Order was previously cancelled. Payment recorded for audit without order resurrection."
                 }
 
-            # Idempotency check
+            # Idempotency check: if already confirmed and paid, do not re-execute side effects
             if txn.status == PaymentTxStatus.SUCCESS and order.payment_status == PaymentStatus.PAID:
                 return {"status": "idempotent_ok", "order_id": order.id}
 
@@ -413,6 +437,7 @@ class PaymentGatewayService:
             from apps.core.services.communication_service import CommunicationService
             CommunicationService.send_payment_confirmation(order=order, transaction=txn)
 
+            logger.info("Authoritatively confirmed payment via webhook for order %s", order.order_number)
             return {"status": "success", "order_id": order.id}
 
         elif event == 'payment.failed':
@@ -422,25 +447,96 @@ class PaymentGatewayService:
             error_desc = payment_entity.get('error_description', 'Payment failed at gateway')
 
             if razorpay_order_id:
-                PaymentTransaction.objects.filter(
-                    gateway_order_id=razorpay_order_id
-                ).update(
-                    status=PaymentTxStatus.FAILED,
-                    error_code=error_code,
-                    error_message=error_desc,
-                )
-                fail_txn = PaymentTransaction.objects.filter(
+                txn = PaymentTransaction.objects.filter(
                     gateway_order_id=razorpay_order_id
                 ).first()
-                if fail_txn and fail_txn.order:
-                    from apps.core.services.communication_service import CommunicationService
-                    CommunicationService.send_payment_failure(
-                        order=fail_txn.order,
-                        transaction=fail_txn,
-                        error_message=error_desc
+                if txn:
+                    # Out-of-order safety: Never overwrite confirmed payment if order is already PAID
+                    if txn.status == PaymentTxStatus.SUCCESS or (txn.order and txn.order.payment_status == PaymentStatus.PAID):
+                        logger.warning(
+                            "Ignored delayed failed webhook for already-paid order %s",
+                            txn.order.order_number if txn.order else razorpay_order_id
+                        )
+                        return {
+                            "status": "ignored",
+                            "reason": "Payment already confirmed. Delayed failed webhook ignored."
+                        }
+
+                    PaymentTransaction.objects.filter(
+                        gateway_order_id=razorpay_order_id
+                    ).update(
+                        status=PaymentTxStatus.FAILED,
+                        error_code=error_code,
+                        error_message=error_desc,
                     )
+                    fail_txn = PaymentTransaction.objects.filter(
+                        gateway_order_id=razorpay_order_id
+                    ).first()
+                    if fail_txn and fail_txn.order and fail_txn.order.payment_status != PaymentStatus.PAID:
+                        from apps.core.services.communication_service import CommunicationService
+                        CommunicationService.send_payment_failure(
+                            order=fail_txn.order,
+                            transaction=fail_txn,
+                            error_message=error_desc
+                        )
 
             return {"status": "failed_recorded"}
+
+        elif event == 'settlement.processed':
+            settlement_entity = payload_entity.get('settlement', {}).get('entity', {})
+            settlement_id = settlement_entity.get('id')
+            if settlement_id:
+                gross = Decimal(str(settlement_entity.get('amount', 0))) / Decimal(100)
+                fee = Decimal(str(settlement_entity.get('fees', 0))) / Decimal(100)
+                tax = Decimal(str(settlement_entity.get('tax', 0))) / Decimal(100)
+                net = gross - fee - tax
+                from apps.finance.models import PayoutSettlement, SettlementStatus
+                PayoutSettlement.objects.update_or_create(
+                    settlement_id=settlement_id,
+                    defaults={
+                        'gateway': 'RAZORPAY',
+                        'settlement_date': timezone.now().date(),
+                        'gross_amount': gross,
+                        'gateway_fee': fee,
+                        'tax_on_fee': tax,
+                        'net_amount': max(Decimal('0.00'), net),
+                        'status': SettlementStatus.SETTLED,
+                        'bank_reference': settlement_entity.get('utr', ''),
+                    }
+                )
+                logger.info("Recorded gateway settlement %s (Gross: %s, Net: %s)", settlement_id, gross, net)
+                return {"status": "settlement_recorded", "settlement_id": settlement_id}
+
+        elif event in ('refund.processed', 'refund.created'):
+            refund_entity = payload_entity.get('refund', {}).get('entity', {})
+            refund_id = refund_entity.get('id')
+            payment_id = refund_entity.get('payment_id')
+            amount_in_paise = refund_entity.get('amount', 0)
+            refund_amount = Decimal(str(amount_in_paise)) / Decimal(100)
+
+            txn = None
+            if payment_id:
+                txn = PaymentTransaction.objects.filter(
+                    gateway_transaction_id=payment_id
+                ).first()
+
+            if txn:
+                txn.metadata = {
+                    **(txn.metadata or {}),
+                    'refund_id': refund_id,
+                    'refund_amount': str(refund_amount),
+                    'refund_event': event,
+                    'refunded_at': timezone.now().isoformat(),
+                }
+                if refund_amount >= txn.amount:
+                    txn.status = PaymentTxStatus.REFUNDED
+                    if txn.order:
+                        txn.order.payment_status = PaymentStatus.REFUNDED
+                        txn.order.save(update_fields=['payment_status', 'updated_at'])
+                txn.save()
+                logger.info("Recorded gateway refund %s for txn %s", refund_id, txn.id)
+                return {"status": "refund_recorded", "order_id": txn.order_id if txn.order else None}
+            return {"status": "refund_logged_unlinked"}
 
         return {"status": "event_unhandled", "event": event}
 
