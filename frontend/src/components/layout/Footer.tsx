@@ -56,10 +56,12 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Policies */}
+          {/* Policies & Information */}
           <div>
-            <h4 className="text-white font-semibold mb-4" style={{ fontFamily: "Outfit" }}>Policies & Info</h4>
-            <ul className="space-y-2 text-sm text-white/70">
+            <h4 className="text-white font-semibold mb-4 text-base tracking-tight" style={{ fontFamily: "Outfit, sans-serif" }}>
+              Policies & Information
+            </h4>
+            <ul className="space-y-2.5 text-sm text-white/75">
               {[
                 { label: "About Us", to: "/about" },
                 { label: "Contact Us", to: "/contact" },
@@ -69,7 +71,12 @@ export default function Footer() {
                 { label: "Return & Cancellation", to: "/returns" },
               ].map(link => (
                 <li key={link.to}>
-                  <Link to={link.to} className="hover:text-[#F2A900] transition-colors">{link.label}</Link>
+                  <Link
+                    to={link.to}
+                    className="inline-block hover:text-[#F2A900] transition-colors duration-150 py-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F2A900] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B3A63] rounded-xs"
+                  >
+                    {link.label}
+                  </Link>
                 </li>
               ))}
             </ul>

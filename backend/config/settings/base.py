@@ -232,15 +232,20 @@ SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SAMESITE = 'Lax'
 
-# Google Sign-In (OIDC) Configuration
+# Google Sign-In & OAuth 2.0 Configuration
 # Google acts strictly as an external identity provider. No Google data store is used.
-# Client secrets are never required for the ID-token flow and must never be exposed to the client.
+# Client secrets are never exposed through API responses, frontend bundles, or client settings.
 GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '')
+GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET', '')
+GOOGLE_REDIRECT_URI = os.getenv('GOOGLE_REDIRECT_URI', 'http://localhost:8000/auth/google/callback')
+GOOGLE_AUTH_URI = os.getenv('GOOGLE_AUTH_URI', 'https://accounts.google.com/o/oauth2/v2/auth')
+GOOGLE_TOKEN_URI = os.getenv('GOOGLE_TOKEN_URI', 'https://oauth2.googleapis.com/token')
 GOOGLE_TOKENINFO_URL = os.getenv(
     'GOOGLE_TOKENINFO_URL',
     'https://oauth2.googleapis.com/tokeninfo',
 )
 GOOGLE_ISSUERS = ('accounts.google.com', 'https://accounts.google.com')
+GOOGLE_SCOPES = ['openid', 'email', 'profile']
 
 # Payment Gateway Configuration (Razorpay)
 RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID', 'rzp_test_mock_veepower_key')

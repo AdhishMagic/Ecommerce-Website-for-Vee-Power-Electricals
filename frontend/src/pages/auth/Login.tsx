@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import AuthLayout from "../../components/layout/AuthLayout";
@@ -22,6 +22,52 @@ export default function Login() {
   const redirect = searchParams.get("redirect") || "";
   
   const { login } = useAuth();
+
+  useEffect(() => {
+    const oauthToken = searchParams.get("token");
+    const oauthError = searchParams.get("error");
+    const oauthCancelled = searchParams.get("cancelled");
+    const isLinked = searchParams.get("linked") === "1" || searchParams.get("linked") === "true";
+
+    if (oauthCancelled) {
+      setError("Google sign-in was cancelled.");
+      return;
+    }
+    if (oauthError) {
+      setError(
+        oauthError === "invalid_state"
+          ? "Security validation failed. Please try signing in again."
+          : "Google authentication failed. Please try again."
+      );
+      return;
+    }
+    if (oauthToken) {
+      setIsLoading(true);
+      setAuthStatus("submitting");
+      authService
+        .getCurrentUser()
+        .then((user) => {
+          if (!user) {
+            setError("Failed to initialize session. Please try signing in again.");
+            setAuthStatus("idle");
+            setIsLoading(false);
+            return;
+          }
+          setAuthStatus("success");
+          if (isLinked) {
+            setGoogleNotice("Signed in with Google using your existing account.");
+          }
+          setTimeout(() => {
+            login(oauthToken, user, redirect);
+          }, 400);
+        })
+        .catch(() => {
+          setError("Failed to initialize session. Please try signing in again.");
+          setAuthStatus("idle");
+          setIsLoading(false);
+        });
+    }
+  }, [searchParams, login, redirect]);
 
   const validateEmail = (emailStr: string) => {
     const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

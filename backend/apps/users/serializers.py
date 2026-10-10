@@ -49,7 +49,7 @@ class UserRegistrationSerializer(serializers.Serializer):
         trim_whitespace=False
     )
     first_name = serializers.CharField(required=True, max_length=150, allow_blank=False)
-    last_name = serializers.CharField(required=False, max_length=150, allow_blank=True, default='')
+    last_name = serializers.CharField(required=True, max_length=150, allow_blank=True)
     phone = serializers.CharField(required=False, max_length=20, allow_blank=True, default='')
 
     def validate_email(self, value):

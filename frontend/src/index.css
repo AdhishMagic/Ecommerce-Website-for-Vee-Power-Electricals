@@ -454,12 +454,23 @@ input[type="password"]::-ms-clear {
   .animate-promo-strip,
   .btn-interactive,
   .card-interactive,
-  .table-row-interactive {
+  .table-row-interactive,
+  .mobile-nav-panel {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
     transition: none !important;
   }
+}
+
+/* ==========================================================================
+   MOBILE NAVIGATION DROPDOWN ANIMATION
+   ========================================================================== */
+.mobile-nav-panel {
+  transform-origin: top right;
+  transition: opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
+              transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
 }
 
 

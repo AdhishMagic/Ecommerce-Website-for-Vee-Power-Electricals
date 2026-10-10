@@ -1,74 +1,106 @@
-import { useParams } from "react-router-dom";
+import { useParams, useLocation, Link } from "react-router-dom";
+import { useEffect } from "react";
+import { POLICIES } from "../../data/policyData";
+import PolicyPageLayout from "../../components/policies/PolicyPageLayout";
 import { COMPANY_NAME } from "../../constants/companyInfo";
 
-const policies: Record<string, { title: string; sections: { heading: string; content: string }[] }> = {
-  privacy: {
-    title: "Privacy Policy",
-    sections: [
-      { heading: "Information We Collect", content: "We collect information you provide when placing orders, creating an account, or contacting us. This includes your name, address, phone number, email address, and payment information." },
-      { heading: "How We Use Your Information", content: "We use your information to process and fulfill orders, send order confirmations and updates, respond to your inquiries, and improve our services. We do not sell your personal information to third parties." },
-      { heading: "Data Security", content: "We implement appropriate security measures to protect your personal information. Payment transactions are encrypted using SSL technology." },
-      { heading: "Contact Us", content: "If you have questions about this Privacy Policy, contact us at veepower.cbe@gmail.com or call +91 8610359797." },
-    ],
-  },
-  terms: {
-    title: "Terms & Conditions",
-    sections: [
-      { heading: "Acceptance of Terms", content: "By using this website, you agree to these terms and conditions. If you do not agree, please do not use this site." },
-      { heading: "Product Information", content: "We strive to provide accurate product information, including descriptions, specifications, and prices. Prices are subject to change without notice." },
-      { heading: "Orders", content: "Placing an order constitutes a binding offer to purchase. We reserve the right to cancel orders due to pricing errors, out-of-stock situations, or suspected fraud." },
-      { heading: "Governing Law", content: "These terms are governed by the laws of Tamil Nadu, India. Any disputes shall be subject to the exclusive jurisdiction of courts in Coimbatore." },
-    ],
-  },
-  shipping: {
-    title: "Shipping Policy",
-    sections: [
-      { heading: "Delivery Area", content: "We deliver products all around India. Fast Pan-India shipping is available for all products to every state, union territory, and pin code." },
-      { heading: "Delivery Time", content: "Standard delivery: 3–5 business days all around India. Delivery times may vary depending on destination pin code and courier schedules." },
-      { heading: "Shipping Charges", content: "Free shipping on orders above ₹999. Orders below ₹999: ₹99 shipping charge. Bulk and heavy items may have additional charges." },
-      { heading: "Order Tracking", content: "Once dispatched, you'll receive an SMS/email with your tracking number. Track your order in the 'My Orders' section of your account." },
-    ],
-  },
-  returns: {
-    title: "Return & Cancellation Policy",
-    sections: [
-      { heading: "Return Policy", content: "We accept returns within 7 days of delivery for defective or incorrect products. Products must be unused, in original packaging with all accessories and invoice." },
-      { heading: "Non-Returnable Items", content: "Electrical components once installed cannot be returned. Customised or special-order products are non-returnable unless defective." },
-      { heading: "Cancellation", content: "Orders can be cancelled before dispatch. Once dispatched, cancellation is not possible — please initiate a return after delivery." },
-      { heading: "Refunds", content: "Approved refunds are processed within 5–7 business days to the original payment method. UPI/card refunds may take 3–5 additional banking days." },
-    ],
-  },
+const ALIAS_MAP: Record<string, string> = {
+  // Privacy
+  privacy: "privacy",
+  "privacy-policy": "privacy",
+
+  // Terms
+  terms: "terms",
+  "terms-and-conditions": "terms",
+  "terms-conditions": "terms",
+
+  // Shipping
+  shipping: "shipping",
+  "shipping-policy": "shipping",
+  "delivery-policy": "shipping",
+  delivery: "shipping",
+
+  // Returns
+  returns: "returns",
+  "return-and-cancellation": "returns",
+  "returns-and-cancellation": "returns",
+  "return-cancellation": "returns",
+  "return-policy": "returns",
+  cancellation: "returns",
+  "cancellation-policy": "returns",
+  "refund-policy": "returns",
 };
 
 export default function PolicyPage() {
-  const { type } = useParams<{ type: string }>();
-  const policy = policies[type || ""];
+  const { type } = useParams<{ type?: string }>();
+  const location = useLocation();
 
-  if (!policy) return (
-    <div className="max-w-3xl mx-auto px-4 py-20 text-center">
-      <h2 className="text-2xl font-bold text-[#0B3A63]">Page not found</h2>
-    </div>
-  );
+  // Extract path slug (e.g. from '/privacy' or '/:type')
+  const pathSegment = (type || location.pathname.replace(/^\//, "").split("/")[0] || "").toLowerCase();
+  const canonicalKey = ALIAS_MAP[pathSegment] || (POLICIES[pathSegment] ? pathSegment : "");
+  const policy = POLICIES[canonicalKey];
 
-  return (
-    <div className="max-w-3xl mx-auto px-4 py-10">
-      <div className="bg-white border border-[#D9E1E8] rounded-2xl overflow-hidden">
-        <div className="bg-gradient-to-r from-[#0B3A63] to-[#1769AA] px-8 py-8 text-white">
-          <h1 className="text-2xl font-bold" style={{ fontFamily: "Outfit" }}>{policy.title}</h1>
-          <p className="text-white/70 text-sm mt-1">{COMPANY_NAME} · Last updated: December 2024</p>
-        </div>
-        <div className="p-8 space-y-6">
-          {policy.sections.map(section => (
-            <div key={section.heading}>
-              <h2 className="text-lg font-bold text-[#0B3A63] mb-2">{section.heading}</h2>
-              <p className="text-[#667085] text-sm leading-relaxed">{section.content}</p>
-            </div>
-          ))}
-          <div className="mt-8 pt-6 border-t border-[#D9E1E8] text-sm text-[#667085]">
-            <p>For any questions, contact us at <a href="mailto:veepower.cbe@gmail.com" className="text-[#1769AA]">veepower.cbe@gmail.com</a> or call <a href="tel:+918610359797" className="text-[#1769AA]">+91 8610359797</a>.</p>
+  useEffect(() => {
+    // Update document title and meta description
+    if (policy) {
+      document.title = `${policy.title} | ${COMPANY_NAME}`;
+    } else {
+      document.title = `Policies & Information | ${COMPANY_NAME}`;
+    }
+  }, [policy]);
+
+  if (!policy) {
+    return (
+      <div className="bg-[#F6F8FA] min-h-[70vh] flex items-center justify-center py-16 px-4">
+        <div className="bg-white border border-[#D9E1E8] rounded-2xl p-8 sm:p-12 max-w-lg w-full text-center shadow-xs">
+          <div className="w-14 h-14 bg-amber-50 text-[#F2A900] border border-amber-200 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl font-bold">
+            📄
           </div>
+          <h1
+            className="text-2xl font-bold text-[#0B3A63] mb-2"
+            style={{ fontFamily: "Outfit, sans-serif" }}
+          >
+            Policy Page Not Found
+          </h1>
+          <p className="text-sm text-slate-600 mb-6 leading-relaxed">
+            The policy document you requested is not available at this link. Please select one of our operational policies below:
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-6 text-left">
+            <Link
+              to="/privacy"
+              className="p-3 rounded-xl border border-slate-200 hover:border-[#1769AA] hover:bg-[#EFF6FF] text-xs font-semibold text-[#0B3A63] transition-colors"
+            >
+              Privacy Policy →
+            </Link>
+            <Link
+              to="/terms"
+              className="p-3 rounded-xl border border-slate-200 hover:border-[#1769AA] hover:bg-[#EFF6FF] text-xs font-semibold text-[#0B3A63] transition-colors"
+            >
+              Terms & Conditions →
+            </Link>
+            <Link
+              to="/shipping"
+              className="p-3 rounded-xl border border-slate-200 hover:border-[#1769AA] hover:bg-[#EFF6FF] text-xs font-semibold text-[#0B3A63] transition-colors"
+            >
+              Shipping Policy →
+            </Link>
+            <Link
+              to="/returns"
+              className="p-3 rounded-xl border border-slate-200 hover:border-[#1769AA] hover:bg-[#EFF6FF] text-xs font-semibold text-[#0B3A63] transition-colors"
+            >
+              Return & Cancellation →
+            </Link>
+          </div>
+          <Link
+            to="/"
+            className="inline-flex items-center justify-center px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-[#0B3A63] hover:bg-[#1769AA] transition-colors shadow-2xs"
+          >
+            Return to Storefront
+          </Link>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  return <PolicyPageLayout policy={policy} />;
 }

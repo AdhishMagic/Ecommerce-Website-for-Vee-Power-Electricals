@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { User } from "../../types/user";
 
 export type CustomerTabId = "orders" | "addresses" | "profile";
@@ -18,6 +19,10 @@ export default function CustomerSidebar({
   onLogout,
   ordersCount,
 }: CustomerSidebarProps) {
+  const isAdmin = Boolean(
+    user && (user.role?.toLowerCase() === "admin" || user.is_admin === true)
+  );
+
   // Clean user display name logic preserving authentic customer name
   const cleanLastName = (user?.last_name || "").trim().toLowerCase() === "user" ? "" : (user?.last_name || "").trim();
   let displayName = user?.name?.trim() || [user?.first_name, cleanLastName].filter(Boolean).join(" ");
@@ -122,6 +127,19 @@ export default function CustomerSidebar({
               </button>
             );
           })}
+          {isAdmin && (
+            <Link
+              to="/admin"
+              id="mobile-customer-to-admin-link"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold whitespace-nowrap text-[#0B3A63] bg-amber-50 border border-amber-300 hover:bg-amber-100 transition-colors shrink-0"
+            >
+              <svg className="w-3.5 h-3.5 text-[#D97706]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span>Admin Panel</span>
+            </Link>
+          )}
         </div>
       </div>
 
@@ -182,8 +200,30 @@ export default function CustomerSidebar({
             );
           })}
 
+          {/* Admin Switch Link */}
+          {isAdmin && (
+            <div className="pt-2 mt-2 border-t border-[#D9E1E8]">
+              <Link
+                to="/admin"
+                id="desktop-customer-to-admin-link"
+                className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-[#0B3A63] bg-amber-50 hover:bg-amber-100 border border-amber-300 transition-colors duration-150 group"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <svg className="w-4 h-4 text-[#D97706] shrink-0 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span className="truncate">Admin Dashboard</span>
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-[#0B3A63] text-[#F2A900] px-2 py-0.5 rounded-full shrink-0">
+                  Admin
+                </span>
+              </Link>
+            </div>
+          )}
+
           {/* Divider and Logout */}
-          <div className="pt-2 mt-2 border-t border-[#D9E1E8]">
+          <div className={isAdmin ? "pt-1" : "pt-2 mt-2 border-t border-[#D9E1E8]"}>
             <button
               onClick={onLogout}
               type="button"

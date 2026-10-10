@@ -16,11 +16,21 @@ Google is used strictly as an external OIDC identity provider. This module:
 The application's customer account and all business data remain in
 Django + MySQL. No Google data store is used and no Firebase is involved.
 """
+import base64
+import hashlib
 import json
 import logging
+import secrets
 import urllib.error
 import urllib.parse
 import urllib.request
+
+try:
+    from google.oauth2 import id_token as google_id_token
+    from google.auth.transport import requests as google_requests
+    _GOOGLE_AUTH_AVAILABLE = True
+except ImportError:
+    _GOOGLE_AUTH_AVAILABLE = False
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -121,10 +131,9 @@ def verify_google_id_token(id_token: str) -> dict:
     """
     Verify a Google ID token server-side and return validated identity claims.
 
-    Uses Google's official tokeninfo endpoint which validates the token
-    signature, issuer, and expiry, then re-validates audience/issuer/expiry and
-    the verified-email claim locally. Raises a canonical GoogleSignInError on
-    any failure. Never returns or stores access tokens.
+    Uses the trusted google-auth library and Google's official tokeninfo endpoint
+    to validate the token signature, issuer, expiry, audience, and email verification.
+    Raises a canonical GoogleSignInError on any failure. Never returns or stores access tokens.
     """
     if not id_token or not isinstance(id_token, str):
         raise InvalidGoogleTokenError('A Google credential is required.')
@@ -133,22 +142,38 @@ def verify_google_id_token(id_token: str) -> dict:
     if not client_id:
         raise GoogleSignInNotConfiguredError()
 
-    tokeninfo_url = getattr(
-        settings,
-        'GOOGLE_TOKENINFO_URL',
-        'https://oauth2.googleapis.com/tokeninfo',
-    )
-    url = f"{tokeninfo_url}?{urllib.parse.urlencode({'id_token': id_token.strip()})}"
+    payload = None
+    # If the token is a standard three-part JWT and google-auth is installed, verify locally
+    if _GOOGLE_AUTH_AVAILABLE and id_token.strip().count('.') == 2:
+        try:
+            payload = google_id_token.verify_oauth2_token(
+                id_token.strip(),
+                google_requests.Request(),
+                client_id,
+            )
+        except ValueError:
+            payload = None
+        except Exception as exc:
+            logger.debug("google-auth verification fell back to tokeninfo: %s", exc)
+            payload = None
 
-    try:
-        with urllib.request.urlopen(url, timeout=_TOKENINFO_TIMEOUT_SECONDS) as response:
-            payload = json.loads(response.read().decode('utf-8'))
-    except urllib.error.HTTPError as exc:
-        # Google returns HTTP 400 for an expired/malformed/invalid token.
-        raise InvalidGoogleTokenError('The Google credential is invalid or expired.') from exc
-    except (urllib.error.URLError, TimeoutError, ValueError, OSError) as exc:
-        logger.warning("Google tokeninfo request failed: %s", type(exc).__name__)
-        raise GoogleProviderUnavailableError() from exc
+    if payload is None:
+        tokeninfo_url = getattr(
+            settings,
+            'GOOGLE_TOKENINFO_URL',
+            'https://oauth2.googleapis.com/tokeninfo',
+        )
+        url = f"{tokeninfo_url}?{urllib.parse.urlencode({'id_token': id_token.strip()})}"
+
+        try:
+            with urllib.request.urlopen(url, timeout=_TOKENINFO_TIMEOUT_SECONDS) as response:
+                payload = json.loads(response.read().decode('utf-8'))
+        except urllib.error.HTTPError as exc:
+            # Google returns HTTP 400 for an expired/malformed/invalid token.
+            raise InvalidGoogleTokenError('The Google credential is invalid or expired.') from exc
+        except (urllib.error.URLError, TimeoutError, ValueError, OSError) as exc:
+            logger.warning("Google tokeninfo request failed: %s", type(exc).__name__)
+            raise GoogleProviderUnavailableError() from exc
 
     if not isinstance(payload, dict):
         raise InvalidGoogleTokenError('The Google credential is invalid or expired.')
@@ -177,6 +202,110 @@ def verify_google_id_token(id_token: str) -> dict:
         'family_name': (payload.get('family_name') or '').strip(),
         'name': (payload.get('name') or '').strip(),
     }
+
+
+# ==============================================================================
+# OAUTH 2.0 AUTHORIZATION CODE FLOW & PKCE (RFC 7636)
+# ==============================================================================
+
+def generate_pkce_pair() -> tuple[str, str]:
+    """
+    Generate PKCE code_verifier and code_challenge (RFC 7636).
+    """
+    verifier = secrets.token_urlsafe(64)
+    digest = hashlib.sha256(verifier.encode('ascii')).digest()
+    challenge = base64.urlsafe_b64encode(digest).decode('ascii').rstrip('=')
+    return verifier, challenge
+
+
+def generate_oauth_state() -> str:
+    """
+    Generate cryptographically strong random state string to protect against CSRF.
+    """
+    return secrets.token_urlsafe(32)
+
+
+def build_google_auth_url(state: str, code_challenge: str | None = None) -> str:
+    """
+    Construct the Google OAuth 2.0 authorization URL.
+    """
+    client_id = getattr(settings, 'GOOGLE_CLIENT_ID', '') or ''
+    if not client_id:
+        raise GoogleSignInNotConfiguredError()
+
+    redirect_uri = getattr(settings, 'GOOGLE_REDIRECT_URI', 'http://localhost:8000/auth/google/callback')
+    auth_uri = getattr(settings, 'GOOGLE_AUTH_URI', 'https://accounts.google.com/o/oauth2/v2/auth')
+    scopes = ' '.join(getattr(settings, 'GOOGLE_SCOPES', ['openid', 'email', 'profile']))
+
+    params = {
+        'client_id': client_id,
+        'redirect_uri': redirect_uri,
+        'response_type': 'code',
+        'scope': scopes,
+        'state': state,
+        'access_type': 'online',
+        'prompt': 'select_account',
+    }
+    if code_challenge:
+        params['code_challenge'] = code_challenge
+        params['code_challenge_method'] = 'S256'
+
+    return f"{auth_uri}?{urllib.parse.urlencode(params)}"
+
+
+def exchange_code_for_tokens(
+    code: str,
+    code_verifier: str | None = None,
+    redirect_uri: str | None = None,
+) -> dict:
+    """
+    Exchange authorization code for tokens with Google OAuth token endpoint.
+    Client secret is used exclusively server-side.
+    """
+    client_id = getattr(settings, 'GOOGLE_CLIENT_ID', '') or ''
+    client_secret = getattr(settings, 'GOOGLE_CLIENT_SECRET', '') or ''
+    if not client_id or not client_secret:
+        raise GoogleSignInNotConfiguredError("Google OAuth credentials are not fully configured.")
+
+    token_uri = getattr(settings, 'GOOGLE_TOKEN_URI', 'https://oauth2.googleapis.com/token')
+    resolved_redirect_uri = redirect_uri or getattr(
+        settings, 'GOOGLE_REDIRECT_URI', 'http://localhost:8000/auth/google/callback'
+    )
+
+    data = {
+        'code': (code or '').strip(),
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'redirect_uri': resolved_redirect_uri,
+        'grant_type': 'authorization_code',
+    }
+    if code_verifier:
+        data['code_verifier'] = code_verifier.strip()
+
+    encoded = urllib.parse.urlencode(data).encode('utf-8')
+    req = urllib.request.Request(
+        token_uri,
+        data=encoded,
+        headers={
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json',
+        },
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=_TOKENINFO_TIMEOUT_SECONDS) as response:
+            payload = json.loads(response.read().decode('utf-8'))
+    except urllib.error.HTTPError as exc:
+        logger.warning("Google token exchange returned HTTP %s", exc.code)
+        raise InvalidGoogleTokenError("Google authorization code exchange failed.") from exc
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError) as exc:
+        logger.warning("Google token exchange network error: %s", type(exc).__name__)
+        raise GoogleProviderUnavailableError("Unable to reach Google OAuth service.") from exc
+
+    if not isinstance(payload, dict) or 'id_token' not in payload:
+        raise InvalidGoogleTokenError("Google token response did not contain an ID token.")
+
+    return payload
 
 
 # ==============================================================================

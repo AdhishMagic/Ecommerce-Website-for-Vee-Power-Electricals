@@ -83,6 +83,17 @@ export default function App() {
                 <Route path="/cart" element={<CustomerLayout><Cart /></CustomerLayout>} />
                 <Route path="/about" element={<CustomerLayout><About /></CustomerLayout>} />
                 <Route path="/contact" element={<CustomerLayout><Contact /></CustomerLayout>} />
+
+                {/* Policy Routes */}
+                <Route path="/privacy" element={<CustomerLayout><PolicyPage /></CustomerLayout>} />
+                <Route path="/privacy-policy" element={<CustomerLayout><PolicyPage /></CustomerLayout>} />
+                <Route path="/terms" element={<CustomerLayout><PolicyPage /></CustomerLayout>} />
+                <Route path="/terms-and-conditions" element={<CustomerLayout><PolicyPage /></CustomerLayout>} />
+                <Route path="/shipping" element={<CustomerLayout><PolicyPage /></CustomerLayout>} />
+                <Route path="/shipping-policy" element={<CustomerLayout><PolicyPage /></CustomerLayout>} />
+                <Route path="/returns" element={<CustomerLayout><PolicyPage /></CustomerLayout>} />
+                <Route path="/return-and-cancellation" element={<CustomerLayout><PolicyPage /></CustomerLayout>} />
+                <Route path="/return-policy" element={<CustomerLayout><PolicyPage /></CustomerLayout>} />
                 <Route path="/:type" element={<CustomerLayout><PolicyPage /></CustomerLayout>} />
 
                 {/* Protected Customer Routes */}

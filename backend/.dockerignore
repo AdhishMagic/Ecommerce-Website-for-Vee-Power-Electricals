@@ -16,3 +16,5 @@ backups/
 .pytest_cache/
 .coverage
 htmlcov/
+.env
+.env.*

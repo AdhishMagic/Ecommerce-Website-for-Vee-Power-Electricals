@@ -4,6 +4,7 @@ from django.contrib.auth.models import update_last_login
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
+from django.http import HttpResponseRedirect
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -13,7 +14,16 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.core.services.communication_service import CommunicationService
-from apps.users.services.google_identity import sign_in_with_google, verify_google_id_token
+from apps.users.models import IdentityEventType
+from apps.users.services.google_identity import (
+    _audit,
+    build_google_auth_url,
+    exchange_code_for_tokens,
+    generate_oauth_state,
+    generate_pkce_pair,
+    sign_in_with_google,
+    verify_google_id_token,
+)
 
 from .serializers import (
     GoogleAuthSerializer,
@@ -151,6 +161,191 @@ class GoogleLoginView(APIView):
             },
             status=status.HTTP_201_CREATED if result['created'] else status.HTTP_200_OK,
         )
+
+
+class GoogleOAuthInitView(APIView):
+    """
+    GET /auth/google/login/ or /api/v1/auth/google/login/
+    Starts Google OAuth 2.0 Authorization Code flow with PKCE (RFC 7636) and state validation.
+    Redirects user to Google's consent screen (or returns authorization_url if JSON requested).
+    """
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
+
+    def get(self, request):
+        state = generate_oauth_state()
+        code_verifier, code_challenge = generate_pkce_pair()
+
+        # Persist state and code_verifier in user session
+        if hasattr(request, 'session'):
+            request.session['google_oauth_state'] = state
+            request.session['google_oauth_code_verifier'] = code_verifier
+            request.session.modified = True
+
+        auth_url = build_google_auth_url(state=state, code_challenge=code_challenge)
+
+        # Allow SPA / API callers to receive auth_url via JSON
+        if request.GET.get('format') == 'json' or 'application/json' in request.headers.get('Accept', ''):
+            return Response({'authorization_url': auth_url, 'state': state}, status=status.HTTP_200_OK)
+
+        response = HttpResponseRedirect(auth_url)
+        # Also set secure HttpOnly signed cookies as a resilient fallback
+        response.set_signed_cookie('google_oauth_state', state, max_age=600, httponly=True, samesite='Lax')
+        response.set_signed_cookie('google_oauth_code_verifier', code_verifier, max_age=600, httponly=True, samesite='Lax')
+        return response
+
+
+class GoogleOAuthCallbackView(APIView):
+    """
+    GET /auth/google/callback or /api/v1/auth/google/callback/
+    Completes Google OAuth 2.0 authorization code flow.
+    Exchanges code for tokens, validates identity server-side, resolves user in MySQL,
+    and returns JWT tokens or redirects to the React frontend.
+    """
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
+
+    def _extract_param(self, request, key, default=''):
+        val = request.GET.get(key)
+        if not val and hasattr(request, 'data') and isinstance(request.data, dict):
+            val = request.data.get(key)
+        return (val or default).strip() if isinstance(val, str) else default
+
+    def _wants_json(self, request):
+        return (
+            request.method == 'POST'
+            or request.GET.get('format') == 'json'
+            or 'application/json' in request.headers.get('Accept', '')
+        )
+
+    def _handle_flow(self, request):
+        error = self._extract_param(request, 'error')
+        if error:
+            _audit(
+                IdentityEventType.LINK_REJECTED,
+                detail=f'oauth_cancelled_or_error:{error[:50]}',
+                request=request,
+            )
+            if self._wants_json(request):
+                return Response(
+                    {'error': 'cancelled', 'detail': 'Google sign-in was cancelled or encountered an error.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            redirect_target = f"{settings.FRONTEND_URL}/login?cancelled=1"
+            return HttpResponseRedirect(redirect_target)
+
+        code = self._extract_param(request, 'code')
+        state = self._extract_param(request, 'state')
+
+        if not code:
+            if self._wants_json(request):
+                return Response(
+                    {'error': 'missing_code', 'detail': 'Authorization code is required.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            return HttpResponseRedirect(f"{settings.FRONTEND_URL}/login?error=missing_code")
+
+        # Validate state token against session or cookie
+        expected_state = ''
+        if hasattr(request, 'session'):
+            expected_state = request.session.get('google_oauth_state', '')
+        if not expected_state:
+            expected_state = request.get_signed_cookie('google_oauth_state', default='')
+
+        if expected_state and state and state != expected_state:
+            _audit(
+                IdentityEventType.LINK_REJECTED,
+                detail='invalid_oauth_state',
+                request=request,
+            )
+            if self._wants_json(request):
+                return Response(
+                    {'error': 'invalid_state', 'detail': 'OAuth state verification failed.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            return HttpResponseRedirect(f"{settings.FRONTEND_URL}/login?error=invalid_state")
+
+        # Retrieve PKCE code_verifier
+        code_verifier = ''
+        if hasattr(request, 'session'):
+            code_verifier = request.session.get('google_oauth_code_verifier', '')
+        if not code_verifier:
+            code_verifier = request.get_signed_cookie('google_oauth_code_verifier', default='')
+        if not code_verifier:
+            code_verifier = self._extract_param(request, 'code_verifier')
+
+        # Exchange authorization code for tokens
+        token_payload = exchange_code_for_tokens(
+            code=code,
+            code_verifier=code_verifier or None,
+        )
+
+        id_token = token_payload.get('id_token')
+        if not id_token:
+            if self._wants_json(request):
+                return Response(
+                    {'error': 'missing_id_token', 'detail': 'Google response did not include an ID token.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            return HttpResponseRedirect(f"{settings.FRONTEND_URL}/login?error=missing_id_token")
+
+        claims = verify_google_id_token(id_token)
+        result = sign_in_with_google(claims, request=request)
+        user = result['user']
+
+        update_last_login(None, user)
+
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+        refresh_token = str(refresh)
+
+        # Clear session / cookies
+        if hasattr(request, 'session'):
+            request.session.pop('google_oauth_state', None)
+            request.session.pop('google_oauth_code_verifier', None)
+
+        if self._wants_json(request):
+            if result['created']:
+                message = 'Account created and signed in with Google.'
+            elif result['linked']:
+                message = 'Existing account linked and signed in with Google.'
+            else:
+                message = 'Login successful.'
+            return Response(
+                {
+                    'message': message,
+                    'user': UserProfileSerializer(user).data,
+                    'access': access_token,
+                    'refresh': refresh_token,
+                    'tokens': {
+                        'access': access_token,
+                        'refresh': refresh_token,
+                    },
+                    'provider': 'google',
+                    'is_new_user': result['created'],
+                    'linked_existing_account': result['linked'],
+                },
+                status=status.HTTP_201_CREATED if result['created'] else status.HTTP_200_OK,
+            )
+
+        redirect_target = f"{settings.FRONTEND_URL}/login?token={access_token}&refresh={refresh_token}"
+        if result['created']:
+            redirect_target += "&is_new=1"
+        elif result['linked']:
+            redirect_target += "&linked=1"
+
+        response = HttpResponseRedirect(redirect_target)
+        response.delete_cookie('google_oauth_state')
+        response.delete_cookie('google_oauth_code_verifier')
+        return response
+
+    def get(self, request):
+        return self._handle_flow(request)
+
+    def post(self, request):
+        return self._handle_flow(request)
 
 
 class LogoutView(APIView):

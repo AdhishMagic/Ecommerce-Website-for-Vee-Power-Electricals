@@ -32,6 +32,10 @@ from apps.users.services.google_identity import (
     GoogleProviderUnavailableError,
     GoogleSignInNotConfiguredError,
     InvalidGoogleTokenError,
+    build_google_auth_url,
+    exchange_code_for_tokens,
+    generate_oauth_state,
+    generate_pkce_pair,
     normalize_email,
     sign_in_with_google,
     verify_google_id_token,
@@ -404,3 +408,142 @@ class ExistingAuthRegressionTests(TestCase):
         # Endpoint is public; unauthenticated request reaches validation (400), not 401.
         response = self.client.post(GOOGLE_URL, {}, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+# ==============================================================================
+# 7. PKCE & OAUTH FLOW HELPERS
+# ==============================================================================
+
+@override_settings(
+    GOOGLE_CLIENT_ID=CLIENT_ID,
+    GOOGLE_CLIENT_SECRET='test-client-secret',
+    GOOGLE_REDIRECT_URI='http://localhost:8000/auth/google/callback',
+)
+class PKCEAndOAuthHelperTests(TestCase):
+    def test_generate_pkce_pair(self):
+        verifier, challenge = generate_pkce_pair()
+        self.assertGreaterEqual(len(verifier), 43)
+        self.assertGreater(len(challenge), 20)
+        self.assertNotIn('=', challenge)
+
+    def test_generate_oauth_state(self):
+        state1 = generate_oauth_state()
+        state2 = generate_oauth_state()
+        self.assertGreaterEqual(len(state1), 32)
+        self.assertNotEqual(state1, state2)
+
+    def test_build_google_auth_url(self):
+        verifier, challenge = generate_pkce_pair()
+        state = generate_oauth_state()
+        url = build_google_auth_url(state=state, code_challenge=challenge)
+        self.assertIn('https://accounts.google.com/o/oauth2/v2/auth', url)
+        self.assertIn(f'client_id={CLIENT_ID}', url)
+        self.assertIn('state=' + state, url)
+        self.assertIn('code_challenge=' + challenge, url)
+        self.assertIn('code_challenge_method=S256', url)
+        self.assertIn('scope=openid+email+profile', url)
+
+    @override_settings(GOOGLE_CLIENT_ID='')
+    def test_build_auth_url_unconfigured_raises(self):
+        with self.assertRaises(GoogleSignInNotConfiguredError):
+            build_google_auth_url(state='state123')
+
+
+# ==============================================================================
+# 8. OAUTH 2.0 ENDPOINTS (INIT & CALLBACK)
+# ==============================================================================
+
+@override_settings(
+    GOOGLE_CLIENT_ID=CLIENT_ID,
+    GOOGLE_CLIENT_SECRET='test-secret-value',
+    GOOGLE_REDIRECT_URI='http://localhost:8000/auth/google/callback',
+    FRONTEND_URL='http://localhost:5173',
+)
+class GoogleOAuthEndpointsTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_oauth_init_redirects_and_stores_session(self):
+        response = self.client.get('/auth/google/login/')
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertIn('accounts.google.com', response.url)
+        self.assertIn('state=', response.url)
+        # Check session contains state and PKCE verifier
+        session = self.client.session
+        self.assertIn('google_oauth_state', session)
+        self.assertIn('google_oauth_code_verifier', session)
+
+    def test_oauth_init_json_format_returns_url(self):
+        response = self.client.get('/auth/google/login/?format=json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('authorization_url', response.data)
+        self.assertIn('state', response.data)
+
+    def test_callback_handles_user_cancellation(self):
+        response = self.client.get('/auth/google/callback?error=access_denied')
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertIn('cancelled=1', response.url)
+        self.assertTrue(
+            IdentityAuditLog.objects.filter(event_type=IdentityEventType.LINK_REJECTED).exists()
+        )
+
+    def test_callback_rejects_invalid_state(self):
+        session = self.client.session
+        session['google_oauth_state'] = 'correct-state'
+        session.save()
+
+        response = self.client.get('/auth/google/callback?code=some-code&state=wrong-state')
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertIn('error=invalid_state', response.url)
+
+    @mock.patch('apps.users.views.verify_google_id_token')
+    @mock.patch('apps.users.views.exchange_code_for_tokens')
+    def test_callback_successful_exchange_redirects_with_tokens(self, mock_exchange, mock_verify):
+        session = self.client.session
+        session['google_oauth_state'] = 'valid-state'
+        session['google_oauth_code_verifier'] = 'pkce-verifier-123'
+        session.save()
+
+        mock_exchange.return_value = {
+            'id_token': 'fake-id-token',
+            'access_token': 'fake-access-token',
+        }
+        mock_verify.return_value = _claims(email='oauthuser@example.com', sub='oauth-sub-1')
+
+        response = self.client.get('/auth/google/callback?code=auth-code-123&state=valid-state')
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertIn('token=', response.url)
+        self.assertIn('refresh=', response.url)
+        self.assertIn('is_new=1', response.url)
+
+        # Verified MySQL user exists with customer role
+        user = User.objects.filter(email='oauthuser@example.com').first()
+        self.assertIsNotNone(user)
+        self.assertEqual(user.role, 'customer')
+        self.assertFalse(user.is_staff)
+        self.assertTrue(SocialAccount.objects.filter(user=user, provider_subject='oauth-sub-1').exists())
+
+    @mock.patch('apps.users.views.verify_google_id_token')
+    @mock.patch('apps.users.views.exchange_code_for_tokens')
+    def test_callback_links_existing_email_account(self, mock_exchange, mock_verify):
+        existing = User.objects.create_user(
+            email='existing_cb@example.com',
+            password='Password123!',
+            first_name='Existing',
+            last_name='User',
+        )
+        session = self.client.session
+        session['google_oauth_state'] = 'valid-state-2'
+        session.save()
+
+        mock_exchange.return_value = {'id_token': 'fake-id-token'}
+        mock_verify.return_value = _claims(email='existing_cb@example.com', sub='oauth-sub-2')
+
+        response = self.client.get('/auth/google/callback?code=auth-code-456&state=valid-state-2')
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertIn('linked=1', response.url)
+
+        # Existing user password is preserved
+        existing.refresh_from_db()
+        self.assertTrue(existing.check_password('Password123!'))
+        self.assertTrue(SocialAccount.objects.filter(user=existing, provider_subject='oauth-sub-2').exists())

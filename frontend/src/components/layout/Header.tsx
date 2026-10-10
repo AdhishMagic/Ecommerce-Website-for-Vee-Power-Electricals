@@ -52,8 +52,12 @@ export default function Header() {
   const { isAuthenticated, user, isBootstrapping, logout } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isMobileMenuMounted, setIsMobileMenuMounted] = useState(false);
+  const [isMobileMenuVisible, setIsMobileMenuVisible] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
+  const mobileMenuRef = useRef<HTMLElement | null>(null);
+  const mobileToggleRef = useRef<HTMLButtonElement | null>(null);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -91,7 +95,47 @@ export default function Header() {
     }
   };
 
-  // Close dropdown on outside click
+  // Mutual exclusivity toggles
+  const toggleMobileMenu = () => {
+    if (!mobileMenuOpen) {
+      setAccountMenuOpen(false);
+    }
+    setMobileMenuOpen((prev) => !prev);
+  };
+
+  const toggleAccountMenu = () => {
+    if (!accountMenuOpen) {
+      setMobileMenuOpen(false);
+    }
+    setAccountMenuOpen((prev) => !prev);
+  };
+
+  // Smooth open / close animation lifecycle
+  useEffect(() => {
+    let timer: NodeJS.Timeout | undefined;
+    let animFrame: number | undefined;
+
+    if (mobileMenuOpen) {
+      setIsMobileMenuMounted(true);
+      animFrame = requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setIsMobileMenuVisible(true);
+        });
+      });
+    } else {
+      setIsMobileMenuVisible(false);
+      timer = setTimeout(() => {
+        setIsMobileMenuMounted(false);
+      }, 150);
+    }
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      if (animFrame) cancelAnimationFrame(animFrame);
+    };
+  }, [mobileMenuOpen]);
+
+  // Close account menu on outside click
   useEffect(() => {
     function handleClickOutside(event: MouseEvent | TouchEvent) {
       if (accountMenuRef.current && !accountMenuRef.current.contains(event.target as Node)) {
@@ -107,6 +151,45 @@ export default function Header() {
       document.removeEventListener("touchstart", handleClickOutside);
     };
   }, [accountMenuOpen]);
+
+  // Close mobile menu on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent | TouchEvent) {
+      const target = event.target as Node;
+      if (
+        mobileMenuRef.current &&
+        !mobileMenuRef.current.contains(target) &&
+        mobileToggleRef.current &&
+        !mobileToggleRef.current.contains(target)
+      ) {
+        setMobileMenuOpen(false);
+      }
+    }
+    if (mobileMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [mobileMenuOpen]);
+
+  // Close menus on Escape key
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        if (mobileMenuOpen) setMobileMenuOpen(false);
+        if (accountMenuOpen) setAccountMenuOpen(false);
+      }
+    }
+    if (mobileMenuOpen || accountMenuOpen) {
+      document.addEventListener("keydown", handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [mobileMenuOpen, accountMenuOpen]);
 
   // Close on route change
   useEffect(() => {
@@ -218,7 +301,7 @@ export default function Header() {
   }, [updateIndicator]);
 
   return (
-    <header className="sticky top-0 z-50 bg-white shadow-md border-b border-[#D9E1E8]">
+    <header className="relative sticky top-0 z-50 bg-white shadow-md border-b border-[#D9E1E8]">
       {/* Top Contact Bar */}
       <div className="bg-[#F6F8FA] border-b border-[#D9E1E8] text-[#667085] text-xs py-1.5 hidden sm:block">
         <div className="header-inner flex justify-between items-center">
@@ -324,7 +407,7 @@ export default function Header() {
               <div className="relative" ref={accountMenuRef}>
                 <button
                   type="button"
-                  onClick={() => setAccountMenuOpen((prev) => !prev)}
+                  onClick={toggleAccountMenu}
                   onKeyDown={handleAccountKeyDown}
                   className="hidden sm:flex flex-col items-center text-[#667085] hover:text-[#1769AA] transition-colors group focus:outline-none cursor-pointer"
                   aria-expanded={accountMenuOpen}
@@ -363,7 +446,7 @@ export default function Header() {
                   <div
                     role="menu"
                     aria-label="Account options"
-                    className="absolute right-0 top-full mt-2 w-52 bg-white rounded-lg shadow-xl border border-[#D9E1E8] py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150"
+                    className="absolute right-0 top-full mt-2 w-52 bg-white rounded-xl shadow-xl border border-[#D9E1E8] py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150"
                     onKeyDown={handleAccountKeyDown}
                   >
                     {/* Identity header */}
@@ -487,17 +570,19 @@ export default function Header() {
 
             {/* Mobile menu toggle */}
             <button
-              className="lg:hidden p-2 text-[#0B3A63] hover:bg-[#F6F8FA] rounded-md transition-colors cursor-pointer"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              ref={mobileToggleRef}
+              className="lg:hidden p-2 text-[#0B3A63] hover:bg-[#F6F8FA] rounded-md transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1769AA]"
+              onClick={toggleMobileMenu}
               aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
               aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-navigation-menu"
             >
               {mobileMenuOpen ? (
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               ) : (
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               )}
@@ -524,102 +609,170 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Mobile menu drawer */}
-      {mobileMenuOpen && (
-        <nav className="mobile-nav lg:hidden bg-[#0B3A63] site-container pb-4 animate-in slide-in-from-top-2 duration-200">
-          <ul className="flex flex-col">
-            {navLinks.map((link) => (
-              <li key={link.to}>
-                <Link
-                  to={link.to}
-                  className="block py-3 text-sm font-medium text-white/90 hover:text-white border-b border-white/10"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {link.label}
-                </Link>
-              </li>
-            ))}
-
-            {/* Auth-aware Mobile Account Options */}
-            {isBootstrapping && !user ? (
-              <li className="py-3 text-sm text-white/60 animate-pulse">Loading account...</li>
-            ) : isAuthenticated && user ? (
-              <li className="pt-3 border-t border-white/15">
-                <div className="flex items-center gap-2.5 py-2 px-1 text-white">
-                  <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white flex-shrink-0">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+      {/* Mobile menu dropdown panel */}
+      {isMobileMenuMounted && (
+        <nav
+          id="mobile-navigation-menu"
+          ref={mobileMenuRef}
+          aria-label="Mobile navigation"
+          className={`mobile-nav mobile-nav-panel lg:hidden absolute top-full left-3 right-3 sm:left-auto sm:right-4 sm:w-80 md:w-96 max-h-[calc(100vh-5rem)] overflow-y-auto mt-1.5 bg-white rounded-xl shadow-xl border border-[#D9E1E8] p-3 z-50 transition-all duration-180 ease-out ${
+            isMobileMenuVisible
+              ? "opacity-100 translate-y-0 scale-100"
+              : "opacity-0 -translate-y-2 scale-[0.98] pointer-events-none"
+          }`}
+        >
+          <ul className="flex flex-col gap-1" role="list">
+            {navLinks.map((link, index) => {
+              const isActive = activeIndex === index;
+              return (
+                <li key={link.to}>
+                  <Link
+                    to={link.to}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`group flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
+                      isActive
+                        ? "bg-[#1769AA]/10 text-[#0B3A63] font-semibold"
+                        : "text-[#17212B] hover:text-[#0B3A63] hover:bg-[#F6F8FA]"
+                    } focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1769AA] focus-visible:ring-offset-1`}
+                  >
+                    <span className="flex items-center gap-2.5">
+                      {isActive && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#1769AA]" aria-hidden="true" />
+                      )}
+                      <span>{link.label}</span>
+                    </span>
+                    <svg
+                      className={`w-3.5 h-3.5 transition-transform duration-150 ${
+                        isActive
+                          ? "text-[#1769AA]"
+                          : "text-[#667085]/50 group-hover:text-[#1769AA] group-hover:translate-x-0.5"
+                      }`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold truncate text-white">{displayName}</p>
-                    {user.email && <p className="text-xs text-white/70 truncate">{user.email}</p>}
-                  </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-white/20 text-white">
-                    {isAdmin ? "Admin" : "Customer"}
-                  </span>
-                </div>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
 
-                <div className="flex flex-col mt-2 pl-2">
-                  {isAdmin ? (
-                    <>
-                      <Link
-                        to="/admin"
-                        className="block py-2 text-sm text-white/90 hover:text-white"
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        Admin Dashboard
-                      </Link>
-                      <Link
-                        to="/admin/settings"
-                        className="block py-2 text-sm text-white/90 hover:text-white"
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        Settings
-                      </Link>
-                    </>
-                  ) : (
-                    <>
-                      <Link
-                        to="/account"
-                        className="block py-2 text-sm text-white/90 hover:text-white"
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        My Account
-                      </Link>
-                      <Link
-                        to="/account/orders"
-                        className="block py-2 text-sm text-white/90 hover:text-white"
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        My Orders
-                      </Link>
-                    </>
+          {/* Divider */}
+          <div className="my-2 border-t border-[#D9E1E8]" />
+
+          {/* Auth-aware Mobile Account Options */}
+          {isBootstrapping && !user ? (
+            <div className="p-2.5 text-xs text-[#667085] flex items-center gap-2.5 animate-pulse">
+              <div className="w-7 h-7 rounded-full bg-slate-200" />
+              <div className="h-3 bg-slate-200 rounded w-24" />
+            </div>
+          ) : isAuthenticated && user ? (
+            <div className="flex flex-col gap-1.5">
+              {/* Compact User Identity Header */}
+              <div className="p-2.5 bg-[#F6F8FA] rounded-lg border border-[#EEF2F6] flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-full bg-[#1769AA]/10 text-[#1769AA] flex items-center justify-center flex-shrink-0">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-[#0B3A63] truncate leading-tight" title={displayName}>
+                    {displayName}
+                  </p>
+                  {user.email && (
+                    <p className="text-[11px] text-[#667085] truncate leading-tight mt-0.5" title={user.email}>
+                      {user.email}
+                    </p>
                   )}
+                </div>
+                <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#1769AA]/10 text-[#1769AA] flex-shrink-0">
+                  {isAdmin ? "Admin" : "Customer"}
+                </span>
+              </div>
+
+              {/* Account action links */}
+              <div className="flex flex-col gap-0.5">
+                {isAdmin ? (
+                  <>
+                    <Link
+                      to="/admin"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-[#17212B] hover:bg-[#F6F8FA] hover:text-[#1769AA] rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1769AA]"
+                    >
+                      <svg className="w-4 h-4 text-[#1769AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                      </svg>
+                      Admin Dashboard
+                    </Link>
+                    <Link
+                      to="/admin/settings"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-[#17212B] hover:bg-[#F6F8FA] hover:text-[#1769AA] rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1769AA]"
+                    >
+                      <svg className="w-4 h-4 text-[#667085]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      Settings
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      to="/account"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-[#17212B] hover:bg-[#F6F8FA] hover:text-[#1769AA] rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1769AA]"
+                    >
+                      <svg className="w-4 h-4 text-[#1769AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      My Account
+                    </Link>
+                    <Link
+                      to="/account/orders"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-[#17212B] hover:bg-[#F6F8FA] hover:text-[#1769AA] rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1769AA]"
+                    >
+                      <svg className="w-4 h-4 text-[#667085]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                      </svg>
+                      My Orders
+                    </Link>
+                  </>
+                )}
+
+                {/* Logout Button */}
+                <div className="pt-1 mt-0.5 border-t border-[#EEF2F6]">
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className="text-left py-2 text-sm text-red-300 hover:text-red-100 font-medium cursor-pointer"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-[#C0392B] hover:bg-[#FEF2F2] rounded-md transition-colors text-left cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C0392B]"
                   >
+                    <svg className="w-4 h-4 text-[#C0392B]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
                     Logout
                   </button>
                 </div>
-              </li>
-            ) : (
-              <li className="pt-3">
-                <Link
-                  to={getLoginUrl()}
-                  className="flex items-center justify-center gap-2 w-full py-2.5 px-4 text-sm font-semibold text-[#0B3A63] bg-white rounded-lg shadow-sm hover:bg-gray-100 transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  Login / Sign In
-                </Link>
-              </li>
-            )}
-          </ul>
+              </div>
+            </div>
+          ) : (
+            <div className="pt-1">
+              <Link
+                to={getLoginUrl()}
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center justify-center gap-2 w-full py-2.5 px-4 text-xs font-semibold text-white bg-[#1769AA] hover:bg-[#0B3A63] rounded-lg shadow-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1769AA] focus-visible:ring-offset-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                </svg>
+                Login / Sign In
+              </Link>
+            </div>
+          )}
         </nav>
       )}
     </header>
