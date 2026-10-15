@@ -370,8 +370,12 @@ class ProductAdminCreateUpdateSerializer(serializers.ModelSerializer):
 
         if product.primary_image:
             from apps.products.models import ProductImage
-            if not product.images.filter(is_primary=True, image_url=product.primary_image).exists():
-                product.images.filter(is_primary=True).update(is_primary=False)
+            existing_pi = product.images.filter(image_url=product.primary_image).first()
+            if existing_pi:
+                if not existing_pi.is_primary:
+                    existing_pi.is_primary = True
+                    existing_pi.save(update_fields=['is_primary'])
+            else:
                 ProductImage.objects.create(
                     product=product,
                     image_url=product.primary_image,
@@ -400,8 +404,13 @@ class ProductAdminCreateUpdateSerializer(serializers.ModelSerializer):
 
         if product.primary_image:
             from apps.products.models import ProductImage
-            if not product.images.filter(is_primary=True, image_url=product.primary_image).exists():
-                product.images.filter(is_primary=True).update(is_primary=False)
+            product.images.exclude(image_url=product.primary_image).filter(is_primary=True).update(is_primary=False)
+            existing_pi = product.images.filter(image_url=product.primary_image).first()
+            if existing_pi:
+                if not existing_pi.is_primary:
+                    existing_pi.is_primary = True
+                    existing_pi.save(update_fields=['is_primary'])
+            else:
                 ProductImage.objects.create(
                     product=product,
                     image_url=product.primary_image,

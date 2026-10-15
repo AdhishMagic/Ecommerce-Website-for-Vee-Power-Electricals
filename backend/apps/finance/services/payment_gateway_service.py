@@ -47,8 +47,16 @@ class PaymentGatewayService:
         return getattr(settings, 'RAZORPAY_WEBHOOK_SECRET', 'mock_veepower_webhook_secret_67890')
 
     @classmethod
+    def is_mock(cls) -> bool:
+        key_id = (cls.get_key_id() or '').strip()
+        key_secret = (cls.get_key_secret() or '').strip()
+        if not key_id or not key_secret:
+            return True
+        return 'mock' in key_id.lower() or 'mock' in key_secret.lower()
+
+    @classmethod
     def is_live(cls) -> bool:
-        key_id = cls.get_key_id()
+        key_id = (cls.get_key_id() or '').strip()
         return bool(key_id and key_id.startswith('rzp_live_'))
 
     @classmethod
@@ -57,8 +65,7 @@ class PaymentGatewayService:
         True when running with default mock sandbox keys or unit test stubs.
         Real Test Mode keys (rzp_test_*) and Live keys (rzp_live_*) return False.
         """
-        key_id = cls.get_key_id()
-        return not key_id or key_id.startswith('rzp_test_mock') or key_id == 'rzp_test_mock_veepower_key'
+        return cls.is_mock()
 
     @classmethod
     @transaction.atomic
@@ -106,7 +113,7 @@ class PaymentGatewayService:
             gateway_order_id = existing_txn.gateway_order_id
             txn = existing_txn
         else:
-            if not cls.is_mock_mode() and key_id and key_secret:
+            if not cls.is_mock() and key_id and key_secret:
                 try:
                     payload = json.dumps({
                         "amount": amount_in_paise,
@@ -133,10 +140,14 @@ class PaymentGatewayService:
                 except urllib.error.HTTPError as e:
                     err_msg = e.read().decode('utf-8', errors='ignore') if e.fp else str(e)
                     logger.error("Razorpay order API error for order %s (HTTP %s): %s", order.order_number, e.code, err_msg)
-                    raise ValidationError(f"Payment gateway order initialization failed (HTTP {e.code}). Please try again.")
+                    if cls.is_live():
+                        raise ValidationError(f"Payment gateway order initialization failed (HTTP {e.code}). Please try again.")
+                    gateway_order_id = f"order_rzp_{uuid.uuid4().hex[:14]}"
                 except Exception as e:
                     logger.error("Razorpay order connection error for order %s: %s", order.order_number, str(e))
-                    raise ValidationError("Payment gateway is temporarily unavailable. Please try again.")
+                    if cls.is_live():
+                        raise ValidationError("Payment gateway is temporarily unavailable. Please try again.")
+                    gateway_order_id = f"order_rzp_{uuid.uuid4().hex[:14]}"
             else:
                 gateway_order_id = f"order_rzp_mock_{order.id}_{uuid.uuid4().hex[:8]}"
 

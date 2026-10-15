@@ -401,7 +401,7 @@ class Command(BaseCommand):
                 "low_stock_threshold": 10,
                 "featured": True,
                 "description": "Aerodynamic blades with silent BLDC technology for superior air delivery and energy savings.",
-                "primary_image": "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=800&q=80",
+                "primary_image": "/media/defaults/fans.webp",
                 "specs": [
                     ("Sweep Size", "1200 mm", 1),
                     ("Power Consumption", "28 W", 2),
@@ -421,7 +421,7 @@ class Command(BaseCommand):
                 "low_stock_threshold": 20,
                 "featured": True,
                 "description": "100% electrolytic grade copper conductors with high oxygen and temperature index for fire safety.",
-                "primary_image": "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=800&q=80",
+                "primary_image": "/media/defaults/wires-cables.webp",
                 "specs": [
                     ("Conductor Material", "Electrolytic Copper", 1),
                     ("Cross Section", "2.5 sq mm", 2),
@@ -441,7 +441,7 @@ class Command(BaseCommand):
                 "low_stock_threshold": 30,
                 "featured": False,
                 "description": "Sleek European minimalist styling with silver-inlaid contacts for over 100,000 operations.",
-                "primary_image": "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=800&q=80",
+                "primary_image": "/media/defaults/modular-switches.webp",
                 "specs": [
                     ("Rated Current", "10 Amps", 1),
                     ("Module Size", "1 Module", 2),
@@ -460,7 +460,7 @@ class Command(BaseCommand):
                 "low_stock_threshold": 15,
                 "featured": True,
                 "description": "Glase-free uniform diffuse lighting with surge protection up to 4kV.",
-                "primary_image": "https://images.unsplash.com/photo-1565814636199-ae8133055c1c?auto=format&fit=crop&w=800&q=80",
+                "primary_image": "/media/defaults/led-lighting.webp",
                 "specs": [
                     ("Wattage", "20 Watts", 1),
                     ("Color Temp", "6500K Cool Day White", 2),
@@ -480,7 +480,7 @@ class Command(BaseCommand):
                 "low_stock_threshold": 10,
                 "featured": False,
                 "description": "Short circuit protection rated up to 10kA breaking capacity with VisiTrip indicator.",
-                "primary_image": "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=800&q=80",
+                "primary_image": "/media/defaults/mcb-distribution.webp",
                 "specs": [
                     ("Breaking Capacity", "10 kA", 1),
                     ("Poles", "Single Pole (SP)", 2),
@@ -725,7 +725,7 @@ class Command(BaseCommand):
                 "quotation_date": date.today(),
                 "expiry_date": date.today() + timedelta(days=30),
                 "total_value": Decimal("45000.00"),
-                "status": QuotationStatus.SENT,
+                "status": QuotationStatus.CONVERTED,
                 "notes": "Commercial building wiring quotation with volume discounts.",
                 "created_by": sales_staff,
             },

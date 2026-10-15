@@ -126,34 +126,58 @@ export default function ImportProducts() {
     if (validRows.length === 0) return;
 
     setStage("importing");
-    let successCount = 0;
-    let failCount = 0;
-    const errors: string[] = [];
 
-    for (const row of validRows) {
-      try {
-        await catalogApi.createProduct({
-          name: row.name,
-          sku: row.sku,
-          brand: row.brand,
-          category: row.category,
-          price: parseFloat(row.price),
-          mrp: parseFloat(row.price),
-          stock: parseInt(row.stock, 10),
-          active: true,
-        });
-        successCount++;
-      } catch (err: any) {
-        failCount++;
-        errors.push(`${row.sku}: ${err?.message || "Failed to create"}`);
+    const payload = validRows.map(row => ({
+      name: row.name,
+      sku: row.sku,
+      brand: row.brand,
+      category: row.category,
+      price: parseFloat(row.price),
+      mrp: parseFloat(row.price),
+      stock: parseInt(row.stock, 10),
+      active: true,
+    }));
+
+    try {
+      const res = await catalogApi.bulkImportProducts(payload);
+      const rowErrors = (res.errors || []).map(e => `${e.sku}: ${e.error}`);
+      setImportResults({
+        imported: (res.created || 0) + (res.updated || 0),
+        failed: rowErrors.length + invalidCount,
+        errors: rowErrors,
+      });
+    } catch (err: any) {
+      // Fallback to sequential import if bulk endpoint encounters issue
+      let successCount = 0;
+      let failCount = 0;
+      const errors: string[] = [];
+
+      for (const row of validRows) {
+        try {
+          await catalogApi.createProduct({
+            name: row.name,
+            sku: row.sku,
+            brand: row.brand,
+            category: row.category,
+            price: parseFloat(row.price),
+            mrp: parseFloat(row.price),
+            stock: parseInt(row.stock, 10),
+            active: true,
+          });
+          successCount++;
+        } catch (innerErr: any) {
+          failCount++;
+          errors.push(`${row.sku}: ${innerErr?.message || "Failed to create"}`);
+        }
       }
+
+      setImportResults({
+        imported: successCount,
+        failed: failCount + invalidCount,
+        errors,
+      });
     }
 
-    setImportResults({
-      imported: successCount,
-      failed: failCount + invalidCount,
-      errors,
-    });
     setStage("done");
   };
 

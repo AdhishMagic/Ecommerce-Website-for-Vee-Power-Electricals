@@ -25,6 +25,20 @@ export default function ProductForm() {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [imageSuccessMsg, setImageSuccessMsg] = useState("");
   const [imageErrorMsg, setImageErrorMsg] = useState("");
+  const [showLibraryModal, setShowLibraryModal] = useState(false);
+  const [libraryImages, setLibraryImages] = useState<Array<{ key: string; name: string; image_url: string }>>([
+    { key: "fans", name: "Fans", image_url: "/media/defaults/fans.webp" },
+    { key: "wires-cables", name: "Wires & Cables", image_url: "/media/defaults/wires-cables.webp" },
+    { key: "switches", name: "Switches", image_url: "/media/defaults/switches.webp" },
+    { key: "modular-switches", name: "Modular Switches", image_url: "/media/defaults/modular-switches.webp" },
+    { key: "led-lighting", name: "LED Lighting", image_url: "/media/defaults/led-lighting.webp" },
+    { key: "led-luminaires", name: "LED Luminaires", image_url: "/media/defaults/led-luminaires.webp" },
+    { key: "lighting", name: "Lighting", image_url: "/media/defaults/lighting.webp" },
+    { key: "mcb-distribution", name: "MCB & Distribution", image_url: "/media/defaults/mcb-distribution.webp" },
+    { key: "mcb-protection", name: "MCB & Protection", image_url: "/media/defaults/mcb-protection.webp" },
+    { key: "electrical-accessories", name: "Electrical Accessories", image_url: "/media/defaults/electrical-accessories.webp" },
+    { key: "generic-electrical", name: "Generic Electrical", image_url: "/media/defaults/generic-electrical.webp" },
+  ]);
 
   const [categoriesList, setCategoriesList] = useState<Array<{ id: number | string; name: string; slug?: string }>>([
     { id: "Fans", name: "Fans", slug: "fans" },
@@ -69,7 +83,8 @@ export default function ProductForm() {
     Promise.all([
       catalogApi.getCategories().catch(() => []),
       catalogApi.getBrands().catch(() => []),
-    ]).then(([catData, brandData]) => {
+      catalogApi.getDefaultImages().catch(() => []),
+    ]).then(([catData, brandData, imgData]) => {
       if (!isMounted) return;
       const cats = Array.isArray(catData) ? catData : (catData as any)?.results || [];
       const brs = Array.isArray(brandData) ? brandData : (brandData as any)?.results || [];
@@ -78,6 +93,9 @@ export default function ProductForm() {
       }
       if (brs.length > 0) {
         setBrandsList(brs.map((b: any) => ({ id: b.id, name: b.name })));
+      }
+      if (Array.isArray(imgData) && imgData.length > 0) {
+        setLibraryImages(imgData);
       }
     });
     return () => { isMounted = false; };
@@ -257,6 +275,15 @@ export default function ProductForm() {
       setIsUploadingImage(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  };
+
+  // Select Image from Library Action
+  const handleSelectLibraryImage = (item: { key: string; name: string; image_url: string }) => {
+    setImageErrorMsg("");
+    setFormData(prev => ({ ...prev, image: item.image_url }));
+    setIsCustomImage(false);
+    setImageSuccessMsg(`✓ Selected "${item.name}" default image from library.`);
+    setShowLibraryModal(false);
   };
 
   // Switch to Category Default Action
@@ -610,8 +637,8 @@ export default function ProductForm() {
                       <button
                         type="button"
                         onClick={handleUseCategoryDefault}
-                        className={`w-full flex items-center justify-center gap-2 text-sm font-semibold py-2.5 px-4 rounded-lg border transition-all cursor-pointer ${
-                          !isCustomImage
+                        className={`w-full flex items-center justify-center gap-2 text-sm font-semibold py-2 px-4 rounded-lg border transition-all cursor-pointer ${
+                          !isCustomImage && !formData.image.includes('/defaults/')
                             ? "bg-emerald-50 text-emerald-800 border-emerald-300 font-bold"
                             : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:border-slate-400"
                         }`}
@@ -622,7 +649,19 @@ export default function ProductForm() {
                         <span>Use Category Default Image</span>
                       </button>
 
-                      {/* Action 3: Remove custom image */}
+                      {/* Action 3: Select From Default Library Modal */}
+                      <button
+                        type="button"
+                        onClick={() => setShowLibraryModal(true)}
+                        className="w-full flex items-center justify-center gap-2 bg-[#EFF6FF] hover:bg-[#DBEAFE] text-[#1769AA] text-sm font-semibold py-2 px-4 rounded-lg border border-[#BFDBFE] transition-all cursor-pointer"
+                      >
+                        <svg className="w-4 h-4 text-[#1769AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span>Browse Default Image Library ({libraryImages.length})</span>
+                      </button>
+
+                      {/* Action 4: Remove custom image */}
                       {isCustomImage && (
                         <button
                           type="button"
@@ -717,6 +756,89 @@ export default function ProductForm() {
           </div>
         </div>
       </form>
+
+      {/* Default Image Library Modal */}
+      {showLibraryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div 
+            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col border border-[#D9E1E8] overflow-hidden"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="library-modal-title"
+          >
+            {/* Header */}
+            <div className="p-4 border-b border-[#D9E1E8] flex items-center justify-between bg-[#F8FAFC]">
+              <div>
+                <h3 id="library-modal-title" className="font-bold text-[#0B3A63] text-base">
+                  Default Product Image Library
+                </h3>
+                <p className="text-xs text-[#667085]">
+                  Select an authorized high-resolution default image from the curated catalog library.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLibraryModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer"
+                aria-label="Close dialog"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Grid Content */}
+            <div className="p-4 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {libraryImages.map((item) => {
+                const isSelected = formData.image === item.image_url;
+                const resolvedThumb = resolveProductImage({ image: item.image_url, category: item.key });
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => handleSelectLibraryImage(item)}
+                    className={`group relative text-left p-2.5 rounded-xl border text-xs transition-all cursor-pointer flex flex-col items-center ${
+                      isSelected
+                        ? "border-[#1769AA] bg-[#EFF6FF] ring-2 ring-[#1769AA]/20"
+                        : "border-[#E2E8F0] hover:border-[#1769AA] hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="w-full aspect-square rounded-lg bg-white border border-slate-100 p-1 flex items-center justify-center overflow-hidden mb-2">
+                      <img
+                        src={resolvedThumb}
+                        alt={item.name}
+                        className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
+                        loading="lazy"
+                      />
+                    </div>
+                    <span className="font-semibold text-slate-800 text-center line-clamp-1">{item.name}</span>
+                    <span className="text-[10px] text-slate-400 mt-0.5">Category Default</span>
+                    {isSelected && (
+                      <span className="absolute top-2 right-2 bg-[#12773D] text-white rounded-full p-0.5 shadow-xs">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Footer */}
+            <div className="p-3 border-t border-[#D9E1E8] bg-[#F8FAFC] flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowLibraryModal(false)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

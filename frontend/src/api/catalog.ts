@@ -113,4 +113,28 @@ export const catalogApi = {
       body: formData,
     });
   },
+
+  async getDefaultImages(): Promise<Array<{ key: string; name: string; image_url: string }>> {
+    return apiClient<Array<{ key: string; name: string; image_url: string }>>('/catalog/products/default-images/');
+  },
+
+  async bulkImportProducts(products: any[]): Promise<{
+    success: boolean;
+    created: number;
+    updated: number;
+    errors: Array<{ row: number; sku: string; error: string }>;
+    total_processed: number;
+  }> {
+    return apiClient<{
+      success: boolean;
+      created: number;
+      updated: number;
+      errors: Array<{ row: number; sku: string; error: string }>;
+      total_processed: number;
+    }>('/catalog/products/bulk-import/', {
+      method: 'POST',
+      body: { products },
+    });
+  },
 };
+

@@ -1,5 +1,5 @@
 from decimal import Decimal, InvalidOperation
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Q
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -200,7 +200,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
+        if self.action in ['list', 'retrieve', 'default_images']:
             return [AllowAny()]
         return [IsAdminUser()]
 
@@ -440,6 +440,72 @@ class ProductViewSet(viewsets.ModelViewSet):
             "url": relative_url,
             "filename": filename
         }, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['get'], url_path='default-images', permission_classes=[AllowAny])
+    def default_images(self, request):
+        """
+        Return curated category default images with category key, display name, and URL.
+        """
+        defaults = [
+            {"key": "fans", "name": "Fans", "image_url": "/media/defaults/fans.webp"},
+            {"key": "wires-cables", "name": "Wires & Cables", "image_url": "/media/defaults/wires-cables.webp"},
+            {"key": "switches", "name": "Switches", "image_url": "/media/defaults/switches.webp"},
+            {"key": "modular-switches", "name": "Modular Switches", "image_url": "/media/defaults/modular-switches.webp"},
+            {"key": "led-lighting", "name": "LED Lighting", "image_url": "/media/defaults/led-lighting.webp"},
+            {"key": "led-luminaires", "name": "LED Luminaires", "image_url": "/media/defaults/led-luminaires.webp"},
+            {"key": "lighting", "name": "Lighting", "image_url": "/media/defaults/lighting.webp"},
+            {"key": "mcb-distribution", "name": "MCB & Distribution", "image_url": "/media/defaults/mcb-distribution.webp"},
+            {"key": "mcb-protection", "name": "MCB & Protection", "image_url": "/media/defaults/mcb-protection.webp"},
+            {"key": "electrical-accessories", "name": "Electrical Accessories", "image_url": "/media/defaults/electrical-accessories.webp"},
+            {"key": "generic-electrical", "name": "Generic Electrical", "image_url": "/media/defaults/generic-electrical.webp"},
+        ]
+        return Response(defaults, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='bulk-import', permission_classes=[IsAdminUser])
+    def bulk_import(self, request):
+        """
+        High performance bulk import for product rows with atomic transaction,
+        row-level validation, and detailed reporting.
+        """
+        rows = request.data if isinstance(request.data, list) else request.data.get('products', [])
+        if not rows:
+            return Response({"detail": "No product records provided for import."}, status=status.HTTP_400_BAD_REQUEST)
+
+        created_count = 0
+        updated_count = 0
+        errors = []
+
+        with transaction.atomic():
+            for idx, row in enumerate(rows, start=1):
+                sku = (row.get('sku') or '').strip()
+                name = (row.get('name') or '').strip()
+                if not sku or not name:
+                    errors.append({"row": idx, "sku": sku or "N/A", "error": "Both SKU and name are required."})
+                    continue
+
+                existing_product = Product.objects.filter(sku=sku).first()
+                if existing_product:
+                    serializer = ProductAdminCreateUpdateSerializer(existing_product, data=row, partial=True)
+                else:
+                    serializer = ProductAdminCreateUpdateSerializer(data=row)
+
+                if not serializer.is_valid():
+                    errors.append({"row": idx, "sku": sku, "error": str(serializer.errors)})
+                    continue
+
+                serializer.save()
+                if existing_product:
+                    updated_count += 1
+                else:
+                    created_count += 1
+
+        return Response({
+            "success": True,
+            "created": created_count,
+            "updated": updated_count,
+            "errors": errors,
+            "total_processed": len(rows),
+        }, status=status.HTTP_200_OK if not errors else status.HTTP_207_MULTI_STATUS)
 
 
 class ProductImageViewSet(viewsets.ModelViewSet):

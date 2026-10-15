@@ -17,6 +17,8 @@ CATEGORY_DEFAULT_MAP = {
     'switches': '/media/defaults/switches.webp',
     'fans': '/media/defaults/fans.webp',
     'wires-cables': '/media/defaults/wires-cables.webp',
+    'wires': '/media/defaults/wires-cables.webp',
+    'cables': '/media/defaults/wires-cables.webp',
     'modular-switches': '/media/defaults/modular-switches.webp',
 }
 
@@ -25,6 +27,7 @@ GENERIC_DEFAULT = '/media/defaults/generic-electrical.webp'
 IRRELEVANT_STOCK_PHOTOS = [
     'photo-1544716278-ca5e3f4abd8c',  # Books / Library
     'photo-1550985616-10810253b84d',  # Groceries / Coffee
+    'photo-1558618666-fcd25c85cd64',  # Tool / Mechanic portrait
     'photo-1581092160607-ee22621dd758',  # Factory person portrait
     '4f1b917f02cc4bd6a10856cce028e143.png',  # 70-byte broken placeholder
     'dc0c7dd2f0f641979c0d97778bf45825.png',  # 70-byte broken placeholder
@@ -91,20 +94,27 @@ class Command(BaseCommand):
                     p.primary_image = default_img
                     p.save(update_fields=['primary_image'])
 
-                    # Also update or align ProductImage entries for this product
-                    prod_images = ProductImage.objects.filter(product=p)
-                    if prod_images.exists():
-                        for pi in prod_images:
-                            pi.image_url = default_img
-                            pi.save(update_fields=['image_url'])
+                    # Also update or align ProductImage entries for this product without creating duplicates
+                    primary_pi = ProductImage.objects.filter(product=p, is_primary=True).first()
+                    if primary_pi:
+                        primary_pi.image_url = default_img
+                        primary_pi.save(update_fields=['image_url'])
+                        ProductImage.objects.filter(product=p).exclude(id=primary_pi.id).delete()
                     else:
-                        ProductImage.objects.create(
-                            product=p,
-                            image_url=default_img,
-                            alt_text=f"{p.name} - {cat_name}",
-                            sort_order=0,
-                            is_primary=True
-                        )
+                        first_pi = ProductImage.objects.filter(product=p).first()
+                        if first_pi:
+                            first_pi.image_url = default_img
+                            first_pi.is_primary = True
+                            first_pi.save(update_fields=['image_url', 'is_primary'])
+                            ProductImage.objects.filter(product=p).exclude(id=first_pi.id).delete()
+                        else:
+                            ProductImage.objects.create(
+                                product=p,
+                                image_url=default_img,
+                                alt_text=f"{p.name} - {cat_name}",
+                                sort_order=0,
+                                is_primary=True
+                            )
 
                 corrected_products.append({
                     'id': p.id,
