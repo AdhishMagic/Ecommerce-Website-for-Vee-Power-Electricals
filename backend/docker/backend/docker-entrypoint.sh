@@ -28,8 +28,15 @@ while True:
 EOF
 fi
 
-echo "Applying database migrations..."
-python manage.py migrate --noinput
+# Production schema changes must be applied as a reviewed release step, rather
+# than by every web-container start. Local Compose sets RUN_MIGRATIONS=true.
+RUN_MIGRATIONS_LOWER=$(echo "${RUN_MIGRATIONS:-False}" | tr '[:upper:]' '[:lower:]')
+if [ "$RUN_MIGRATIONS_LOWER" = "true" ] || [ "$RUN_MIGRATIONS_LOWER" = "1" ] || [ "$RUN_MIGRATIONS_LOWER" = "t" ]; then
+    echo "Applying database migrations..."
+    python manage.py migrate --noinput
+else
+    echo "Skipping database migrations (set RUN_MIGRATIONS=true for an explicitly reviewed migration run)."
+fi
 
 # Guard demo data seeding: run only if explicitly requested or in debug/dev environments
 if [ "${SEED_DEMO_DATA:-False}" = "True" ] || [ "${SEED_DEMO_DATA:-False}" = "true" ] || [ "${DJANGO_DEBUG:-False}" = "True" ] || [ "${DJANGO_DEBUG:-False}" = "true" ]; then

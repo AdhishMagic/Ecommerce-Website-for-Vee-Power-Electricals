@@ -34,6 +34,7 @@ services:
       DATABASE_HOST: mysql
       DATABASE_PORT: 3306
       USE_SQLITE: "False"
+      RUN_MIGRATIONS: "True"
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-django-dev-secret-key-veepower-change-in-prod}
       DJANGO_DEBUG: ${DJANGO_DEBUG:-True}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,backend,*}
