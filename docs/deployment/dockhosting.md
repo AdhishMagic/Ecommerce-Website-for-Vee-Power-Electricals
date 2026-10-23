@@ -1,8 +1,10 @@
 # DockHosting deployment
 
 This repository is a monorepo. `frontend/` is a Vite static site and `backend/`
-is a Django API; neither can be detected from the repository root because it has
-no root-level `package.json`, `requirements.txt`, or `Dockerfile`.
+is a Django API. The root `Dockerfile` builds the frontend from the repository
+root for a DockHosting project configured with the default root build context.
+The API remains a separate Django service; the root image does not contain or
+start Django or MySQL.
 
 Deploy them as two DockHosting projects, both tracking the `main` branch. Use
 the existing Dockerfiles rather than Nixpacks so builds are deterministic.
@@ -13,18 +15,21 @@ does not contain a file named `Dockerfile` (most likely the repository root).
 DockHosting's root directory/build context and Dockerfile setting are project
 dashboard settings; they are not inferred from this document or from Compose.
 For each service, set the root directory exactly as shown below and set the
-Dockerfile path relative to that root directory. Do not use `.` as the root for
-either service.
+Dockerfile path relative to that root directory. The frontend can use the root
+context and root Dockerfile; the backend must use its own `backend` context.
 
 | DockHosting project | Root directory | Dockerfile path | Public port |
 | --- | --- | --- | --- |
-| Frontend | `frontend` | `Dockerfile` | `80` |
+| Frontend (root-context setup) | `.` | `Dockerfile` | `80` |
+| Frontend (subdirectory setup) | `frontend` | `Dockerfile` | `80` |
 | Backend API | `backend` | `docker/backend/Dockerfile` | `PORT` (defaults to `8000`) |
 
 DockHosting builds one Dockerfile per project; it does not run this repository's
-Compose stack. Create or attach a managed MySQL 8 database to the backend
-project. Do not point either project at the repository root and do not enable
-Nixpacks for this monorepo.
+Compose stack. For the current root-context project, use root directory `.` and
+Dockerfile path `Dockerfile`; it deploys the frontend only. Create a second
+DockHosting project for the API with root directory `backend` and Dockerfile
+path `docker/backend/Dockerfile`. Attach a managed MySQL 8 database privately to
+the backend project. Do not enable Nixpacks for these Docker services.
 
 ## Build-time frontend setting
 

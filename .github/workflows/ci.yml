@@ -117,6 +117,25 @@ jobs:
           test -f dist/index.html
           test -d dist/assets
 
+  dockhosting-root-image:
+    name: DockHosting Root Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Root-Context Frontend Image
+        run: |
+          docker build \
+            --file Dockerfile \
+            --build-arg VITE_API_URL=https://api.example.dockhosting.dev/api/v1 \
+            --tag veepower-dockhosting-frontend:${{ github.sha }} \
+            .
+
   security-scan:
     name: Secret & Configuration Audit
     runs-on: ubuntu-latest

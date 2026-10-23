@@ -1,0 +1,22 @@
+# The root Dockerfile builds the frontend only. Exclude the rest of the repo,
+# then re-include the frontend sources used by the build.
+**
+!Dockerfile
+!frontend
+!frontend/**
+
+# Keep secrets, local artifacts, and development-only files out of the context.
+**/.env
+**/.env.*
+**/node_modules
+**/dist
+**/coverage
+**/test-results
+**/playwright-report
+**/*.log
+**/*.pem
+**/*.key
+**/*.sql
+**/*.sqlite3
+**/.git
+**/.vscode
