@@ -18,6 +18,12 @@ venv/
 .env
 .env.local
 .env.*.local
+.env.production
+.azure/
+*.pem
+*.crt
+*.key
+*.publishsettings
 
 # Database & Cache
 *.sqlite3

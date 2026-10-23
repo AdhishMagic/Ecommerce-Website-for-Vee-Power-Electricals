@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json.schemastore.org/staticwebapp.config.json",
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": [
+      "/assets/*",
+      "/images/*",
+      "*.{png,jpg,jpeg,gif,svg,ico,webp,css,js,json,woff,woff2,ttf,eot}"
+    ]
+  },
+  "routes": [
+    {
+      "route": "/assets/*",
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable"
+      }
+    }
+  ],
+  "globalHeaders": {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin"
+  },
+  "responseOverrides": {
+    "404": {
+      "rewrite": "/index.html"
+    }
+  },
+  "mimeTypes": {
+    ".json": "application/json",
+    ".webp": "image/webp"
+  }
+}

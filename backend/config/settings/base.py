@@ -87,6 +87,25 @@ DB_PASSWORD = os.getenv('DATABASE_PASSWORD', 'root')
 DB_HOST = os.getenv('DATABASE_HOST', '127.0.0.1')
 DB_PORT = os.getenv('DATABASE_PORT', '3306')
 
+db_options = {
+    'charset': 'utf8mb4',
+} if 'mysql' in DB_ENGINE else {}
+
+# Support encrypted SSL/TLS connections for managed cloud MySQL (e.g., Azure Database for MySQL Flexible Server)
+DB_SSL_ENABLED = os.getenv('DATABASE_SSL', os.getenv('DB_SSL_ENABLED', 'False')).lower() in ('true', '1', 't')
+DB_SSL_CA = os.getenv('DATABASE_SSL_CA', os.getenv('DB_SSL_CA', ''))
+if 'mysql' in DB_ENGINE and DB_SSL_ENABLED:
+    ssl_config = {}
+    if DB_SSL_CA and os.path.exists(DB_SSL_CA):
+        ssl_config['ca'] = DB_SSL_CA
+    else:
+        try:
+            import certifi
+            ssl_config['ca'] = certifi.where()
+        except ImportError:
+            pass
+    db_options['ssl'] = ssl_config
+
 DATABASES = {
     'default': {
         'ENGINE': DB_ENGINE,
@@ -95,9 +114,7 @@ DATABASES = {
         'PASSWORD': DB_PASSWORD,
         'HOST': DB_HOST,
         'PORT': DB_PORT,
-        'OPTIONS': {
-            'charset': 'utf8mb4',
-        } if 'mysql' in DB_ENGINE else {}
+        'OPTIONS': db_options,
     }
 }
 

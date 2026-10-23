@@ -43,6 +43,26 @@ SECURE_HSTS_PRELOAD = os.getenv('SECURE_HSTS_PRELOAD', 'False').lower() in ('tru
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# WhiteNoise static asset serving for standalone production deployments (e.g., Azure App Service)
+try:
+    import whitenoise  # noqa: F401
+    if 'whitenoise.middleware.WhiteNoiseMiddleware' not in MIDDLEWARE:
+        try:
+            sec_idx = MIDDLEWARE.index('django.middleware.security.SecurityMiddleware')
+            MIDDLEWARE.insert(sec_idx + 1, 'whitenoise.middleware.WhiteNoiseMiddleware')
+        except ValueError:
+            MIDDLEWARE.insert(0, 'whitenoise.middleware.WhiteNoiseMiddleware')
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+        },
+    }
+except ImportError:
+    pass
+
 # 7. Production Structured Logging
 LOGGING = {
     'version': 1,
