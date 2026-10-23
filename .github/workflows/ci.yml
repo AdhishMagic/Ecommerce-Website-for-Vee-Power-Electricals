@@ -21,8 +21,8 @@ jobs:
         env:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: veepower_test_db
-          MYSQL_USER: veepower
-          MYSQL_PASSWORD: root
+          MYSQL_USER: veepower_ci
+          MYSQL_PASSWORD: ci-only-veepower-password
         ports:
           - 3306:3306
         options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=5
@@ -33,8 +33,8 @@ jobs:
       JWT_SECRET_KEY: "ci-jwt-validation-secret-key-do-not-use-in-production-minimum-50-chars"
       DATABASE_ENGINE: "django.db.backends.mysql"
       DATABASE_NAME: "veepower_test_db"
-      DATABASE_USER: "veepower"
-      DATABASE_PASSWORD: "root"
+      DATABASE_USER: "veepower_ci"
+      DATABASE_PASSWORD: "ci-only-veepower-password"
       DATABASE_HOST: "127.0.0.1"
       DATABASE_PORT: "3306"
       USE_SQLITE: "False"
@@ -54,7 +54,21 @@ jobs:
       - name: Install System Dependencies for MySQL
         run: |
           sudo apt-get update
-          sudo apt-get install -y default-libmysqlclient-dev pkg-config
+          sudo apt-get install -y default-libmysqlclient-dev default-mysql-client pkg-config
+
+      - name: Wait for MySQL and grant CI test database privileges
+        env:
+          MYSQL_PWD: root
+        run: |
+          for attempt in $(seq 1 30); do
+            if mysqladmin --protocol=TCP --host=127.0.0.1 --port=3306 --user=root ping --silent; then
+              break
+            fi
+            sleep 2
+          done
+          mysqladmin --protocol=TCP --host=127.0.0.1 --port=3306 --user=root ping --silent
+          mysql --protocol=TCP --host=127.0.0.1 --port=3306 --user=root \
+            --execute="GRANT CREATE, DROP, ALTER, INDEX, REFERENCES, CREATE TEMPORARY TABLES, LOCK TABLES, SELECT, INSERT, UPDATE, DELETE ON *.* TO 'veepower_ci'@'%';"
 
       - name: Install Backend Python Dependencies
         run: |
@@ -80,6 +94,8 @@ jobs:
       - name: Run Full Backend Test Suite
         run: |
           cd backend
+          # Django derives test_veepower_test_db from DATABASE_NAME. The CI-only
+          # service account above can create/drop it; no production DB is used.
           python manage.py test
 
   frontend-validation:
