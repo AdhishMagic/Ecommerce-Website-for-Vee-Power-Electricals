@@ -5,3 +5,11 @@ dist
 test-results
 playwright-report
 *.log
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.sql
+*.sqlite3
+coverage

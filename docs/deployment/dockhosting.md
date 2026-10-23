@@ -7,6 +7,15 @@ no root-level `package.json`, `requirements.txt`, or `Dockerfile`.
 Deploy them as two DockHosting projects, both tracking the `main` branch. Use
 the existing Dockerfiles rather than Nixpacks so builds are deterministic.
 
+The error `failed to read dockerfile: open Dockerfile: no such file or directory`
+means the affected DockHosting project is currently using a build context that
+does not contain a file named `Dockerfile` (most likely the repository root).
+DockHosting's root directory/build context and Dockerfile setting are project
+dashboard settings; they are not inferred from this document or from Compose.
+For each service, set the root directory exactly as shown below and set the
+Dockerfile path relative to that root directory. Do not use `.` as the root for
+either service.
+
 | DockHosting project | Root directory | Dockerfile path | Public port |
 | --- | --- | --- | --- |
 | Frontend | `frontend` | `Dockerfile` | `80` |
