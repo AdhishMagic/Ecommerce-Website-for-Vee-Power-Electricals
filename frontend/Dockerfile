@@ -15,7 +15,7 @@ CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 # Stage 2: Builder for production
 FROM development AS builder
 
-ARG VITE_API_URL=http://localhost:8000/api/v1
+ARG VITE_API_URL=/api/v1
 ENV VITE_API_URL=$VITE_API_URL
 
 RUN npm run build

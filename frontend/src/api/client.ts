@@ -128,6 +128,10 @@ const getApiBaseUrl = (): string => {
   if (envUrl) {
     return envUrl.replace(/\/+$/, '');
   }
+  // In production builds, default to relative '/api/v1' so requests route through Nginx reverse proxy
+  if (import.meta.env.PROD) {
+    return '/api/v1';
+  }
   return 'http://localhost:8000/api/v1';
 };
 
@@ -377,6 +381,23 @@ export async function apiClient<T>(
     responseData = await response.json().catch(() => ({}));
   } else {
     responseData = await response.text();
+  }
+
+  // Detect HTML returned on API endpoints (e.g. Nginx SPA fallback or 502 Bad Gateway HTML)
+  if (
+    typeof responseData === 'string' &&
+    (contentType.includes('text/html') ||
+      responseData.trim().startsWith('<!DOCTYPE') ||
+      responseData.trim().startsWith('<html'))
+  ) {
+    throw new ApiError(
+      response.ok ? 502 : response.status,
+      {
+        message: 'Invalid API response format (HTML received instead of JSON). Check backend service status and API proxy routing.',
+        detail: 'The server returned an HTML document instead of the expected JSON data.',
+      },
+      response.headers.get('x-request-id') || undefined
+    );
   }
 
   if (!response.ok) {

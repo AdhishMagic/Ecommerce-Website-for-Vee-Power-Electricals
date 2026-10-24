@@ -12,20 +12,32 @@ const mapApiProductToProduct = (item: ProductSummary | ProductDetail): Product =
     typeof item.brand === 'object' && item.brand !== null
       ? (item.brand as any).name
       : item.brand_name || String(item.brand || '');
+  const brandId = typeof item.brand === 'object' && item.brand !== null ? (item.brand as any).id : undefined;
+  const brandSlug = typeof item.brand === 'object' && item.brand !== null ? (item.brand as any).slug : undefined;
 
   const categoryName =
     typeof item.category === 'object' && item.category !== null
       ? (item.category as any).name
       : item.category_name || String(item.category || '');
+  const categoryId = typeof item.category === 'object' && item.category !== null ? (item.category as any).id : undefined;
+  const categorySlug = typeof item.category === 'object' && item.category !== null ? (item.category as any).slug : undefined;
 
   const subcategoryName =
     typeof item.subcategory === 'object' && item.subcategory !== null
       ? (item.subcategory as any).name
       : item.subcategory_name || '';
+  const subcategoryId = typeof item.subcategory === 'object' && item.subcategory !== null ? (item.subcategory as any).id : undefined;
+  const subcategorySlug = typeof item.subcategory === 'object' && item.subcategory !== null ? (item.subcategory as any).slug : undefined;
 
   const normalizeImageUrl = (url?: string) => {
     if (!url) return '';
     if (url.startsWith('/media/')) {
+      if (import.meta.env.PROD) {
+        const backendBase = import.meta.env.VITE_API_URL
+          ? import.meta.env.VITE_API_URL.replace('/api/v1', '')
+          : '';
+        return `${backendBase}${url}`;
+      }
       const backendBase = import.meta.env.VITE_API_URL
         ? import.meta.env.VITE_API_URL.replace('/api/v1', '')
         : 'http://localhost:8000';
@@ -62,8 +74,14 @@ const mapApiProductToProduct = (item: ProductSummary | ProductDetail): Product =
     id: String(item.id),
     name: item.name,
     brand: brandName,
+    brandId,
+    brandSlug,
     category: categoryName,
+    categoryId,
+    categorySlug,
     subcategory: subcategoryName,
+    subcategoryId,
+    subcategorySlug,
     sku: item.sku,
     mrp: Number(item.mrp) || Number(item.price) || 0,
     price: Number(item.price) || 0,

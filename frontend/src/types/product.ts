@@ -2,8 +2,14 @@ export interface Product {
   id: string;
   name: string;
   brand: string;
+  brandId?: number | string;
+  brandSlug?: string;
   category: string;
+  categoryId?: number | string;
+  categorySlug?: string;
   subcategory: string;
+  subcategoryId?: number | string;
+  subcategorySlug?: string;
   sku: string;
   mrp: number;
   price: number;

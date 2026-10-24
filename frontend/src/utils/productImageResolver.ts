@@ -49,6 +49,16 @@ export const CATEGORY_DEFAULT_IMAGES: Record<string, string> = {
   'modular-switches': modularSwitchesImg,
 
   // By Category ID (from database records)
+  '1': fansImg,
+  '2': wiresCablesImg,
+  '3': switchesImg,
+  '4': ledAndLightingImg,
+  '5': mcbProtectionImg,
+  '6': electricalAccessoriesImg,
+  '7': modularSwitchesImg,
+  '8': ledLightingImg,
+  '9': mcbDistributionImg,
+  '10': ledLuminairesImg,
   '11': fansImg,
   '12': wiresCablesImg,
   '13': modularSwitchesImg,
@@ -162,6 +172,12 @@ export function normalizeMediaUrl(url?: string | null): string {
       if (trimmed.includes(key)) {
         return assetUrl;
       }
+    }
+    if (import.meta.env.PROD) {
+      const backendBase = import.meta.env.VITE_API_URL
+        ? import.meta.env.VITE_API_URL.replace('/api/v1', '')
+        : '';
+      return `${backendBase}${trimmed}`;
     }
     const backendBase = import.meta.env.VITE_API_URL
       ? import.meta.env.VITE_API_URL.replace('/api/v1', '')

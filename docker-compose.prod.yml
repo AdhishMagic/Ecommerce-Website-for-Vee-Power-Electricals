@@ -6,6 +6,7 @@ services:
       USE_SQLITE: "False"
       DJANGO_SETTINGS_MODULE: "config.settings.production"
       SEED_DEMO_DATA: "False"
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,backend,*}
 
   frontend:
     build:
@@ -13,9 +14,11 @@ services:
       dockerfile: Dockerfile
       target: production
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000/api/v1}
+        VITE_API_URL: ${VITE_API_URL:-/api/v1}
     ports:
       - "${PROD_FRONTEND_PORT:-80}:80"
+    depends_on:
+      - backend
     volumes: []
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/"]

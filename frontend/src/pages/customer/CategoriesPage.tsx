@@ -15,12 +15,18 @@ export default function CategoriesPage() {
     try {
       setLoading(true);
       setError(null);
-      const [cats, prods] = await Promise.all([
+      const [catsRes, prodsRes] = await Promise.allSettled([
         productService.getCategories(),
         productService.getProducts(),
       ]);
-      setCategories(cats);
-      setProducts(prods);
+      if (catsRes.status === 'fulfilled') {
+        setCategories(catsRes.value);
+      } else {
+        throw catsRes.reason;
+      }
+      if (prodsRes.status === 'fulfilled') {
+        setProducts(prodsRes.value);
+      }
     } catch (err: any) {
       console.error("Failed to load electrical categories:", err);
       setError("Unable to load electrical categories. Please check your connection and try again.");
@@ -37,8 +43,16 @@ export default function CategoriesPage() {
   const productCountMap = useMemo(() => {
     const map: Record<string, number> = {};
     products.forEach((p) => {
-      const catKey = (p.category || "").toLowerCase().trim();
-      map[catKey] = (map[catKey] || 0) + 1;
+      if (p.category) {
+        const catKey = p.category.toLowerCase().trim();
+        map[catKey] = (map[catKey] || 0) + 1;
+      }
+      if (p.categoryId !== undefined) {
+        map[String(p.categoryId)] = (map[String(p.categoryId)] || 0) + 1;
+      }
+      if (p.categorySlug) {
+        map[p.categorySlug.toLowerCase().trim()] = (map[p.categorySlug.toLowerCase().trim()] || 0) + 1;
+      }
     });
     return map;
   }, [products]);
@@ -47,7 +61,7 @@ export default function CategoriesPage() {
     const catNameKey = (cat.name || "").toLowerCase().trim();
     const catSlugKey = (cat.slug || "").toLowerCase().trim();
     const catIdKey = String(cat.id);
-    return productCountMap[catNameKey] || productCountMap[catSlugKey] || productCountMap[catIdKey] || 0;
+    return productCountMap[catIdKey] || productCountMap[catSlugKey] || productCountMap[catNameKey] || 0;
   };
 
   // Filter categories by search query
@@ -64,7 +78,7 @@ export default function CategoriesPage() {
 
   return (
     <div className="w-full bg-[#F6F8FA] min-h-[calc(100vh-140px)] py-6 sm:py-8 lg:py-10">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="site-container mx-auto">
         {/* Breadcrumb */}
         <nav
           className="flex items-center gap-2 text-xs font-medium text-[#667085] mb-5 sm:mb-6 flex-wrap"
@@ -78,7 +92,7 @@ export default function CategoriesPage() {
         </nav>
 
         {/* Page Header Block */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 sm:pb-8 border-b border-[#D9E1E8] mb-6 sm:mb-8 animate-dashboard-header">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 sm:pb-8 border-b border-[#D9E1E8] mb-6 sm:mb-8">
           <div>
             <div className="flex items-center gap-3 flex-wrap">
               <h1
@@ -183,6 +197,29 @@ export default function CategoriesPage() {
             >
               <span>Retry</span>
             </button>
+          </div>
+        )}
+
+        {/* STATE 2B: Genuine Database Empty State */}
+        {!loading && !error && categories.length === 0 && (
+          <div className="bg-white border border-[#D9E1E8] rounded-2xl p-8 sm:p-12 text-center shadow-xs max-w-md mx-auto my-6">
+            <div className="w-14 h-14 bg-[#EFF6FF] text-[#1769AA] rounded-full flex items-center justify-center mx-auto mb-4 border border-[#BFDBFE]">
+              <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+            </div>
+            <h3 className="text-base sm:text-lg font-bold text-[#0B3A63] mb-1.5" style={{ fontFamily: "Outfit, sans-serif" }}>
+              No Categories Available
+            </h3>
+            <p className="text-xs text-[#667085] mb-5">
+              Categories have not been configured yet. Browse our full product collection in the shop.
+            </p>
+            <Link
+              to="/shop"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-[#1769AA] hover:bg-[#0B3A63] px-5 py-2.5 rounded-xl transition-all shadow-xs"
+            >
+              Browse Shop Catalog
+            </Link>
           </div>
         )}
 

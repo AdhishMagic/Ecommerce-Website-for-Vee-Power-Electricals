@@ -30,15 +30,15 @@ export default function Home() {
     const loadHomeData = async () => {
       try {
         setLoading(true);
-        const [feat, cats, brs] = await Promise.all([
+        const [featRes, catsRes, brsRes] = await Promise.allSettled([
           productService.getProducts({ featured: true }),
           productService.getCategories(),
           productService.getBrands(),
         ]);
         if (isMounted) {
-          setFeaturedProducts(feat);
-          setCategories(cats);
-          setBrands(brs);
+          if (featRes.status === 'fulfilled') setFeaturedProducts(featRes.value);
+          if (catsRes.status === 'fulfilled') setCategories(catsRes.value);
+          if (brsRes.status === 'fulfilled') setBrands(brsRes.value);
         }
       } catch (err) {
         console.error("Failed to load homepage data:", err);
@@ -171,7 +171,7 @@ export default function Home() {
                         ))}
                       </div>
 
-                      <Link to="/shop?view=categories" className="text-xs sm:text-sm text-[#1769AA] hover:text-[#0B3A63] font-semibold transition-colors whitespace-nowrap pl-1">
+                      <Link to="/categories" className="text-xs sm:text-sm text-[#1769AA] hover:text-[#0B3A63] font-semibold transition-colors whitespace-nowrap pl-1">
                         View all categories →
                       </Link>
                     </div>

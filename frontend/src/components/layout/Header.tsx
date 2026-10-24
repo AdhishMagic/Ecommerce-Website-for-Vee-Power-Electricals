@@ -301,7 +301,7 @@ export default function Header() {
   }, [updateIndicator]);
 
   return (
-    <header className="relative sticky top-0 z-50 bg-white shadow-md border-b border-[#D9E1E8]">
+    <header className="sticky top-0 z-50 bg-white shadow-md border-b border-[#D9E1E8]">
       {/* Top Contact Bar */}
       <div className="bg-[#F6F8FA] border-b border-[#D9E1E8] text-[#667085] text-xs py-1.5 hidden sm:block">
         <div className="header-inner flex justify-between items-center">

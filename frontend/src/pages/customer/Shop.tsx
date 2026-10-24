@@ -41,15 +41,15 @@ export default function Shop() {
     const fetchCatalog = async () => {
       try {
         setLoading(true);
-        const [cats, brs, prods] = await Promise.all([
+        const [catsRes, brsRes, prodsRes] = await Promise.allSettled([
           productService.getCategories(),
           productService.getBrands(),
           productService.getProducts(),
         ]);
         if (isMounted) {
-          setCategories(cats);
-          setBrands(brs);
-          setProducts(prods);
+          if (catsRes.status === 'fulfilled') setCategories(catsRes.value);
+          if (brsRes.status === 'fulfilled') setBrands(brsRes.value);
+          if (prodsRes.status === 'fulfilled') setProducts(prodsRes.value);
         }
       } catch (err) {
         console.error("Failed to load catalog data:", err);
@@ -84,19 +84,27 @@ export default function Shop() {
 
     if (activeCategoryObj) {
       list = list.filter(p =>
+        (p.categoryId !== undefined && String(p.categoryId) === String(activeCategoryObj.id)) ||
+        (p.categorySlug && p.categorySlug.toLowerCase() === (activeCategoryObj.slug || '').toLowerCase()) ||
         p.category.toLowerCase() === activeCategoryObj.name.toLowerCase() ||
         String(p.category) === String(activeCategoryObj.id)
       );
     } else if (localCategory) {
+      const target = localCategory.toLowerCase().trim();
       list = list.filter(p =>
-        p.category.toLowerCase() === localCategory.toLowerCase() ||
-        String(p.category) === String(localCategory)
+        (p.categoryId !== undefined && String(p.categoryId) === target) ||
+        (p.categorySlug && p.categorySlug.toLowerCase() === target) ||
+        p.category.toLowerCase() === target ||
+        String(p.category) === target
       );
     }
 
     if (localBrands.length) {
       const activeBrandSlugs = localBrands.map(slugifyBrand);
-      list = list.filter(p => activeBrandSlugs.includes(slugifyBrand(p.brand)));
+      list = list.filter(p =>
+        activeBrandSlugs.includes(slugifyBrand(p.brand)) ||
+        (p.brandSlug && activeBrandSlugs.includes(slugifyBrand(p.brandSlug)))
+      );
     }
 
     if (stockFilter) {
