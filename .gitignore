@@ -45,5 +45,5 @@ bee animation.mp4
 # Test artifacts
 test-results/
 playwright-report/
-tests/screenshots/
-tests/
+/tests/screenshots/
+/tests/
