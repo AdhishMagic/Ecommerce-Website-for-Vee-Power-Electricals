@@ -6,9 +6,14 @@ import {
   OrderStatus,
   OrderStatusHistoryItem,
   PaginatedResponse,
+  OperationalDashboardSummary,
 } from '../types/api';
 
 export const ordersApi = {
+  async getOperationalSummary(): Promise<OperationalDashboardSummary> {
+    return apiClient<OperationalDashboardSummary>('/orders/operational-summary/');
+  },
+
   async checkout(payload: CheckoutPayload): Promise<OrderDetailData> {
     return apiClient<OrderDetailData>('/orders/checkout/', {
       method: 'POST',

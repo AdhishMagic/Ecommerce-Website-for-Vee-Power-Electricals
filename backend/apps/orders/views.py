@@ -307,3 +307,49 @@ class OrderStatusHistoryListView(generics.ListAPIView):
 
         return OrderStatusHistory.objects.filter(order_id=order_id).select_related('changed_by').order_by('created_at')
 
+
+class AdminOrderOperationsSummaryView(APIView):
+    """
+    GET /api/v1/orders/operational-summary/
+    Authoritative operational summary for the Admin Dashboard.
+    Aggregates order counts by fulfillment lifecycle state directly in the database.
+    Contains zero revenue, monetary, or financial reporting data.
+    Enforces strict admin RBAC.
+    """
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        counts = Order.objects.aggregate(
+            total_orders_count=Count('id'),
+            pending_orders_count=Count('id', filter=Q(status=OrderStatus.PENDING)),
+            confirmed_orders_count=Count('id', filter=Q(status=OrderStatus.CONFIRMED)),
+            packed_orders_count=Count('id', filter=Q(status=OrderStatus.PACKED)),
+            shipped_orders_count=Count('id', filter=Q(status=OrderStatus.SHIPPED)),
+            delivered_orders_count=Count('id', filter=Q(status=OrderStatus.DELIVERED)),
+            cancelled_orders_count=Count('id', filter=Q(status=OrderStatus.CANCELLED)),
+            return_requested_count=Count('id', filter=Q(status=OrderStatus.RETURN_REQUESTED)),
+            return_approved_count=Count('id', filter=Q(status=OrderStatus.RETURN_APPROVED)),
+            return_rejected_count=Count('id', filter=Q(status=OrderStatus.RETURN_REJECTED)),
+            return_completed_count=Count('id', filter=Q(status=OrderStatus.RETURN_COMPLETED)),
+        )
+
+        open_orders_count = sum(
+            counts[k] for k in ('pending_orders_count', 'confirmed_orders_count', 'packed_orders_count')
+        )
+        out_for_delivery_count = counts['shipped_orders_count']
+        returns_count = sum(
+            counts[k] for k in ('return_requested_count', 'return_approved_count', 'return_completed_count')
+        )
+
+        return Response({
+            'total_orders_count': counts['total_orders_count'],
+            'open_orders_count': open_orders_count,
+            'confirmed_orders_count': counts['confirmed_orders_count'],
+            'out_for_delivery_count': out_for_delivery_count,
+            'returns_count': returns_count,
+            'pending_orders_count': counts['pending_orders_count'],
+            'packed_orders_count': counts['packed_orders_count'],
+            'delivered_orders_count': counts['delivered_orders_count'],
+            'cancelled_orders_count': counts['cancelled_orders_count'],
+        })
+

@@ -651,6 +651,18 @@ export interface DashboardSummary {
   }>;
 }
 
+export interface OperationalDashboardSummary {
+  total_orders_count: number;
+  open_orders_count: number;
+  confirmed_orders_count: number;
+  out_for_delivery_count: number;
+  returns_count: number;
+  pending_orders_count: number;
+  packed_orders_count: number;
+  delivered_orders_count: number;
+  cancelled_orders_count: number;
+}
+
 export interface CustomerAddressItem {
   id: number;
   recipient_name: string;
