@@ -58,6 +58,9 @@ export default function CategoriesPage() {
   }, [products]);
 
   const getProductCountForCategory = (cat: Category): number => {
+    if (cat.productsCount !== undefined && cat.productsCount !== null) {
+      return cat.productsCount;
+    }
     const catNameKey = (cat.name || "").toLowerCase().trim();
     const catSlugKey = (cat.slug || "").toLowerCase().trim();
     const catIdKey = String(cat.id);
@@ -279,11 +282,9 @@ export default function CategoriesPage() {
                         onError={(e) => handleProductImageError(e, cat)}
                       />
                     </div>
-                    {count > 0 && (
-                      <span className="absolute top-3 right-3 text-[11px] font-bold bg-white/90 backdrop-blur-xs text-[#0B3A63] px-2.5 py-0.5 rounded-full border border-[#D9E1E8] shadow-2xs">
-                        {count} {count === 1 ? "Product" : "Products"}
-                      </span>
-                    )}
+                    <span className="absolute top-3 right-3 text-[11px] font-bold bg-white/90 backdrop-blur-xs text-[#0B3A63] px-2.5 py-0.5 rounded-full border border-[#D9E1E8] shadow-2xs">
+                      {count} {count === 1 ? "Product" : "Products"}
+                    </span>
                   </Link>
 
                   <div className="p-4 sm:p-5 flex flex-col flex-1 justify-between gap-4">

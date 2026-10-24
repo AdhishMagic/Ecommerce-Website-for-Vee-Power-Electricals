@@ -42,7 +42,9 @@ class CategoryViewSet(viewsets.ModelViewSet):
         return [IsAdminUser()]
 
     def get_queryset(self):
-        qs = Category.objects.prefetch_related('subcategories')
+        qs = Category.objects.annotate(
+            products_count=models.Count('products', filter=models.Q(products__active=True))
+        ).prefetch_related('subcategories').order_by('id')
         # For unauthenticated or non-admin users, show only active categories
         if not (self.request.user and self.request.user.is_authenticated and (self.request.user.is_staff or getattr(self.request.user, 'role', '') == 'admin')):
             qs = qs.filter(is_active=True)

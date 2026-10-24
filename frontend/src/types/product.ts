@@ -48,6 +48,8 @@ export interface Category {
   discount_value?: number | string;
   discountLabel?: string;
   discount_label?: string;
+  productsCount?: number;
+  products_count?: number;
   subcategories: string[];
 }
 

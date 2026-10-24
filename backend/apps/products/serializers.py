@@ -12,6 +12,7 @@ from .models import (
 class CategorySerializer(serializers.ModelSerializer):
     slug = serializers.SlugField(required=False, allow_blank=True)
     is_active = serializers.BooleanField(required=False, default=True)
+    products_count = serializers.IntegerField(read_only=True, default=0)
 
     class Meta:
         model = Category
@@ -19,9 +20,9 @@ class CategorySerializer(serializers.ModelSerializer):
             'id', 'name', 'slug', 'icon', 'image', 'subtitle',
             'hero_order', 'hero_badge', 'show_in_hero',
             'discount_enabled', 'discount_type', 'discount_value',
-            'discount_label', 'is_active', 'created_at', 'updated_at'
+            'discount_label', 'is_active', 'products_count', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'products_count', 'created_at', 'updated_at']
 
     def to_internal_value(self, data):
         data = data.copy() if hasattr(data, 'copy') else dict(data)

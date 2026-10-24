@@ -125,6 +125,8 @@ const mapApiCategoryToCategory = (item: ApiCategory | any): Category => {
     discount_value: Number(item.discount_value ?? item.discountValue ?? 0),
     discountLabel: item.discount_label || item.discountLabel || '',
     discount_label: item.discount_label || item.discountLabel || '',
+    productsCount: item.products_count !== undefined ? Number(item.products_count) : (item.product_count !== undefined ? Number(item.product_count) : undefined),
+    products_count: item.products_count !== undefined ? Number(item.products_count) : (item.product_count !== undefined ? Number(item.product_count) : undefined),
     subcategories: subcats,
   };
 };
