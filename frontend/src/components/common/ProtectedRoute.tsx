@@ -35,7 +35,7 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
   if (!isAllowed) {
     // User is authenticated but doesn't have the right role for this route.
     if (location.pathname.startsWith('/admin')) {
-      return <Navigate to={`/admin/login?redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />;
+      return <Navigate to={`/admin/login?unauthorized=1&redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />;
     }
     return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />;
   }

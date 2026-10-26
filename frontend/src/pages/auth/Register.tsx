@@ -118,7 +118,7 @@ export default function Register() {
       headlineAccent="Future of Power."
       description="Create an account to track your orders, save your addresses, and unlock professional discounts."
     >
-      <div className="relative flex flex-col justify-center py-2">
+      <div className="relative flex flex-col justify-center">
         {/* VEE ELECTRICALS Animated Loading Overlay */}
         <VeeElectricalsLoader
           status={authStatus}
@@ -126,11 +126,11 @@ export default function Register() {
           successMessage="Account Created!"
         />
 
-        <h2 className="text-2xl sm:text-3xl font-bold text-charcoal mb-1" style={{ fontFamily: "Outfit" }}>Create Account</h2>
+        <h2 className="text-2xl sm:text-[26px] font-bold text-charcoal mb-1" style={{ fontFamily: "Outfit" }}>Create Account</h2>
         <p className="text-muted text-xs sm:text-sm mb-4">Join us to manage orders and get exclusive deals.</p>
 
         {error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-xl text-xs sm:text-sm border border-red-100 flex items-center gap-2 mb-4">
+          <div className="bg-red-50 text-red-600 p-3 rounded-xl text-xs border border-red-100 flex items-center gap-2 mb-3">
             <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             {error}
           </div>
@@ -138,23 +138,23 @@ export default function Register() {
 
         <form onSubmit={handleRegister} className="space-y-3" noValidate>
           <div>
-            <label className="block text-xs sm:text-sm font-medium text-charcoal mb-1">Full Name</label>
+            <label className="block text-xs font-semibold text-charcoal mb-1">Full Name</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-bg border border-border rounded-xl focus:bg-white focus:border-electric focus:ring-4 focus:ring-electric/10 outline-none transition-all text-sm"
+              className="w-full px-3.5 py-2 sm:py-2.5 bg-bg border border-border rounded-xl focus:bg-white focus:border-electric focus:ring-4 focus:ring-electric/10 outline-none transition-all text-xs sm:text-sm"
               placeholder="John Doe"
             />
           </div>
 
           <div>
-            <label className="block text-xs sm:text-sm font-medium text-charcoal mb-1">Email Address</label>
+            <label className="block text-xs font-semibold text-charcoal mb-1">Email Address</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className={`w-full px-3.5 py-2.5 bg-bg border ${fieldErrors.email ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-border focus:border-electric focus:ring-electric/10'} rounded-xl focus:bg-white focus:ring-4 outline-none transition-all text-sm`}
+              className={`w-full px-3.5 py-2 sm:py-2.5 bg-bg border ${fieldErrors.email ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-border focus:border-electric focus:ring-electric/10'} rounded-xl focus:bg-white focus:ring-4 outline-none transition-all text-xs sm:text-sm`}
               placeholder="name@example.com"
             />
             {fieldErrors.email && (
@@ -163,19 +163,19 @@ export default function Register() {
           </div>
 
           <div>
-            <label className="block text-xs sm:text-sm font-medium text-charcoal mb-1">Password</label>
+            <label className="block text-xs font-semibold text-charcoal mb-1">Password</label>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className={`w-full px-3.5 py-2.5 bg-bg border ${fieldErrors.password ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-border focus:border-electric focus:ring-electric/10'} rounded-xl focus:bg-white focus:ring-4 outline-none transition-all text-sm pr-10`}
+                className={`w-full px-3.5 py-2 sm:py-2.5 bg-bg border ${fieldErrors.password ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-border focus:border-electric focus:ring-electric/10'} rounded-xl focus:bg-white focus:ring-4 outline-none transition-all text-xs sm:text-sm pr-10`}
                 placeholder="At least 8 characters"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-charcoal focus:outline-none transition-colors p-1"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-charcoal focus:outline-none transition-colors p-1"
                 aria-label={showPassword ? "Hide password" : "Show password"}
               >
                 {showPassword ? (
@@ -191,19 +191,19 @@ export default function Register() {
           </div>
 
           <div>
-            <label className="block text-xs sm:text-sm font-medium text-charcoal mb-1">Confirm Password</label>
+            <label className="block text-xs font-semibold text-charcoal mb-1">Confirm Password</label>
             <div className="relative">
               <input
                 type={showConfirmPassword ? "text" : "password"}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-bg border border-border rounded-xl focus:bg-white focus:border-electric focus:ring-4 focus:ring-electric/10 outline-none transition-all text-sm pr-10"
+                className="w-full px-3.5 py-2 sm:py-2.5 bg-bg border border-border rounded-xl focus:bg-white focus:border-electric focus:ring-4 focus:ring-electric/10 outline-none transition-all text-xs sm:text-sm pr-10"
                 placeholder="Repeat your password"
               />
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-charcoal focus:outline-none transition-colors p-1"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-charcoal focus:outline-none transition-colors p-1"
                 aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
               >
                 {showConfirmPassword ? (
@@ -219,22 +219,22 @@ export default function Register() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-2.5 sm:py-3 bg-electric hover:bg-electric-dark text-white font-semibold rounded-xl transition-all shadow-md shadow-electric/20 hover:shadow-lg hover:shadow-electric/30 active:scale-[0.99] disabled:opacity-50 text-sm"
+              className="w-full py-2.5 sm:py-3 bg-electric hover:bg-electric-dark text-white font-semibold rounded-xl transition-all shadow-sm shadow-electric/20 hover:shadow-md hover:shadow-electric/30 active:scale-[0.99] disabled:opacity-50 text-xs sm:text-sm cursor-pointer"
             >
               Create Account
             </button>
           </div>
         </form>
 
-        <div className="flex items-center gap-3 my-6" aria-hidden="true">
+        <div className="flex items-center gap-3 my-3.5" aria-hidden="true">
           <div className="h-px flex-1 bg-border" />
           <span className="text-xs uppercase tracking-wide text-muted">or</span>
           <div className="h-px flex-1 bg-border" />
         </div>
 
         {googleNotice && (
-          <div className="bg-emerald-50 text-emerald-700 p-3.5 rounded-xl text-sm border border-emerald-200 flex items-center gap-2.5 mb-4">
-            <svg className="w-5 h-5 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+          <div className="bg-emerald-50 text-emerald-700 p-2.5 rounded-lg text-xs border border-emerald-200 flex items-center gap-2 mb-2.5">
+            <svg className="w-4 h-4 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
             <span>{googleNotice}</span>
           </div>
         )}
@@ -244,7 +244,7 @@ export default function Register() {
           disabled={isLoading || authStatus !== "idle"}
         />
 
-        <p className="text-center text-sm text-muted mt-8">
+        <p className="text-center text-xs sm:text-sm text-muted mt-4">
           Already have an account?{" "}
           <Link to="/login" className="text-electric hover:text-electric-dark font-semibold transition-colors">
             Sign In

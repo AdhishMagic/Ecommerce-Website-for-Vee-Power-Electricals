@@ -29,6 +29,7 @@ venv/
 *.sqlite3
 *.db
 *.sql
+*.bak
 backups/
 __pycache__/
 *.pyc

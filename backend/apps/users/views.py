@@ -1,7 +1,9 @@
+import logging
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import update_last_login
 from django.contrib.auth.tokens import default_token_generator
+from django.core import signing
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django.http import HttpResponseRedirect
@@ -23,6 +25,10 @@ from apps.users.services.google_identity import (
     generate_pkce_pair,
     sign_in_with_google,
     verify_google_id_token,
+    GoogleSignInError,
+    InvalidGoogleTokenError,
+    GoogleAccountInactiveError,
+    GoogleProviderUnavailableError,
 )
 
 from .serializers import (
@@ -36,6 +42,7 @@ from .serializers import (
     UserLoginSerializer,
 )
 
+logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
@@ -181,13 +188,38 @@ class GoogleOAuthInitView(APIView):
     throttle_scope = 'auth'
 
     def get(self, request):
-        state = generate_oauth_state()
+        raw_state = generate_oauth_state()
         code_verifier, code_challenge = generate_pkce_pair()
 
-        # Persist state and code_verifier in user session
+        # Capture requested frontend URL (if provided) or from Referer, validating against allowed origins
+        frontend_url = (request.GET.get('frontend_url') or '').strip()
+        if not frontend_url:
+            referer = request.headers.get('Referer', '')
+            if referer:
+                from urllib.parse import urlparse
+                parsed = urlparse(referer)
+                if parsed.scheme and parsed.netloc:
+                    frontend_url = f"{parsed.scheme}://{parsed.netloc}"
+
+        allowed_origins = [o.rstrip('/') for o in getattr(settings, 'CORS_ALLOWED_ORIGINS', [])]
+        if frontend_url and frontend_url.rstrip('/') not in allowed_origins:
+            frontend_url = ''
+
+        # Cryptographically sign the state so code_verifier and frontend_url survive across origins/cookie drops
+        state_payload = {
+            'nonce': raw_state,
+            'code_verifier': code_verifier,
+            'frontend_url': frontend_url,
+        }
+        state = signing.dumps(state_payload, salt='google_oauth')
+
+        # Persist state and code_verifier in user session (both signed and raw state for backward-compat)
         if hasattr(request, 'session'):
             request.session['google_oauth_state'] = state
+            request.session['google_oauth_raw_state'] = raw_state
             request.session['google_oauth_code_verifier'] = code_verifier
+            if frontend_url:
+                request.session['google_oauth_frontend_url'] = frontend_url
             request.session.modified = True
 
         auth_url = build_google_auth_url(state=state, code_challenge=code_challenge)
@@ -200,6 +232,8 @@ class GoogleOAuthInitView(APIView):
         # Also set secure HttpOnly signed cookies as a resilient fallback
         response.set_signed_cookie('google_oauth_state', state, max_age=600, httponly=True, samesite='Lax')
         response.set_signed_cookie('google_oauth_code_verifier', code_verifier, max_age=600, httponly=True, samesite='Lax')
+        if frontend_url:
+            response.set_signed_cookie('google_oauth_frontend_url', frontend_url, max_age=600, httponly=True, samesite='Lax')
         return response
 
 
@@ -228,6 +262,47 @@ class GoogleOAuthCallbackView(APIView):
         )
 
     def _handle_flow(self, request):
+        code = self._extract_param(request, 'code')
+        state = self._extract_param(request, 'state')
+
+        # Attempt to decode signed state first (contains code_verifier and frontend_url across domains)
+        code_verifier = ''
+        target_frontend = ''
+        state_is_valid = False
+
+        if state:
+            try:
+                state_data = signing.loads(state, salt='google_oauth', max_age=600)
+                if isinstance(state_data, dict):
+                    state_is_valid = True
+                    code_verifier = state_data.get('code_verifier', '')
+                    target_frontend = state_data.get('frontend_url', '')
+            except (signing.BadSignature, signing.SignatureExpired):
+                state_is_valid = False
+
+        # If signed state was not present or invalid, fallback to session / cookie state validation
+        if not state_is_valid:
+            expected_state = ''
+            if hasattr(request, 'session'):
+                expected_state = request.session.get('google_oauth_state', '') or request.session.get('google_oauth_raw_state', '')
+            if not expected_state:
+                expected_state = request.get_signed_cookie('google_oauth_state', default='')
+
+            if expected_state and state and state == expected_state:
+                state_is_valid = True
+
+        if not target_frontend:
+            if hasattr(request, 'session'):
+                target_frontend = request.session.get('google_oauth_frontend_url', '')
+            if not target_frontend:
+                target_frontend = request.get_signed_cookie('google_oauth_frontend_url', default='')
+
+        allowed_origins = [o.rstrip('/') for o in getattr(settings, 'CORS_ALLOWED_ORIGINS', [])]
+        if target_frontend and target_frontend.rstrip('/') in allowed_origins:
+            base_frontend = target_frontend.rstrip('/')
+        else:
+            base_frontend = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173').rstrip('/')
+
         error = self._extract_param(request, 'error')
         if error:
             _audit(
@@ -240,11 +315,8 @@ class GoogleOAuthCallbackView(APIView):
                     {'error': 'cancelled', 'detail': 'Google sign-in was cancelled or encountered an error.'},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            redirect_target = f"{settings.FRONTEND_URL}/login?cancelled=1"
+            redirect_target = f"{base_frontend}/login?cancelled=1"
             return HttpResponseRedirect(redirect_target)
-
-        code = self._extract_param(request, 'code')
-        state = self._extract_param(request, 'state')
 
         if not code:
             if self._wants_json(request):
@@ -252,16 +324,16 @@ class GoogleOAuthCallbackView(APIView):
                     {'error': 'missing_code', 'detail': 'Authorization code is required.'},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            return HttpResponseRedirect(f"{settings.FRONTEND_URL}/login?error=missing_code")
+            return HttpResponseRedirect(f"{base_frontend}/login?error=missing_code")
 
-        # Validate state token against session or cookie
+        # Validate state verification
         expected_state = ''
         if hasattr(request, 'session'):
-            expected_state = request.session.get('google_oauth_state', '')
+            expected_state = request.session.get('google_oauth_state', '') or request.session.get('google_oauth_raw_state', '')
         if not expected_state:
             expected_state = request.get_signed_cookie('google_oauth_state', default='')
 
-        if expected_state and state and state != expected_state:
+        if expected_state and state and state != expected_state and not state_is_valid:
             _audit(
                 IdentityEventType.LINK_REJECTED,
                 detail='invalid_oauth_state',
@@ -272,46 +344,63 @@ class GoogleOAuthCallbackView(APIView):
                     {'error': 'invalid_state', 'detail': 'OAuth state verification failed.'},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            return HttpResponseRedirect(f"{settings.FRONTEND_URL}/login?error=invalid_state")
+            return HttpResponseRedirect(f"{base_frontend}/login?error=invalid_state")
 
-        # Retrieve PKCE code_verifier
-        code_verifier = ''
-        if hasattr(request, 'session'):
-            code_verifier = request.session.get('google_oauth_code_verifier', '')
+        # Retrieve PKCE code_verifier if not already extracted from signed state
         if not code_verifier:
-            code_verifier = request.get_signed_cookie('google_oauth_code_verifier', default='')
-        if not code_verifier:
-            code_verifier = self._extract_param(request, 'code_verifier')
+            if hasattr(request, 'session'):
+                code_verifier = request.session.get('google_oauth_code_verifier', '')
+            if not code_verifier:
+                code_verifier = request.get_signed_cookie('google_oauth_code_verifier', default='')
+            if not code_verifier:
+                code_verifier = self._extract_param(request, 'code_verifier')
 
         # Exchange authorization code for tokens
-        token_payload = exchange_code_for_tokens(
-            code=code,
-            code_verifier=code_verifier or None,
-        )
+        try:
+            token_payload = exchange_code_for_tokens(
+                code=code,
+                code_verifier=code_verifier or None,
+            )
 
-        id_token = token_payload.get('id_token')
-        if not id_token:
+            id_token = token_payload.get('id_token')
+            if not id_token:
+                if self._wants_json(request):
+                    return Response(
+                        {'error': 'missing_id_token', 'detail': 'Google response did not include an ID token.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                return HttpResponseRedirect(f"{base_frontend}/login?error=missing_id_token")
+
+            claims = verify_google_id_token(id_token)
+            result = sign_in_with_google(claims, request=request)
+            user = result['user']
+
+            update_last_login(None, user)
+
+            refresh = RefreshToken.for_user(user)
+            access_token = str(refresh.access_token)
+            refresh_token = str(refresh)
+        except InvalidGoogleTokenError as exc:
+            logger.warning("Google token invalid during OAuth callback: %s", exc)
             if self._wants_json(request):
-                return Response(
-                    {'error': 'missing_id_token', 'detail': 'Google response did not include an ID token.'},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            return HttpResponseRedirect(f"{settings.FRONTEND_URL}/login?error=missing_id_token")
-
-        claims = verify_google_id_token(id_token)
-        result = sign_in_with_google(claims, request=request)
-        user = result['user']
-
-        update_last_login(None, user)
-
-        refresh = RefreshToken.for_user(user)
-        access_token = str(refresh.access_token)
-        refresh_token = str(refresh)
+                return Response({'error': 'invalid_token', 'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            return HttpResponseRedirect(f"{base_frontend}/login?error=invalid_token")
+        except GoogleAccountInactiveError:
+            if self._wants_json(request):
+                return Response({'error': 'account_inactive', 'detail': 'Account is inactive.'}, status=status.HTTP_403_FORBIDDEN)
+            return HttpResponseRedirect(f"{base_frontend}/login?error=account_inactive")
+        except Exception as exc:
+            logger.exception("Unexpected error in Google OAuth callback: %s", exc)
+            if self._wants_json(request):
+                return Response({'error': 'oauth_failed', 'detail': 'Authentication failed.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return HttpResponseRedirect(f"{base_frontend}/login?error=auth_failed")
 
         # Clear session / cookies
         if hasattr(request, 'session'):
             request.session.pop('google_oauth_state', None)
+            request.session.pop('google_oauth_raw_state', None)
             request.session.pop('google_oauth_code_verifier', None)
+            request.session.pop('google_oauth_frontend_url', None)
 
         if self._wants_json(request):
             if result['created']:
@@ -337,7 +426,7 @@ class GoogleOAuthCallbackView(APIView):
                 status=status.HTTP_201_CREATED if result['created'] else status.HTTP_200_OK,
             )
 
-        redirect_target = f"{settings.FRONTEND_URL}/login?token={access_token}&refresh={refresh_token}"
+        redirect_target = f"{base_frontend}/login?token={access_token}&refresh={refresh_token}"
         if result['created']:
             redirect_target += "&is_new=1"
         elif result['linked']:
@@ -346,6 +435,7 @@ class GoogleOAuthCallbackView(APIView):
         response = HttpResponseRedirect(redirect_target)
         response.delete_cookie('google_oauth_state')
         response.delete_cookie('google_oauth_code_verifier')
+        response.delete_cookie('google_oauth_frontend_url')
         return response
 
     def get(self, request):

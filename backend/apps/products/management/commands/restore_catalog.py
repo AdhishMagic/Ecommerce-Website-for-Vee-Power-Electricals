@@ -495,7 +495,7 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR(f"Validation failed: {report['invalid']}"))
             return
 
-        self.stdout.write(self.style.SUCCESS("✓ Data validation passed: 0 errors."))
+        self.stdout.write(self.style.SUCCESS("[OK] Data validation passed: 0 errors."))
 
         try:
             with transaction.atomic():
@@ -719,7 +719,7 @@ class Command(BaseCommand):
                     transaction.set_rollback(True)
 
         except Exception as e:
-            self.stdout.write(self.style.ERROR(f"\n❌ Restoration transaction failed: {e}"))
+            self.stdout.write(self.style.ERROR(f"\n[ERROR] Restoration transaction failed: {e}"))
             raise
 
         # -------------------------------------------------------------
@@ -743,13 +743,13 @@ class Command(BaseCommand):
         post_prods = Product.objects.filter(active=True).count()
 
         self.stdout.write("\nAuthoritative Database Totals:")
-        self.stdout.write(f"  • Active Categories:    {post_cats} (Expected: 10)")
-        self.stdout.write(f"  • Active Subcategories: {post_subcats} (Expected: 37)")
-        self.stdout.write(f"  • Active Brands:        {post_brands} (Expected: 11)")
-        self.stdout.write(f"  • Active Products:      {post_prods} (Expected: 11)")
+        self.stdout.write(f"  * Active Categories:    {post_cats} (Expected: 10)")
+        self.stdout.write(f"  * Active Subcategories: {post_subcats} (Expected: 37)")
+        self.stdout.write(f"  * Active Brands:        {post_brands} (Expected: 11)")
+        self.stdout.write(f"  * Active Products:      {post_prods} (Expected: 11)")
 
         if dry_run or not confirm:
             self.stdout.write(self.style.WARNING("\n[DRY RUN COMPLETE] To apply these changes to the database, run:"))
             self.stdout.write("  python manage.py restore_catalog --confirm\n")
         else:
-            self.stdout.write(self.style.SUCCESS("\n✓ SUCCESS: Catalog successfully restored and reconciled!\n"))
+            self.stdout.write(self.style.SUCCESS("\n[SUCCESS] Catalog successfully restored and reconciled!\n"))

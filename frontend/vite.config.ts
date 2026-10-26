@@ -1,19 +1,52 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { fileURLToPath, URL } from 'node:url'
+import path from 'node:path'
+import fs from 'node:fs'
 
 // https://vitejs.dev/config/
-export default defineConfig({
-  plugins: [
-    react(),
-    tailwindcss(),
-  ],
-  resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
+export default defineConfig(({ mode }) => {
+  const rootDir = path.resolve(fileURLToPath(new URL('.', import.meta.url)))
+  const parentDir = path.resolve(rootDir, '..')
+  const localEnvExists = fs.existsSync(path.resolve(rootDir, '.env.local')) || fs.existsSync(path.resolve(rootDir, '.env'))
+  const parentEnvExists = fs.existsSync(path.resolve(parentDir, '.env'))
+
+  // Prioritize local frontend directory if .env/.env.local exists, otherwise parent root
+  const envDir = (localEnvExists || !parentEnvExists) ? rootDir : parentDir
+
+  const parentEnv = parentEnvExists ? loadEnv(mode, parentDir, '') : {}
+  const localEnv = loadEnv(mode, rootDir, '')
+
+  const googleClientId =
+    process.env.VITE_GOOGLE_CLIENT_ID ||
+    localEnv.VITE_GOOGLE_CLIENT_ID ||
+    parentEnv.VITE_GOOGLE_CLIENT_ID ||
+    process.env.GOOGLE_CLIENT_ID ||
+    parentEnv.GOOGLE_CLIENT_ID ||
+    ''
+
+  const apiUrl =
+    process.env.VITE_API_URL ||
+    localEnv.VITE_API_URL ||
+    parentEnv.VITE_API_URL ||
+    'http://localhost:8000/api/v1'
+
+  return {
+    envDir,
+    define: {
+      'import.meta.env.VITE_GOOGLE_CLIENT_ID': JSON.stringify(googleClientId),
+      'import.meta.env.VITE_API_URL': JSON.stringify(apiUrl),
     },
-  },
+    plugins: [
+      react(),
+      tailwindcss(),
+    ],
+    resolve: {
+      alias: {
+        '@': fileURLToPath(new URL('./src', import.meta.url)),
+      },
+    },
   build: {
     target: 'es2020',
     cssCodeSplit: true,
@@ -87,15 +120,15 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: process.env.VITE_BACKEND_URL || 'http://localhost:8000',
+        target: process.env.VITE_BACKEND_URL || (fs.existsSync('/.dockerenv') ? 'http://backend:8000' : 'http://localhost:8000'),
         changeOrigin: true,
       },
       '/auth': {
-        target: process.env.VITE_BACKEND_URL || 'http://localhost:8000',
+        target: process.env.VITE_BACKEND_URL || (fs.existsSync('/.dockerenv') ? 'http://backend:8000' : 'http://localhost:8000'),
         changeOrigin: true,
       },
       '/media': {
-        target: process.env.VITE_BACKEND_URL || 'http://localhost:8000',
+        target: process.env.VITE_BACKEND_URL || (fs.existsSync('/.dockerenv') ? 'http://backend:8000' : 'http://localhost:8000'),
         changeOrigin: true,
       },
     },
@@ -104,4 +137,6 @@ export default defineConfig({
     host: '0.0.0.0',
     port: parseInt(process.env.PORT || '5173'),
   },
+  }
 })
+

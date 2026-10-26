@@ -10,8 +10,10 @@ except ImportError:
     pass
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-load_dotenv(BASE_DIR / '.env')
 load_dotenv(BASE_DIR.parent / '.env')
+load_dotenv(BASE_DIR.parent / '.env.local', override=True)
+load_dotenv(BASE_DIR / '.env')
+load_dotenv(BASE_DIR / '.env.local', override=True)
 
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-vee-power-electricals-secret-key-change-in-prod')
 
@@ -288,6 +290,14 @@ GOOGLE_TOKENINFO_URL = os.getenv(
 )
 GOOGLE_ISSUERS = ('accounts.google.com', 'https://accounts.google.com')
 GOOGLE_SCOPES = ['openid', 'email', 'profile']
+
+# Server-side allowlist of verified Google accounts authorized for administrator access.
+# Configured as a comma-separated list of lowercase email addresses.
+# Only accounts in this list receive role='admin' upon verified Google authentication.
+GOOGLE_ADMIN_EMAILS = os.getenv(
+    'GOOGLE_ADMIN_EMAILS',
+    'veepower.cbe@gmail.com,balaadhish.cbe@gmail.com'
+)
 
 # Payment Gateway Configuration (Razorpay)
 RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID', 'rzp_test_mock_veepower_key')

@@ -547,3 +547,96 @@ class GoogleOAuthEndpointsTests(TestCase):
         existing.refresh_from_db()
         self.assertTrue(existing.check_password('Password123!'))
         self.assertTrue(SocialAccount.objects.filter(user=existing, provider_subject='oauth-sub-2').exists())
+
+    @override_settings(GOOGLE_REDIRECT_URI='http://127.0.0.1:8000/auth/google/callback')
+    def test_oauth_auth_url_uses_exact_configured_redirect_uri(self):
+        auth_url = build_google_auth_url(state='test-state-123')
+        self.assertIn('redirect_uri=http%3A%2F%2F127.0.0.1%3A8000%2Fauth%2Fgoogle%2Fcallback', auth_url)
+
+    @mock.patch('apps.users.views.verify_google_id_token')
+    @mock.patch('apps.users.views.exchange_code_for_tokens')
+    def test_callback_json_format_returns_tokens_and_link_status(self, mock_exchange, mock_verify):
+        existing = User.objects.create_user(
+            email='json_linked@example.com',
+            password='Password123!',
+            first_name='Json',
+            last_name='Linked',
+        )
+        session = self.client.session
+        session['google_oauth_state'] = 'state-json-test'
+        session.save()
+
+        mock_exchange.return_value = {'id_token': 'fake-id-token-json'}
+        mock_verify.return_value = _claims(email='json_linked@example.com', sub='oauth-sub-json')
+
+        response = self.client.post(
+            '/auth/google/callback',
+            data={'code': 'json-code-123', 'state': 'state-json-test'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data.get('linked_existing_account'))
+        self.assertIn('access', response.data)
+        self.assertIn('refresh', response.data)
+        self.assertEqual(response.data['user']['email'], 'json_linked@example.com')
+
+    def test_oauth_init_preserves_allowed_frontend_url(self):
+        response = self.client.get('/auth/google/login/?frontend_url=http://127.0.0.1:5173')
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertEqual(self.client.session.get('google_oauth_frontend_url'), 'http://127.0.0.1:5173')
+
+    def test_oauth_init_ignores_untrusted_frontend_url(self):
+        response = self.client.get('/auth/google/login/?frontend_url=https://evil-attacker.com')
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertNotIn('evil-attacker.com', str(self.client.session.get('google_oauth_frontend_url', '')))
+
+    @mock.patch('apps.users.views.verify_google_id_token')
+    @mock.patch('apps.users.views.exchange_code_for_tokens')
+    def test_oauth_callback_redirects_to_preserved_frontend_url(self, mock_exchange, mock_verify):
+        session = self.client.session
+        session['google_oauth_state'] = 'state-frontend-url-test'
+        session['google_oauth_frontend_url'] = 'http://127.0.0.1:5173'
+        session.save()
+
+        mock_exchange.return_value = {'id_token': 'fake-id-token-fe'}
+        mock_verify.return_value = _claims(email='fe_user@example.com', sub='oauth-sub-fe')
+
+        response = self.client.get('/auth/google/callback?code=fe-code-123&state=state-frontend-url-test')
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertTrue(response.url.startswith('http://127.0.0.1:5173/login?token='))
+        self.assertIn('refresh=', response.url)
+
+    @mock.patch('apps.users.views.verify_google_id_token')
+    @mock.patch('apps.users.views.exchange_code_for_tokens')
+    def test_signed_state_survives_cross_origin_cookie_loss(self, mock_exchange, mock_verify):
+        from urllib.parse import urlparse, parse_qs
+        # Step 1: Start login with frontend_url=http://localhost:5173
+        init_res = self.client.get('/auth/google/login/?frontend_url=http://localhost:5173')
+        self.assertEqual(init_res.status_code, status.HTTP_302_FOUND)
+        auth_url = init_res.url
+        parsed = urlparse(auth_url)
+        params = parse_qs(parsed.query)
+        signed_state = params['state'][0]
+
+        # Step 2: Wipe all cookies and session (simulating cross-origin redirect from 127.0.0.1 back to localhost)
+        self.client.cookies.clear()
+        session = self.client.session
+        session.flush()
+
+        # Step 3: Callback with signed state, even with zero cookies/session
+        mock_exchange.return_value = {'id_token': 'fake-id-token-cross'}
+        mock_verify.return_value = _claims(email='cross_domain@example.com', sub='oauth-sub-cross')
+
+        callback_res = self.client.get(f'/auth/google/callback?code=cross-code-123&state={signed_state}')
+        self.assertEqual(callback_res.status_code, status.HTTP_302_FOUND)
+        # Verifies it redirected back to the preserved frontend_url from signed state
+        self.assertTrue(callback_res.url.startswith('http://localhost:5173/login?token='))
+        self.assertIn('refresh=', callback_res.url)
+
+        # Verifies exchange_code_for_tokens received the code_verifier unpacked from signed state
+        mock_exchange.assert_called_once()
+        _, kwargs = mock_exchange.call_args
+        self.assertTrue(bool(kwargs.get('code_verifier')))
+
+
+

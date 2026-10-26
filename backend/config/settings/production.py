@@ -22,12 +22,19 @@ CORS_ALLOWED_ORIGINS = [c.strip() for c in raw_cors.split(',') if c.strip()] if 
     'http://localhost',
     'http://localhost:80',
     'http://localhost:5173',
+    'http://127.0.0.1',
+    'http://127.0.0.1:80',
+    'http://127.0.0.1:5173',
 ]
 
 raw_csrf = os.getenv('CSRF_TRUSTED_ORIGINS', '')
 CSRF_TRUSTED_ORIGINS = [c.strip() for c in raw_csrf.split(',') if c.strip()] if raw_csrf else [
     'http://localhost',
     'http://localhost:80',
+    'http://localhost:5173',
+    'http://127.0.0.1',
+    'http://127.0.0.1:80',
+    'http://127.0.0.1:5173',
 ]
 
 # 5. HTTPS and Security Cookies (Environment-configurable for reverse proxy setups)

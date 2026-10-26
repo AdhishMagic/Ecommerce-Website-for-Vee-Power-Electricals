@@ -5,6 +5,7 @@ import AuthLayout from "../../components/layout/AuthLayout";
 import VeeElectricalsLoader, { AuthLoaderStatus } from "../../components/brand/VeeElectricalsLoader";
 import GoogleSignInButton from "../../components/auth/GoogleSignInButton";
 import { authService } from "../../services/authService";
+import { setAuthTokens, clearAuthStorage } from "../../api/client";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -25,6 +26,7 @@ export default function Login() {
 
   useEffect(() => {
     const oauthToken = searchParams.get("token");
+    const oauthRefresh = searchParams.get("refresh") || "";
     const oauthError = searchParams.get("error");
     const oauthCancelled = searchParams.get("cancelled");
     const isLinked = searchParams.get("linked") === "1" || searchParams.get("linked") === "true";
@@ -33,21 +35,30 @@ export default function Login() {
       setError("Google sign-in was cancelled.");
       return;
     }
+    const isUnauthorized = searchParams.get("unauthorized") === "1" || searchParams.get("notice") === "admin_required";
+    if (isUnauthorized) {
+      setError("Administrative privileges are required to access that page. Please sign in with an authorized administrator account.");
+      return;
+    }
     if (oauthError) {
       setError(
         oauthError === "invalid_state"
           ? "Security validation failed. Please try signing in again."
+          : oauthError === "missing_code"
+          ? "Authorization code missing from Google. Please try again."
           : "Google authentication failed. Please try again."
       );
       return;
     }
     if (oauthToken) {
+      setAuthTokens(oauthToken, oauthRefresh);
       setIsLoading(true);
       setAuthStatus("submitting");
       authService
         .getCurrentUser()
         .then((user) => {
           if (!user) {
+            clearAuthStorage();
             setError("Failed to initialize session. Please try signing in again.");
             setAuthStatus("idle");
             setIsLoading(false);
@@ -62,6 +73,7 @@ export default function Login() {
           }, 400);
         })
         .catch(() => {
+          clearAuthStorage();
           setError("Failed to initialize session. Please try signing in again.");
           setAuthStatus("idle");
           setIsLoading(false);
@@ -148,7 +160,7 @@ export default function Login() {
       headlineAccent="World Safely."
       description="Access your dashboard, manage orders, and explore exclusive deals on top electrical brands."
     >
-      <div className="relative flex flex-col justify-center py-2">
+      <div className="relative flex flex-col justify-center">
         {/* VEE ELECTRICALS Animated Loading Overlay */}
         <VeeElectricalsLoader
           status={authStatus}
@@ -156,29 +168,29 @@ export default function Login() {
           successMessage="Access Granted"
         />
 
-        <h2 className="text-2xl sm:text-3xl font-bold text-[#17212B] mb-1" style={{ fontFamily: "Outfit" }}>Welcome Back</h2>
-        <p className="text-xs sm:text-sm text-[#667085] mb-5">Please enter your details to sign in.</p>
+        <h2 className="text-2xl sm:text-[26px] font-bold text-[#17212B] mb-1" style={{ fontFamily: "Outfit" }}>Welcome Back</h2>
+        <p className="text-xs sm:text-sm text-[#667085] mb-4.5">Please enter your details to sign in.</p>
 
         {isRegistered && (
-          <div className="bg-emerald-50 text-emerald-700 p-3.5 rounded-xl text-sm border border-emerald-200 flex items-center gap-2.5 mb-5">
-            <svg className="w-5 h-5 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+          <div className="bg-emerald-50 text-emerald-700 p-3 rounded-xl text-xs border border-emerald-200 flex items-center gap-2 mb-3">
+            <svg className="w-4 h-4 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
             <span>Account created successfully! Please sign in with your credentials.</span>
           </div>
         )}
 
         {error && (
-          <div className="bg-red-50 text-red-600 p-3.5 rounded-xl text-sm border border-red-100 flex items-center gap-2 mb-5">
+          <div className="bg-red-50 text-red-600 p-3 rounded-xl text-xs border border-red-100 flex items-center gap-2 mb-3">
             <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             {error}
           </div>
         )}
 
-        <form onSubmit={handleLogin} className="space-y-4" noValidate>
+        <form onSubmit={handleLogin} className="space-y-3.5" noValidate>
           <div>
-            <label className="block text-sm font-medium text-charcoal mb-1.5">Email Address</label>
+            <label className="block text-xs font-semibold text-charcoal mb-1">Email Address</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted">
-                <svg className={`w-5 h-5 ${emailError ? 'text-red-500' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                <svg className={`w-4 h-4 ${emailError ? 'text-red-500' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
               </div>
               <input
                 type="email"
@@ -188,21 +200,21 @@ export default function Login() {
                   setEmail(e.target.value);
                   if (emailError) setEmailError("");
                 }}
-                className={`w-full pl-10 pr-4 py-3 bg-bg border rounded-xl outline-none transition-all text-sm ${emailError ? 'border-red-500 focus:border-red-500 focus:ring-4 focus:ring-red-500/10' : 'border-border focus:bg-white focus:border-electric focus:ring-4 focus:ring-electric/10'}`}
+                className={`w-full pl-10 pr-3.5 py-2.5 bg-bg border rounded-xl outline-none transition-all text-xs sm:text-sm ${emailError ? 'border-red-500 focus:border-red-500 focus:ring-4 focus:ring-red-500/10' : 'border-border focus:bg-white focus:border-electric focus:ring-4 focus:ring-electric/10'}`}
                 placeholder="name@example.com"
               />
             </div>
-            {emailError && <p className="text-red-500 text-xs mt-1.5">{emailError}</p>}
+            {emailError && <p className="text-red-500 text-xs mt-1">{emailError}</p>}
           </div>
 
           <div>
-            <div className="flex justify-between items-center mb-1.5">
-              <label className="block text-sm font-medium text-charcoal">Password</label>
+            <div className="flex justify-between items-center mb-1">
+              <label className="block text-xs font-semibold text-charcoal">Password</label>
               <Link to="/forgot-password" className="text-xs text-electric font-medium hover:underline">Forgot password?</Link>
             </div>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted">
-                <svg className={`w-5 h-5 ${passwordError ? 'text-red-500' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                <svg className={`w-4 h-4 ${passwordError ? 'text-red-500' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
               </div>
               <input
                 type={showPassword ? "text" : "password"}
@@ -212,27 +224,27 @@ export default function Login() {
                   setPassword(e.target.value);
                   if (passwordError) setPasswordError("");
                 }}
-                className={`w-full pl-10 pr-10 py-3 bg-bg border rounded-xl outline-none transition-all text-sm ${passwordError ? 'border-red-500 focus:border-red-500 focus:ring-4 focus:ring-red-500/10' : 'border-border focus:bg-white focus:border-electric focus:ring-4 focus:ring-electric/10'}`}
+                className={`w-full pl-10 pr-10 py-2.5 bg-bg border rounded-xl outline-none transition-all text-xs sm:text-sm ${passwordError ? 'border-red-500 focus:border-red-500 focus:ring-4 focus:ring-red-500/10' : 'border-border focus:bg-white focus:border-electric focus:ring-4 focus:ring-electric/10'}`}
                 placeholder="••••••••"
               />
               <button 
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-muted hover:text-charcoal transition-colors"
+                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-muted hover:text-charcoal transition-colors cursor-pointer"
               >
                 {showPassword ? (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
                 ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.543 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.543 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                 )}
               </button>
             </div>
-            {passwordError && <p className="text-red-500 text-xs mt-1.5">{passwordError}</p>}
+            {passwordError && <p className="text-red-500 text-xs mt-1">{passwordError}</p>}
           </div>
 
-          <div className="flex items-center">
+          <div className="flex items-center pt-0.5">
             <input id="remember-me" type="checkbox" className="h-4 w-4 text-electric focus:ring-electric border-border rounded cursor-pointer" />
-            <label htmlFor="remember-me" className="ml-2 block text-sm text-muted cursor-pointer">
+            <label htmlFor="remember-me" className="ml-2 block text-xs sm:text-sm text-muted cursor-pointer">
               Remember me for 30 days
             </label>
           </div>
@@ -240,21 +252,21 @@ export default function Login() {
           <button
             type="submit"
             disabled={isLoading || authStatus !== "idle"}
-            className="w-full bg-electric hover:bg-navy text-white font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-md shadow-electric/20 mt-6"
+            className="w-full bg-electric hover:bg-navy text-white font-medium py-2.5 sm:py-3 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-sm shadow-electric/20 mt-3.5 text-xs sm:text-sm cursor-pointer"
           >
             Sign In
           </button>
         </form>
 
-        <div className="flex items-center gap-3 my-6" aria-hidden="true">
+        <div className="flex items-center gap-3 my-4" aria-hidden="true">
           <div className="h-px flex-1 bg-border" />
           <span className="text-xs uppercase tracking-wide text-muted">or</span>
           <div className="h-px flex-1 bg-border" />
         </div>
 
         {googleNotice && (
-          <div className="bg-emerald-50 text-emerald-700 p-3.5 rounded-xl text-sm border border-emerald-200 flex items-center gap-2.5 mb-4">
-            <svg className="w-5 h-5 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+          <div className="bg-emerald-50 text-emerald-700 p-2.5 rounded-lg text-xs border border-emerald-200 flex items-center gap-2 mb-2.5">
+            <svg className="w-4 h-4 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
             <span>{googleNotice}</span>
           </div>
         )}
@@ -264,8 +276,8 @@ export default function Login() {
           disabled={isLoading || authStatus !== "idle"}
         />
 
-        <div className="mt-8 text-center text-sm text-muted">
-          Don't have an account? <Link to="/register" className="text-electric font-medium hover:underline">Create account</Link>
+        <div className="mt-4.5 text-center text-xs sm:text-sm text-muted">
+          Don't have an account? <Link to="/register" className="text-electric font-semibold hover:underline">Create account</Link>
         </div>
       </div>
     </AuthLayout>

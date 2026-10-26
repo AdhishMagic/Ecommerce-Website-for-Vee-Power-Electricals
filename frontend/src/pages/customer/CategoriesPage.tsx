@@ -2,7 +2,11 @@ import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { productService } from "../../services/productService";
 import { Category, Product } from "../../types/product";
-import { getCategoryDefaultImage, handleProductImageError } from "../../utils/productImageResolver";
+import {
+  getCategoryDefaultImage,
+  handleProductImageError,
+  isInappropriateOrPlaceholderImage,
+} from "../../utils/productImageResolver";
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -58,13 +62,18 @@ export default function CategoriesPage() {
   }, [products]);
 
   const getProductCountForCategory = (cat: Category): number => {
-    if (cat.productsCount !== undefined && cat.productsCount !== null) {
+    if (cat.productsCount !== undefined && cat.productsCount !== null && cat.productsCount > 0) {
       return cat.productsCount;
+    }
+    if (cat.products_count !== undefined && cat.products_count !== null && cat.products_count > 0) {
+      return cat.products_count;
     }
     const catNameKey = (cat.name || "").toLowerCase().trim();
     const catSlugKey = (cat.slug || "").toLowerCase().trim();
     const catIdKey = String(cat.id);
-    return productCountMap[catIdKey] || productCountMap[catSlugKey] || productCountMap[catNameKey] || 0;
+    const mapped = productCountMap[catIdKey] || productCountMap[catSlugKey] || productCountMap[catNameKey];
+    if (mapped !== undefined) return mapped;
+    return cat.productsCount ?? cat.products_count ?? 0;
   };
 
   // Filter categories by search query
@@ -255,7 +264,7 @@ export default function CategoriesPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6">
             {filteredCategories.map((cat, idx) => {
               const defaultImg = getCategoryDefaultImage(cat);
-              const cardImage = cat.image || defaultImg;
+              const cardImage = cat.image && !isInappropriateOrPlaceholderImage(cat.image) ? cat.image : defaultImg;
               const count = getProductCountForCategory(cat);
               const subcatsText = Array.isArray(cat.subcategories) && cat.subcategories.length > 0
                 ? cat.subcategories.slice(0, 3).join(" • ")

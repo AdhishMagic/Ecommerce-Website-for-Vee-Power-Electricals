@@ -126,11 +126,18 @@ export function normalizeApiError(err: unknown): NormalizedError {
 const getApiBaseUrl = (): string => {
   const envUrl = import.meta.env.VITE_API_URL;
   if (envUrl) {
-    return envUrl.replace(/\/+$/, '');
+    let cleanUrl = envUrl.replace(/\/+$/, '');
+    if (typeof window !== 'undefined' && window.location.hostname === '127.0.0.1' && cleanUrl.includes('localhost:8000')) {
+      cleanUrl = cleanUrl.replace('localhost:8000', '127.0.0.1:8000');
+    }
+    return cleanUrl;
   }
   // In production builds, default to relative '/api/v1' so requests route through Nginx reverse proxy
   if (import.meta.env.PROD) {
     return '/api/v1';
+  }
+  if (typeof window !== 'undefined' && window.location.hostname === '127.0.0.1') {
+    return 'http://127.0.0.1:8000/api/v1';
   }
   return 'http://localhost:8000/api/v1';
 };

@@ -117,6 +117,27 @@ def normalize_email(email) -> str:
     return (email or '').strip().lower()
 
 
+def get_google_admin_emails() -> set[str]:
+    """
+    Return the normalized set of Google accounts authorized for the administrator role.
+    Configured via settings.GOOGLE_ADMIN_EMAILS (supports comma-separated string or iterable).
+    """
+    raw = getattr(settings, 'GOOGLE_ADMIN_EMAILS', '') or ''
+    if isinstance(raw, (list, tuple, set)):
+        return {normalize_email(e) for e in raw if normalize_email(e)}
+    return {normalize_email(e) for e in str(raw).split(',') if normalize_email(e)}
+
+
+def is_google_admin_email(email: str) -> bool:
+    """
+    Check if a normalized email address is explicitly present in the server-side admin allowlist.
+    Only verified Google identities with an allowlisted email can receive the admin role.
+    """
+    if not email:
+        return False
+    return normalize_email(email) in get_google_admin_emails()
+
+
 # ==============================================================================
 # GOOGLE ID TOKEN VERIFICATION
 # ==============================================================================
@@ -356,6 +377,8 @@ def _link_existing(user, claims: dict, request=None) -> dict:
     Preconditions (all enforced before this call): the Google email is verified
     and its canonical form matches the local account's email exactly. No other
     account is merged and no business record is ever moved or overwritten.
+    If the verified Google email is in the server-side admin allowlist, promotes
+    the account to UserRole.ADMIN and is_staff=True.
     """
     if not user.is_active:
         _audit(
@@ -367,6 +390,8 @@ def _link_existing(user, claims: dict, request=None) -> dict:
             request=request,
         )
         raise GoogleAccountInactiveError()
+
+    is_allowlisted_admin = is_google_admin_email(claims.get('email')) and bool(claims.get('email_verified'))
 
     try:
         account = SocialAccount.objects.create(
@@ -393,22 +418,49 @@ def _link_existing(user, claims: dict, request=None) -> dict:
         )
         if existing is None or existing.user_id != user.id:
             raise GoogleAccountLinkConflictError()
+
+        role_changed = False
+        if is_allowlisted_admin:
+            if existing.user.role != UserRole.ADMIN or not existing.user.is_staff:
+                existing.user.role = UserRole.ADMIN
+                existing.user.is_staff = True
+                role_changed = True
+            if not existing.user.is_email_verified:
+                existing.user.is_email_verified = True
+                role_changed = True
+            if role_changed:
+                existing.user.save(update_fields=['role', 'is_staff', 'is_email_verified', 'updated_at'])
+
+        detail = 'existing_link:admin_role_reconciled' if role_changed else 'existing_link'
         _audit(
             IdentityEventType.GOOGLE_LOGIN,
             user=existing.user,
             subject=claims['sub'],
             email=claims['email'],
-            detail='existing_link',
+            detail=detail,
             request=request,
         )
         return {'user': existing.user, 'created': False, 'linked': False}
 
+    role_changed = False
+    if is_allowlisted_admin:
+        if user.role != UserRole.ADMIN or not user.is_staff:
+            user.role = UserRole.ADMIN
+            user.is_staff = True
+            role_changed = True
+        if not user.is_email_verified:
+            user.is_email_verified = True
+            role_changed = True
+        if role_changed:
+            user.save(update_fields=['role', 'is_staff', 'is_email_verified', 'updated_at'])
+
+    detail = 'linked_existing_account:admin_role_assigned' if role_changed else 'linked_existing_account'
     _audit(
         IdentityEventType.GOOGLE_LINK,
         user=user,
         subject=claims['sub'],
         email=claims['email'],
-        detail='linked_existing_account',
+        detail=detail,
         request=request,
     )
     try:
@@ -425,13 +477,19 @@ def sign_in_with_google(claims: dict, request=None) -> dict:
 
     Policy:
       * Existing ``(provider, provider_subject)`` -> authenticate that user.
+        If the verified Google email is in GOOGLE_ADMIN_EMAILS, ensures admin role.
       * No link, but canonical verified email matches a local account ->
         link the Google identity to that account (no duplicate is created).
-      * Otherwise -> create a new local customer ``User`` + ``SocialAccount``.
+        If the verified Google email is in GOOGLE_ADMIN_EMAILS, promotes to admin.
+      * Otherwise -> create a new local user + ``SocialAccount``.
+        If allowlisted admin, created with role=UserRole.ADMIN, is_staff=True.
+        Otherwise, created with role=UserRole.CUSTOMER, is_staff=False.
       * A Google identity is never linked to a different email's account.
+      * Unrelated existing accounts are never automatically downgraded.
     """
     subject = claims['sub']
     email = normalize_email(claims['email'])
+    is_allowlisted_admin = is_google_admin_email(email) and bool(claims.get('email_verified'))
 
     with transaction.atomic():
         existing = (
@@ -451,12 +509,26 @@ def sign_in_with_google(claims: dict, request=None) -> dict:
                     request=request,
                 )
                 raise GoogleAccountInactiveError()
+
+            role_changed = False
+            if is_allowlisted_admin:
+                if user.role != UserRole.ADMIN or not user.is_staff:
+                    user.role = UserRole.ADMIN
+                    user.is_staff = True
+                    role_changed = True
+                if not user.is_email_verified:
+                    user.is_email_verified = True
+                    role_changed = True
+                if role_changed:
+                    user.save(update_fields=['role', 'is_staff', 'is_email_verified', 'updated_at'])
+
+            detail = 'existing_link:admin_role_reconciled' if role_changed else 'existing_link'
             _audit(
                 IdentityEventType.GOOGLE_LOGIN,
                 user=user,
                 subject=subject,
                 email=email,
-                detail='existing_link',
+                detail=detail,
                 request=request,
             )
             return {'user': user, 'created': False, 'linked': False}
@@ -467,16 +539,20 @@ def sign_in_with_google(claims: dict, request=None) -> dict:
 
         # Google-first registration: create the authoritative local account.
         first_name, last_name = _split_name(claims)
+        initial_role = UserRole.ADMIN if is_allowlisted_admin else UserRole.CUSTOMER
+        initial_staff = True if is_allowlisted_admin else False
+
         user = User.objects.create_user(
             email=email,
             password=None,
             username=email,
             first_name=first_name,
             last_name=last_name,
-            role=UserRole.CUSTOMER,
-            is_staff=False,
+            role=initial_role,
+            is_staff=initial_staff,
             is_superuser=False,
             is_active=True,
+            is_email_verified=True,
         )
         try:
             SocialAccount.objects.create(
@@ -497,12 +573,13 @@ def sign_in_with_google(claims: dict, request=None) -> dict:
             )
             raise DuplicateGoogleIdentityError()
 
+        detail = 'google_first_registration:admin_role_assigned' if is_allowlisted_admin else 'google_first_registration'
         _audit(
             IdentityEventType.GOOGLE_REGISTER,
             user=user,
             subject=subject,
             email=email,
-            detail='google_first_registration',
+            detail=detail,
             request=request,
         )
         try:

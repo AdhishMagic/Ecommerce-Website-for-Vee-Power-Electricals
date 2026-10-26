@@ -170,6 +170,63 @@ async function runRegressionSuite() {
   });
   assert(logoutRes.status === 200, 'Logout returns 200 OK');
 
+  // 13. Google Sign-In Validation (Empty Credential)
+  console.log('\n[Test 13] Google Sign-In API with Empty Credential (POST /auth/google/)');
+  const googleEmptyRes = await request('/auth/google/', {
+    method: 'POST',
+    body: JSON.stringify({ credential: '' }),
+  });
+  assert(googleEmptyRes.status === 400, 'Empty credential returns 400 Bad Request');
+  assert(googleEmptyRes.data?.error?.code === 'VALIDATION_ERROR' || googleEmptyRes.data?.credential !== undefined, 'Validation error details returned for credential');
+
+  // 14. Google Sign-In Validation (Invalid / Fake Credential)
+  console.log('\n[Test 14] Google Sign-In API with Invalid Credential (POST /auth/google/)');
+  const googleInvalidRes = await request('/auth/google/', {
+    method: 'POST',
+    body: JSON.stringify({ credential: 'fake_invalid_google_jwt_token' }),
+  });
+  assert(googleInvalidRes.status === 401, 'Invalid Google token returns 401 Unauthorized');
+  assert(googleInvalidRes.data?.error?.code === 'INVALID_GOOGLE_TOKEN', 'Canonical error code is INVALID_GOOGLE_TOKEN');
+
+  // 15. Google OAuth Init Endpoint (GET /auth/google/login/?format=json)
+  console.log('\n[Test 15] Google OAuth Init Endpoint (GET /auth/google/login/?format=json)');
+  const googleInitRes = await request('/auth/google/login/?format=json');
+  assert(googleInitRes.status === 200, 'OAuth init returns 200 OK');
+  assert(googleInitRes.data?.authorization_url?.includes('accounts.google.com'), 'Authorization URL points to accounts.google.com');
+  assert(googleInitRes.data?.authorization_url?.includes('596350507445'), 'Authorization URL contains exact Google Client ID');
+  assert(googleInitRes.data?.authorization_url?.includes('redirect_uri'), 'Authorization URL contains redirect_uri');
+
+  // 16. Google OAuth Callback Error Handling (Cancellation)
+  console.log('\n[Test 16] Google OAuth Callback Error Handling (GET /auth/google/callback?error=access_denied)');
+  const callbackRes = await request('/auth/google/callback?error=access_denied&format=json');
+  assert(callbackRes.status === 400, 'Cancelled OAuth returns 400 Bad Request');
+  assert(callbackRes.data?.error === 'cancelled', 'Callback error response identifies cancellation');
+
+  // 17. Frontend Login Page Availability (localhost)
+  console.log('\n[Test 17] Frontend Login Page HTTP Response (http://localhost:5173/login)');
+  const frontendRes = await fetch('http://localhost:5173/login');
+  assert(frontendRes.status === 200, 'Frontend /login serves HTTP 200 on localhost');
+
+  // 18. Frontend Login Page Availability (127.0.0.1 matching Google Cloud origin)
+  console.log('\n[Test 18] Frontend Login Page HTTP Response (http://127.0.0.1:5173/login)');
+  const frontend127Res = await fetch('http://127.0.0.1:5173/login');
+  assert(frontend127Res.status === 200, 'Frontend /login serves HTTP 200 on 127.0.0.1 matching Google Cloud origin');
+
+  // 19. Vite Proxy for OAuth Redirect (/auth/google/login/)
+  console.log('\n[Test 19] Vite Dev Proxy to Django OAuth Endpoint (http://localhost:5173/auth/google/login/)');
+  const viteProxyRes = await fetch('http://localhost:5173/auth/google/login/', { redirect: 'manual' });
+  assert(viteProxyRes.status === 302, 'Vite /auth/ proxy routes to Django and returns 302 redirect');
+  const locationHeader = viteProxyRes.headers.get('location') || '';
+  assert(locationHeader.includes('accounts.google.com'), 'Proxy redirect target is accounts.google.com');
+  assert(locationHeader.includes('596350507445-94sh0vknugo2j18ur2920su3uj388e5j'), 'Redirect URL includes exact Google Client ID');
+  assert(locationHeader.includes('redirect_uri=http%3A%2F%2F127.0.0.1%3A8000%2Fauth%2Fgoogle%2Fcallback'), 'Redirect URL matches Google Cloud authorized callback');
+
+  // 20. OAuth Init with Frontend URL Parameter
+  console.log('\n[Test 20] OAuth Init with frontend_url Parameter');
+  const initFeRes = await request('/auth/google/login/?format=json&frontend_url=http://127.0.0.1:5173');
+  assert(initFeRes.status === 200, 'OAuth init accepts frontend_url parameter');
+  assert(initFeRes.data?.authorization_url?.includes('accounts.google.com'), 'Returned authorization_url is valid');
+
   console.log('\n========================================================');
   console.log(`   TEST RESULTS: ${passed}/${total} PASSED (${passed === total ? '100% ALL PASS' : 'FAILURES OCCURRED'})`);
   console.log('========================================================\n');
