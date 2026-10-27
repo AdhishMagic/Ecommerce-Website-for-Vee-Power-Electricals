@@ -109,9 +109,29 @@ class CheckoutService:
             coupon_code=coupon_code,
         )
 
-        # 4. Generate Unique Order Number
+        # 4. Generate Unique Order Number and Determine Payment Split
         order_number = f"ORD-{timezone.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
         customer_name = f"{user.first_name} {user.last_name}".strip() or getattr(user, 'username', '')
+
+        method_norm = (payment_method or 'UPI').upper().strip()
+        is_cod = method_norm in ('COD', 'COD_50', 'CASH_ON_DELIVERY')
+
+        final_total = billing_result.final_payable_amount
+        if is_cod:
+            from decimal import ROUND_HALF_UP
+            # A = T * 50% (rounded half up to currency precision)
+            # B = T - A (exact remainder guaranteeing A + B = T)
+            cod_advance = (final_total * Decimal('0.5')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            cod_balance = final_total - cod_advance
+            amount_paid = Decimal('0.00')
+            outstanding_balance = final_total
+            persisted_method = 'COD'
+        else:
+            cod_advance = Decimal('0.00')
+            cod_balance = Decimal('0.00')
+            amount_paid = Decimal('0.00')
+            outstanding_balance = final_total
+            persisted_method = method_norm
 
         # 5. Create Order
         order = Order.objects.create(
@@ -133,10 +153,16 @@ class CheckoutService:
             tax_amount=billing_result.tax_result.total_tax_amount,
             shipping_fee=billing_result.delivery_result.final_shipping_fee,
             shipping_discount=(billing_result.delivery_result.calculated_fee if billing_result.delivery_result.is_free_delivery else Decimal('0.00')),
-            total_amount=billing_result.final_payable_amount,
+            total_amount=final_total,
+            amount_paid=amount_paid,
+            outstanding_balance=outstanding_balance,
+            is_cod=is_cod,
+            cod_advance_amount=cod_advance,
+            cod_balance_amount=cod_balance,
+            cod_balance_collected=False,
             status=OrderStatus.PENDING,
             payment_status=PaymentStatus.PENDING,
-            payment_method=payment_method,
+            payment_method=persisted_method,
             notes=notes,
             calculation_snapshot=billing_result.calculation_snapshot,
         )
@@ -178,17 +204,8 @@ class CheckoutService:
             reason="Customer placed order at checkout",
         )
 
-        # 8. Clear Purchased Items from User's Persistent Database Cart
-        if user and getattr(user, 'is_authenticated', False):
-            try:
-                from apps.orders.models import Cart, CartItem
-                user_cart = Cart.objects.filter(user=user, is_active=True).first()
-                if user_cart:
-                    purchased_product_ids = [item['product_id'] for item in items_data]
-                    CartItem.objects.filter(cart=user_cart, product_id__in=purchased_product_ids).delete()
-                    user_cart.save(update_fields=['updated_at'])
-            except Exception:
-                pass
+        # 8. Note: Cart items are preserved until server confirms payment verification (PaymentGatewayService)
+        # to ensure failed/cancelled payments preserve user cart state safely.
 
         # 9. Dispatch Order Placed notification
         try:

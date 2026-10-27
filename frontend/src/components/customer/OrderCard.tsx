@@ -85,6 +85,13 @@ export default function OrderCard({
             <p className="text-base sm:text-lg font-bold text-[#0B3A63] tracking-tight">
               ₹{formattedAmount}
             </p>
+            {order.is_cod && (
+              <span className="text-[11px] text-amber-700 font-medium block">
+                {order.cod_balance_collected
+                  ? "✓ Paid in Full"
+                  : `Due: ₹${Number(order.outstanding_balance || order.cod_balance_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`}
+              </span>
+            )}
           </div>
 
           {/* Items & Payment Info */}
@@ -109,6 +116,8 @@ export default function OrderCard({
                   className={`text-[11px] font-medium px-1.5 py-0.5 rounded ${
                     isPaid
                       ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
+                      : order.payment_status === "Partially Paid"
+                      ? "bg-blue-50 text-blue-700 border border-blue-200/60"
                       : "bg-amber-50 text-amber-700 border border-amber-200/60"
                   }`}
                 >

@@ -136,6 +136,72 @@ export default function Checkout() {
   const estimatedTax = Math.round(checkoutSubtotal * 0.18);
   const previewTotal = Math.max(0, checkoutSubtotal - couponDiscount) + shipping + estimatedTax;
 
+  // Decimal-safe 50% COD split-payment calculations
+  const effectiveTotal = createdOrder ? Number(createdOrder.total_amount) : previewTotal;
+  const isCOD = paymentMethod === 'cod_50' || paymentMethod.toLowerCase() === 'cod';
+  // A = T * 50% (rounded half up to currency precision)
+  // B = T - A (exact remainder guaranteeing A + B = T)
+  const advanceAmount = Math.round(effectiveTotal * 0.5 * 100) / 100;
+  const codBalanceAmount = Math.round((effectiveTotal - advanceAmount) * 100) / 100;
+  const payableAmount = isCOD ? advanceAmount : effectiveTotal;
+
+  const PAYMENT_OPTIONS = [
+    {
+      id: "upi",
+      title: "UPI / QR Code",
+      subtitle: "Pay securely using UPI apps or scan a QR code.",
+      badge: "Fast & Instant",
+      icon: (
+        <svg className="w-5 h-5 text-[#1769AA]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <rect x="3" y="3" width="7" height="7" rx="1" />
+          <rect x="14" y="3" width="7" height="7" rx="1" />
+          <rect x="3" y="14" width="7" height="7" rx="1" />
+          <path d="M14 14h3v3h-3z" />
+          <path d="M21 14v3h-3" />
+          <path d="M14 21h3v-3" />
+          <path d="M21 21v.01" />
+        </svg>
+      ),
+    },
+    {
+      id: "card",
+      title: "Credit / Debit Card",
+      subtitle: "Pay securely using your credit or debit card.",
+      badge: "Cards Accepted",
+      icon: (
+        <svg className="w-5 h-5 text-[#1769AA]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <rect x="2" y="5" width="20" height="14" rx="2" />
+          <line x1="2" y1="10" x2="22" y2="10" />
+          <line x1="6" y1="15" x2="10" y2="15" />
+        </svg>
+      ),
+    },
+    {
+      id: "netbanking",
+      title: "Net Banking",
+      subtitle: "Pay directly through your bank.",
+      badge: "Major Banks",
+      icon: (
+        <svg className="w-5 h-5 text-[#1769AA]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <path d="M3 21h18M3 10h18M5 10v11M9 10v11M15 10v11M19 10v11M12 2L2 7h20L12 2z" />
+        </svg>
+      ),
+    },
+    {
+      id: "cod_50",
+      title: "Cash on Delivery · 50% Advance",
+      subtitle: "Pay 50% online now and the remaining 50% upon delivery.",
+      badge: "50% Online + 50% Cash",
+      icon: (
+        <svg className="w-5 h-5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <rect x="2" y="6" width="20" height="12" rx="2" />
+          <circle cx="12" cy="12" r="3" />
+          <path d="M6 12h.01M18 12h.01" />
+        </svg>
+      ),
+    },
+  ];
+
   const handleApplyCoupon = async () => {
     if (!couponCode.trim()) return;
     setIsApplyingCoupon(true);
@@ -245,11 +311,12 @@ export default function Checkout() {
     setPaymentErrorMessage("");
 
     try {
+      const backendPaymentMethod = isCOD ? 'COD' : paymentMethod.toUpperCase();
       // Parallelize payment intent initiation with Razorpay SDK script readiness
       const [paymentIntent, isLoaded] = await Promise.all([
         paymentsApi.initiatePayment(
           Number(targetOrder.id),
-          paymentMethod.toUpperCase()
+          backendPaymentMethod
         ),
         loadRazorpayScript(),
       ]);
@@ -257,26 +324,37 @@ export default function Checkout() {
       setActivePaymentIntent(paymentIntent);
 
       const rzpConstructor = (window as any).Razorpay;
-      const isMockKey = Boolean(paymentIntent.is_mock) || isMockRazorpayKey(paymentIntent.key_id);
 
-      if (!isMockKey && isLoaded && typeof rzpConstructor === 'function') {
+      if (isLoaded && typeof rzpConstructor === 'function') {
         setPaymentLifecycle('gateway_open');
         setIsSubmittingOrder(false);
 
-        const options = {
+        const isOrderCod = Boolean(paymentIntent.is_cod || isCOD);
+        const advanceFormatted = Number(paymentIntent.advance_amount || advanceAmount).toLocaleString('en-IN', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+
+        const options: any = {
           key: paymentIntent.key_id,
-          amount: paymentIntent.amount,
+          amount: paymentIntent.amount, // Authoritative paise calculated server-side (advance for COD, total otherwise)
           currency: paymentIntent.currency || "INR",
           name: "Vee Power Electricals",
-          description: `Order #${targetOrder.order_number}`,
+          description: isOrderCod
+            ? `Order #${targetOrder.order_number} · 50% Online Advance (₹${advanceFormatted})`
+            : `Order #${targetOrder.order_number}`,
           order_id: paymentIntent.gateway_order_id,
           prefill: {
             name: paymentIntent.customer_name,
             email: paymentIntent.customer_email,
             contact: paymentIntent.customer_phone,
+            ...(paymentMethod === 'upi' ? { method: 'upi' } : {}),
+            ...(paymentMethod === 'card' ? { method: 'card' } : {}),
+            ...(paymentMethod === 'netbanking' ? { method: 'netbanking' } : {}),
           },
           notes: {
             order_id: String(targetOrder.id),
+            is_cod: String(isOrderCod),
           },
           theme: {
             color: "#0B3A63",
@@ -290,7 +368,7 @@ export default function Checkout() {
                 razorpay_order_id: response.razorpay_order_id || paymentIntent.gateway_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
-                payment_method: paymentMethod.toUpperCase(),
+                payment_method: backendPaymentMethod,
               });
 
               const freshOrder = await ordersApi.getOrderDetail(targetOrder.id);
@@ -322,7 +400,7 @@ export default function Checkout() {
             ondismiss: () => {
               setPaymentLifecycle('cancelled');
               setIsSubmittingOrder(false);
-              setPaymentErrorMessage("Payment window was closed. Your items remain reserved. Click Retry Payment to proceed.");
+              setPaymentErrorMessage("Payment window was closed. Your order is safely preserved. Click Retry Payment to proceed.");
             },
           },
         };
@@ -334,47 +412,16 @@ export default function Checkout() {
           setPaymentErrorMessage(failRes?.error?.description || "Payment was declined by your bank or gateway.");
         });
         rzp.open();
-      } else if (isMockKey) {
-        // Development Sandbox: isolated test mode without hitting real Razorpay CDN
-        setPaymentLifecycle('gateway_open');
-        setIsSubmittingOrder(false);
       } else {
         // Razorpay SDK could not load (e.g. adblocker or CDN issue)
         setPaymentLifecycle('failed');
         setIsSubmittingOrder(false);
-        setPaymentErrorMessage("Unable to open Razorpay payment gateway. Please check your internet connection or ad-blocker.");
+        setPaymentErrorMessage("Unable to open Razorpay payment gateway. Please check your internet connection or disable ad-blockers and retry.");
       }
     } catch (payErr: any) {
       setPaymentLifecycle('failed');
       setIsSubmittingOrder(false);
       setPaymentErrorMessage(payErr?.message || "Failed to initiate payment gateway intent. Please retry.");
-    }
-  };
-
-  const handleSimulatePaymentSuccess = async () => {
-    if (!createdOrder || !activePaymentIntent) return;
-    setPaymentLifecycle('verifying');
-    setIsSubmittingOrder(true);
-    try {
-      await paymentsApi.verifyPayment({
-        order_id: Number(createdOrder.id),
-        razorpay_order_id: activePaymentIntent.gateway_order_id,
-        razorpay_payment_id: `pay_mock_${Date.now()}`,
-        razorpay_signature: "mock_test_sig",
-        payment_method: paymentMethod.toUpperCase(),
-      });
-
-      const freshOrder = await ordersApi.getOrderDetail(createdOrder.id);
-      if (isSingleItem && singleItemState?.singleItem) {
-        removeFromCart(singleItemState.singleItem);
-      } else {
-        clearCart();
-      }
-      navigate("/order-success", { state: { order: freshOrder } });
-    } catch (err: any) {
-      setPaymentLifecycle('failed');
-      setIsSubmittingOrder(false);
-      setPaymentErrorMessage(err?.message || "Failed to confirm payment.");
     }
   };
 
@@ -389,28 +436,6 @@ export default function Checkout() {
 
     // If order was already created previously, reuse it to prevent duplicate orders & stock deductions
     if (createdOrder) {
-      if (paymentMethod.toLowerCase() === 'cod') {
-        if (isSingleItem && singleItemState?.singleItem) {
-          removeFromCart(singleItemState.singleItem);
-        } else {
-          clearCart();
-        }
-        navigate("/order-success", { state: { order: createdOrder } });
-        return;
-      }
-
-      if (paymentMethod.toLowerCase() === 'razorpay_handle') {
-        if (isSingleItem && singleItemState?.singleItem) {
-          removeFromCart(singleItemState.singleItem);
-        } else {
-          clearCart();
-        }
-        const handleUrl = paymentConfig.payment_handle || 'https://razorpay.me/@veepowerelectricals';
-        window.open(handleUrl, '_blank', 'noopener,noreferrer');
-        navigate("/order-success", { state: { order: createdOrder, isPaymentHandle: true, paymentHandleUrl: handleUrl } });
-        return;
-      }
-
       await launchRazorpayCheckout(createdOrder);
       return;
     }
@@ -423,40 +448,18 @@ export default function Checkout() {
     }));
 
     try {
+      const backendPaymentMethod = isCOD ? 'COD' : paymentMethod.toUpperCase();
       const order = await ordersApi.checkout({
         shipping_address_id: selectedAddressId,
         items: orderItems,
-        payment_method: paymentMethod.toUpperCase(),
+        payment_method: backendPaymentMethod,
         coupon_code: couponDiscount > 0 ? couponCode : undefined,
         notes: isBusinessUser ? `GSTIN: ${gstInput}` : undefined,
       });
 
       setCreatedOrder(order);
 
-      // Cash on delivery: completes directly without online gateway
-      if (paymentMethod.toLowerCase() === 'cod') {
-        if (isSingleItem && singleItemState?.singleItem) {
-          removeFromCart(singleItemState.singleItem);
-        } else {
-          clearCart();
-        }
-        navigate("/order-success", { state: { order } });
-        return;
-      }
-
-      // Razorpay Payment Handle Fallback
-      if (paymentMethod.toLowerCase() === 'razorpay_handle') {
-        if (isSingleItem && singleItemState?.singleItem) {
-          removeFromCart(singleItemState.singleItem);
-        } else {
-          clearCart();
-        }
-        const handleUrl = paymentConfig.payment_handle || 'https://razorpay.me/@veepowerelectricals';
-        window.open(handleUrl, '_blank', 'noopener,noreferrer');
-        navigate("/order-success", { state: { order, isPaymentHandle: true, paymentHandleUrl: handleUrl } });
-        return;
-      }
-
+      // Launch official Razorpay standard checkout for all 4 options
       await launchRazorpayCheckout(order);
     } catch (err: any) {
       setValidationError(err?.message || "Order placement failed. Please verify items and available stock.");
@@ -727,7 +730,7 @@ export default function Checkout() {
                     <div className="flex-1">
                       <h3 className="font-bold text-[#92400E] text-base font-['Outfit']">Payment Window Closed</h3>
                       <p className="text-sm text-[#B45309] mt-1">
-                        The payment window was closed before completion. Your order <strong className="font-mono">#{createdOrder.order_number}</strong> is saved in pending status with stock reserved.
+                        The payment window was closed before completion. Your order <strong className="font-mono">#{createdOrder.order_number}</strong> is safely preserved in pending status.
                       </p>
                       <div className="flex flex-wrap gap-3 mt-4 items-center">
                         <button
@@ -745,14 +748,6 @@ export default function Checkout() {
                         >
                           Change Method
                         </button>
-                        <a
-                          href={paymentConfig.payment_handle || "https://razorpay.me/@veepowerelectricals"}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="bg-white border border-[#D9E1E8] hover:border-[#1769AA] text-[#0B3A63] text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors inline-flex items-center gap-1.5"
-                        >
-                          Pay via Razorpay Handle ↗
-                        </a>
                         <Link
                           to="/account/orders"
                           className="text-xs font-semibold text-[#1769AA] hover:underline ml-1"
@@ -794,14 +789,6 @@ export default function Checkout() {
                         >
                           Switch Payment Method
                         </button>
-                        <a
-                          href={paymentConfig.payment_handle || "https://razorpay.me/@veepowerelectricals"}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="bg-white border border-[#D9E1E8] hover:border-[#1769AA] text-[#0B3A63] text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors inline-flex items-center gap-1.5"
-                        >
-                          Pay via Razorpay Handle ↗
-                        </a>
                         <Link
                           to="/account/orders"
                           className="text-xs font-semibold text-[#1769AA] hover:underline ml-1"
@@ -846,44 +833,80 @@ export default function Checkout() {
                 </div>
               )}
 
+              {/* 4 Polished Payment Options */}
               <div className="space-y-3 mb-6">
-                {[
-                  { id: "upi", label: "UPI / QR Code (Razorpay)", desc: "PhonePe, Google Pay, Paytm, BHIM UPI", icon: "📱" },
-                  { id: "card", label: "Credit / Debit Card (Razorpay)", desc: "Visa, Mastercard, RuPay, Maestro", icon: "💳" },
-                  { id: "netbanking", label: "Net Banking (Razorpay)", desc: "All major Indian banks supported", icon: "🏦" },
-                  { id: "razorpay_handle", label: "Pay via Razorpay Handle (@veepowerelectricals)", desc: "Direct Razorpay handle (razorpay.me/@veepowerelectricals) with manual verification", icon: "🔗" },
-                  { id: "cod", label: "Cash on Delivery", desc: "Pay in cash upon physical delivery", icon: "💵" },
-                ].map(method => (
-                  <label key={method.id} className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${paymentMethod === method.id ? "border-[#1769AA] bg-[#EFF6FF]" : "border-[#D9E1E8] hover:border-[#1769AA]/50"}`}>
-                    <input type="radio" name="payment" value={method.id} checked={paymentMethod === method.id} onChange={(e) => setPaymentMethod(e.target.value)} className="accent-[#1769AA]" />
-                    <span className="text-2xl">{method.icon}</span>
-                    <div>
-                      <p className="font-semibold text-[#17212B] text-sm">{method.label}</p>
-                      <p className="text-xs text-[#667085]">{method.desc}</p>
-                    </div>
-                  </label>
-                ))}
+                {PAYMENT_OPTIONS.map((method) => {
+                  const isSelected = paymentMethod === method.id;
+                  return (
+                    <label
+                      key={method.id}
+                      htmlFor={`payment-opt-${method.id}`}
+                      className={`relative flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 select-none ${
+                        isSelected
+                          ? "border-[#1769AA] bg-[#EFF6FF] shadow-xs"
+                          : "border-[#D9E1E8] bg-white hover:border-[#1769AA]/50 hover:bg-slate-50/60"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        id={`payment-opt-${method.id}`}
+                        name="payment_selection"
+                        value={method.id}
+                        checked={isSelected}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                        className="w-4 h-4 text-[#1769AA] accent-[#1769AA] cursor-pointer focus:ring-2 focus:ring-[#1769AA]/40 shrink-0"
+                      />
+                      <div className="w-10 h-10 rounded-xl bg-white border border-slate-200/80 flex items-center justify-center shrink-0 shadow-2xs">
+                        {method.icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-bold text-[#17212B] text-sm font-['Outfit']">{method.title}</p>
+                          {method.badge && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              {method.badge}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-[#667085] mt-0.5">{method.subtitle}</p>
+                      </div>
+                    </label>
+                  );
+                })}
               </div>
 
-              {/* Server-Controlled Razorpay Handle Guidance */}
-              {paymentMethod === 'razorpay_handle' && (
-                <div className="mb-6 p-5 bg-[#EFF6FF] border border-[#BFDBFE] rounded-xl text-left space-y-2.5 text-xs">
-                  <div className="flex items-center gap-2 font-bold text-sm text-[#0B3A63]">
-                    <span>🔗</span> Server-Controlled Razorpay Payment Destination
+              {/* Dynamic Split-Payment Breakdown for COD */}
+              {isCOD && (
+                <div className="mb-6 p-4.5 rounded-xl bg-gradient-to-br from-[#EFF6FF] to-[#F0FDF4] border border-[#BFDBFE] text-left">
+                  <div className="flex items-center gap-2 mb-2.5">
+                    <span className="text-lg">💵</span>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-[#0B3A63] font-['Outfit']">
+                      Cash on Delivery · 50% Online Advance Breakdown
+                    </h4>
                   </div>
-                  <p className="text-[#1E40AF] leading-relaxed">
-                    Your order will be created and recorded in <strong className="font-semibold">Pending Payment</strong> status with inventory reserved.
-                    Clicking <strong>Place Order & Pay via Razorpay</strong> will securely open <a href={paymentConfig.payment_handle || "https://razorpay.me/@veepowerelectricals"} target="_blank" rel="noopener noreferrer" className="font-mono font-bold underline">{paymentConfig.payment_handle || "https://razorpay.me/@veepowerelectricals"}</a> in a new tab.
+                  <div className="space-y-2 text-xs text-slate-700 bg-white/80 p-3.5 rounded-xl border border-blue-200/50">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600">Final Order Total:</span>
+                      <span className="font-bold text-slate-900 text-sm">
+                        ₹{effectiveTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center font-bold text-[#1769AA] text-sm pt-2 border-t border-slate-200">
+                      <span>50% Advance Payable Online Now:</span>
+                      <span>
+                        ₹{advanceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-[#B45309] font-semibold text-xs pt-1">
+                      <span>Remaining COD Balance Due on Delivery:</span>
+                      <span>
+                        ₹{codBalanceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-2.5 leading-relaxed">
+                    Pay <strong>₹{advanceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> securely online now through Razorpay Checkout to confirm your order. The remaining <strong>₹{codBalanceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> is payable in cash upon doorstep delivery.
                   </p>
-                  <div className="bg-white border border-[#93C5FD] rounded-lg p-3.5 text-[11px] text-slate-700 space-y-1.5">
-                    <p className="font-bold text-[#0B3A63]">Customer Payment Instructions:</p>
-                    <p>1. Open the verified Razorpay payment handle in the new window.</p>
-                    <p>2. Enter the exact order total of <strong className="font-bold text-[#0B3A63]">₹{previewTotal.toLocaleString("en-IN")}</strong>.</p>
-                    <p>3. Enter your generated <strong>Order Number</strong> in the Razorpay payment description/note.</p>
-                    <p className="text-amber-800 font-semibold pt-1 border-t border-slate-100">
-                      ⚠️ Notice: Clicking the link or submitting a screenshot does NOT automatically mark your order as paid. Our finance team manually verifies and reconciles handle receipts before dispatching.
-                    </p>
-                  </div>
                 </div>
               )}
 
@@ -946,90 +969,24 @@ export default function Checkout() {
                       <div className="w-5 h-5 border-2 border-[#0A2540] border-t-transparent rounded-full animate-spin"></div>
                       <span>Verifying payment…</span>
                     </>
-                  ) : paymentMethod === 'razorpay_handle' ? (
-                    `Place Order & Pay via Razorpay ↗ · ₹${previewTotal.toLocaleString("en-IN")}`
-                  ) : createdOrder ? (
-                    paymentLifecycle === 'cancelled' || paymentLifecycle === 'failed' ? (
-                      `⚡ Retry Payment · ₹${Number(createdOrder.total_amount).toLocaleString("en-IN")}`
+                  ) : createdOrder && (paymentLifecycle === 'cancelled' || paymentLifecycle === 'failed') ? (
+                    isCOD ? (
+                      `⚡ Retry Pay ₹${advanceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Advance`
                     ) : (
-                      `Pay Now · ₹${Number(createdOrder.total_amount).toLocaleString("en-IN")}`
+                      `⚡ Retry Pay ₹${effectiveTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                     )
+                  ) : isCOD ? (
+                    `Pay ₹${advanceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Advance & Place Order`
                   ) : (
-                    `Place Order · ₹${previewTotal.toLocaleString("en-IN")}`
+                    `Pay ₹${effectiveTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} & Place Order`
                   )}
                 </button>
               </div>
             </div>
           )}
 
-          {/* Test Mode Mock Sandbox Modal (Shown when mock key is active) */}
-          {paymentLifecycle === 'gateway_open' && activePaymentIntent && (Boolean(activePaymentIntent.is_mock) || isMockRazorpayKey(activePaymentIntent.key_id)) && (
-            <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs">
-              <div className="bg-white rounded-2xl max-w-md w-full p-6 text-center shadow-2xl border border-slate-200 animate-in fade-in zoom-in duration-200">
-                <div className="w-16 h-16 bg-[#EFF6FF] rounded-full flex items-center justify-center mx-auto mb-4 border border-[#BFDBFE]">
-                  <span className="text-3xl">🛡️</span>
-                </div>
-                <h3 className="text-xl font-bold text-[#0B3A63] font-['Outfit']">Razorpay Test Sandbox</h3>
-                <div className="inline-block px-3 py-1 bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-xs font-semibold my-2">
-                  Development Mode · Sandbox Credentials
-                </div>
-                <p className="text-xs text-slate-500 mt-1">
-                  The backend is running with sandbox mock keys. Real online payments require an approved Razorpay Test Key (<code className="bg-slate-100 px-1 py-0.5 rounded text-slate-800">rzp_test_...</code>) in <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-800">backend/.env</code>.
-                </p>
-
-                <div className="bg-[#F8FAFC] border border-slate-200 rounded-xl p-4 my-5 text-left text-sm space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Order Ref:</span>
-                    <span className="font-mono font-semibold text-[#0B3A63]">#{createdOrder?.order_number}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Gateway Order ID:</span>
-                    <span className="font-mono text-xs text-slate-600">{activePaymentIntent.gateway_order_id}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-slate-200 pt-2 font-bold">
-                    <span className="text-[#17212B]">Payable Amount:</span>
-                    <span className="text-[#1769AA] text-base">₹{Number(createdOrder?.total_amount || 0).toLocaleString('en-IN')}</span>
-                  </div>
-                </div>
-
-                <div className="space-y-2.5">
-                  <button
-                    type="button"
-                    onClick={handleSimulatePaymentSuccess}
-                    disabled={isSubmittingOrder}
-                    className="w-full bg-[#12773D] hover:bg-[#0E5C2F] text-white font-bold py-3.5 px-4 rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                  >
-                    <span>✓</span> Simulate Payment Approval (Pay ₹{Number(createdOrder?.total_amount || 0).toLocaleString('en-IN')})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPaymentLifecycle('cancelled');
-                      setPaymentErrorMessage("Sandbox dialog closed. Order items remain saved and reserved. Click Retry Payment to test again.");
-                      setIsSubmittingOrder(false);
-                    }}
-                    className="w-full bg-[#0B3A63] hover:bg-[#07243E] text-white font-semibold py-2.5 px-4 rounded-xl shadow-xs transition-colors cursor-pointer"
-                  >
-                    Close Sandbox & Return to Checkout
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPaymentLifecycle('failed');
-                      setPaymentErrorMessage("Test simulation: Customer card declined by gateway simulator.");
-                      setIsSubmittingOrder(false);
-                    }}
-                    className="w-full bg-[#FEE2E2] hover:bg-[#FECACA] text-[#991B1B] font-semibold py-2 px-4 rounded-xl transition-colors cursor-pointer text-xs"
-                  >
-                    Simulate Payment Failure
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Floating indicator while standard real Razorpay checkout is open */}
-          {paymentLifecycle === 'gateway_open' && activePaymentIntent && !activePaymentIntent.is_mock && !isMockRazorpayKey(activePaymentIntent.key_id) && (
+          {paymentLifecycle === 'gateway_open' && activePaymentIntent && (
             <div className="fixed bottom-6 right-6 z-40 bg-[#0B3A63] text-white px-5 py-4 rounded-2xl shadow-2xl border border-blue-400/30 max-w-sm flex items-center gap-3">
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin flex-shrink-0"></div>
               <div className="text-xs">
@@ -1079,9 +1036,28 @@ export default function Checkout() {
               <span>₹{estimatedTax.toLocaleString("en-IN")}</span>
             </div>
             <div className="border-t border-[#D9E1E8] pt-3 mt-1 flex justify-between font-bold text-[#0B3A63] text-base">
-              <span>Estimated Total</span>
-              <span className="text-[#1769AA] text-xl">₹{previewTotal.toLocaleString("en-IN")}</span>
+              <span>{isCOD ? "Order Total" : "Estimated Total"}</span>
+              <span className="text-[#1769AA] text-xl">
+                ₹{effectiveTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
             </div>
+
+            {/* Split Summary for COD with 50% Advance */}
+            {isCOD && (
+              <div className="mt-3 pt-3 border-t border-dashed border-[#BFDBFE] bg-gradient-to-br from-[#EFF6FF] to-[#F0FDF4] p-3.5 rounded-xl space-y-2 text-xs border border-blue-200/60">
+                <div className="flex justify-between items-center font-bold text-[#12773D]">
+                  <span>50% Advance Online:</span>
+                  <span>₹{advanceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between items-center font-medium text-[#B45309]">
+                  <span>Remaining COD Balance:</span>
+                  <span>₹{codBalanceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+                <p className="text-[10px] text-slate-500 pt-1 border-t border-blue-200/40">
+                  Pay 50% now online to dispatch; remainder in cash upon delivery.
+                </p>
+              </div>
+            )}
           </div>
           {checkoutSubtotal >= freeThreshold ? (
             <p className="mt-4 text-xs font-medium text-[#12773D] bg-[#ECFDF5] border border-[#D1FAE5] px-3 py-2.5 rounded-lg flex gap-1.5">

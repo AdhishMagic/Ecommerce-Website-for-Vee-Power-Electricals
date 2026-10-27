@@ -11,7 +11,7 @@ export type OrderStatus =
   | 'RETURN_REJECTED'
   | 'RETURN_COMPLETED';
 
-export type PaymentStatus = 'Pending' | 'Paid' | 'Failed' | 'Refunded';
+export type PaymentStatus = 'Pending' | 'Partially Paid' | 'Paid' | 'Failed' | 'Refunded';
 
 export type UserRole = 'customer' | 'admin';
 
@@ -183,9 +183,19 @@ export interface OrderSummary {
   tax_amount: string | number;
   shipping_fee: string | number;
   total_amount: string | number;
+  amount_paid: string | number;
+  outstanding_balance: string | number;
+  is_cod: boolean;
+  cod_advance_amount: string | number;
+  cod_balance_amount: string | number;
+  cod_balance_collected: boolean;
+  cod_collected_at?: string | null;
   status: OrderStatus;
   payment_status: PaymentStatus;
   payment_method: string;
+  razorpay_order_id?: string | null;
+  razorpay_payment_id?: string | null;
+  payment_verification_status?: string | null;
   items_count: number;
   created_at: string;
 }
@@ -213,10 +223,20 @@ export interface OrderDetailData {
   shipping_fee: string | number;
   shipping_discount: string | number;
   total_amount: string | number;
+  amount_paid: string | number;
+  outstanding_balance: string | number;
+  is_cod: boolean;
+  cod_advance_amount: string | number;
+  cod_balance_amount: string | number;
+  cod_balance_collected: boolean;
+  cod_collected_at?: string | null;
   status: OrderStatus;
   payment_status: PaymentStatus;
   payment_method: string;
   tracking_number?: string | null;
+  razorpay_order_id?: string | null;
+  razorpay_payment_id?: string | null;
+  payment_verification_status?: string | null;
   notes?: string;
   items: OrderItem[];
   status_history: OrderStatusHistoryItem[];
@@ -544,6 +564,10 @@ export interface PaymentIntentResponse {
   customer_phone: string;
   transaction_id: number;
   is_mock?: boolean;
+  is_cod?: boolean;
+  advance_amount?: string;
+  balance_amount?: string;
+  total_amount?: string;
 }
 
 export interface PaymentVerifyPayload {

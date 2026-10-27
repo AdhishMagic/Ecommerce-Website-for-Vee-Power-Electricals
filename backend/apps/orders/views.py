@@ -118,7 +118,7 @@ class AdminOrderListView(generics.ListAPIView):
             qs = qs.filter(status=status_param.upper())
 
         pay_status = self.request.query_params.get('payment_status')
-        if pay_status and pay_status in ['Pending', 'Paid', 'Failed', 'Refunded']:
+        if pay_status and pay_status in ['Pending', 'Paid', 'Partially Paid', 'Failed', 'Refunded']:
             qs = qs.filter(payment_status=pay_status)
 
         customer_id = self.request.query_params.get('customer') or self.request.query_params.get('customer_id')
@@ -352,4 +352,76 @@ class AdminOrderOperationsSummaryView(APIView):
             'delivered_orders_count': counts['delivered_orders_count'],
             'cancelled_orders_count': counts['cancelled_orders_count'],
         })
+
+
+class AdminOrderCollectCodView(APIView):
+    """
+    POST /api/v1/orders/{pk}/collect-cod/
+    Admin action to mark remaining 50% Cash on Delivery (COD) balance as physically collected.
+    Transitions payment_status to 'Paid', outstanding_balance to 0.00, and records audit trail.
+    Enforces idempotency and prevents duplicate balance collections.
+    """
+    permission_classes = [IsAdminUser]
+
+    @transaction.atomic
+    def post(self, request, pk):
+        try:
+            order = Order.objects.select_for_update().get(pk=pk)
+        except Order.DoesNotExist:
+            return Response({"detail": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if not order.is_cod:
+            return Response({"detail": "This order is not a Cash on Delivery (COD) order."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if order.status == OrderStatus.CANCELLED:
+            return Response({"detail": "Cannot collect COD balance for a cancelled order."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if order.cod_balance_collected or order.payment_status == PaymentStatus.PAID:
+            return Response({"detail": "COD balance has already been collected for this order."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if order.payment_status != PaymentStatus.PARTIALLY_PAID:
+            return Response(
+                {"detail": f"Cannot collect COD balance: order payment status is '{order.payment_status}'. 50% online advance must be verified first."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Mark balance collected
+        order.cod_balance_collected = True
+        order.cod_collected_at = timezone.now()
+        order.amount_paid = order.total_amount
+        order.outstanding_balance = Decimal('0.00')
+        order.payment_status = PaymentStatus.PAID
+        order.save(update_fields=[
+            'cod_balance_collected', 'cod_collected_at',
+            'amount_paid', 'outstanding_balance', 'payment_status', 'updated_at'
+        ])
+
+        # Record PaymentTransaction for the COD balance collection
+        from apps.finance.models import PaymentTransaction, PaymentGateway, PaymentTxStatus
+        PaymentTransaction.objects.create(
+            order=order,
+            gateway=PaymentGateway.COD,
+            payment_method='COD',
+            amount=order.cod_balance_amount,
+            currency='INR',
+            status=PaymentTxStatus.SUCCESS,
+            metadata={
+                'type': 'COD_BALANCE_COLLECTION',
+                'collected_by': request.user.email,
+                'collected_at': str(order.cod_collected_at),
+                'balance_amount': str(order.cod_balance_amount),
+            }
+        )
+
+        # Record status history audit
+        OrderStatusHistory.objects.create(
+            order=order,
+            previous_status=order.status,
+            new_status=order.status,
+            changed_by=request.user,
+            reason=f"COD remaining balance of ₹{order.cod_balance_amount} physically collected by {request.user.email}. Order payment fully settled."
+        )
+
+        return Response(OrderDetailSerializer(order).data, status=status.HTTP_200_OK)
+
 

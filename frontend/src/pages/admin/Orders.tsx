@@ -90,6 +90,28 @@ export default function AdminOrders() {
     }
   };
 
+  const handleCollectCodBalance = async (orderId: number) => {
+    if (!window.confirm("Confirm collection of remaining cash balance for this order upon delivery?")) {
+      return;
+    }
+    setActionError(null);
+    setUpdatingId(orderId);
+    try {
+      const updated = await ordersApi.collectCodBalance(orderId);
+      setOrders(prev => prev.map(o => o.id === orderId ? {
+        ...o,
+        payment_status: updated.payment_status,
+        cod_balance_collected: updated.cod_balance_collected,
+        outstanding_balance: updated.outstanding_balance,
+        amount_paid: updated.amount_paid,
+      } : o));
+    } catch (err: any) {
+      setActionError(err?.message || "Failed to record COD balance collection.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const getFsmActions = (status: OrderStatus, orderId: number) => {
     switch (status) {
       case "PENDING":
@@ -276,12 +298,43 @@ export default function AdminOrders() {
 
                 <div className="flex flex-col md:items-end justify-center gap-1">
                   <p className="text-xl font-bold text-[#0B3A63]">₹{Number(order.total_amount).toLocaleString("en-IN")}</p>
-                  <p className="text-xs text-slate-500">{order.items_count} items · {order.payment_method} · <span className="text-emerald-700 font-semibold">{order.payment_status}</span></p>
+                  {order.is_cod && (
+                    <div className="text-right text-xs">
+                      <span className="text-emerald-700 font-medium">
+                        Adv: ₹{Number(order.amount_paid || order.cod_advance_amount || 0).toLocaleString("en-IN")}
+                      </span>
+                      <span className="text-slate-400 mx-1.5">|</span>
+                      <span className="text-amber-700 font-medium">
+                        Due: ₹{Number(order.outstanding_balance || order.cod_balance_amount || 0).toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  )}
+                  <p className="text-xs text-slate-500">
+                    {order.items_count} items · {order.payment_method} · 
+                    <span className={`font-semibold ml-1 ${
+                      order.payment_status === "Paid"
+                        ? "text-emerald-700"
+                        : order.payment_status === "Partially Paid"
+                        ? "text-blue-700"
+                        : "text-amber-700"
+                    }`}>
+                      {order.payment_status}
+                    </span>
+                    {order.is_cod && (
+                      <span className={`ml-2 px-1.5 py-0.5 rounded text-[11px] font-medium ${
+                        order.cod_balance_collected
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-amber-100 text-amber-800"
+                      }`}>
+                        {order.cod_balance_collected ? "COD Collected" : "COD Pending"}
+                      </span>
+                    )}
+                  </p>
                 </div>
               </div>
 
               <div className="bg-slate-50 px-5 py-3 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div className="flex items-center gap-2 w-full sm:w-auto">
+                <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
                   {order.status === "PACKED" && (
                     <input
                       type="text"
@@ -292,6 +345,17 @@ export default function AdminOrders() {
                     />
                   )}
                   {getFsmActions(order.status, order.id)}
+                  {order.is_cod && !order.cod_balance_collected && (
+                    <button
+                      onClick={() => handleCollectCodBalance(order.id)}
+                      disabled={updatingId === order.id}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors shadow-2xs"
+                      title="Confirm receipt of cash payment on delivery"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Collect COD (₹{Number(order.outstanding_balance || order.cod_balance_amount || 0).toLocaleString("en-IN")})
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-3 self-end sm:self-auto">

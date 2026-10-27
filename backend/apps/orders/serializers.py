@@ -29,13 +29,20 @@ class OrderStatusHistorySerializer(serializers.ModelSerializer):
 
 class OrderListSerializer(serializers.ModelSerializer):
     items_count = serializers.SerializerMethodField()
+    razorpay_order_id = serializers.CharField(read_only=True)
+    razorpay_payment_id = serializers.CharField(read_only=True)
+    payment_verification_status = serializers.CharField(read_only=True)
 
     class Meta:
         model = Order
         fields = [
             'id', 'order_number', 'user', 'customer_name', 'customer_email',
             'customer_phone', 'subtotal', 'tax_amount', 'shipping_fee',
-            'total_amount', 'status', 'payment_status', 'payment_method',
+            'total_amount', 'amount_paid', 'outstanding_balance',
+            'is_cod', 'cod_advance_amount', 'cod_balance_amount',
+            'cod_balance_collected', 'cod_collected_at',
+            'status', 'payment_status', 'payment_method',
+            'razorpay_order_id', 'razorpay_payment_id', 'payment_verification_status',
             'items_count', 'created_at'
         ]
         read_only_fields = fields
@@ -49,6 +56,9 @@ class OrderListSerializer(serializers.ModelSerializer):
 class OrderDetailSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     status_history = OrderStatusHistorySerializer(many=True, read_only=True)
+    razorpay_order_id = serializers.CharField(read_only=True)
+    razorpay_payment_id = serializers.CharField(read_only=True)
+    payment_verification_status = serializers.CharField(read_only=True)
 
     class Meta:
         model = Order
@@ -59,7 +69,11 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             'subtotal', 'product_discount', 'order_discount', 'total_discount',
             'taxable_amount', 'cgst_amount', 'sgst_amount', 'igst_amount',
             'shipping_fee', 'shipping_discount', 'total_amount',
+            'amount_paid', 'outstanding_balance',
+            'is_cod', 'cod_advance_amount', 'cod_balance_amount',
+            'cod_balance_collected', 'cod_collected_at',
             'status', 'payment_status', 'payment_method', 'tracking_number',
+            'razorpay_order_id', 'razorpay_payment_id', 'payment_verification_status',
             'notes', 'items', 'status_history', 'created_at', 'updated_at'
         ]
         read_only_fields = fields

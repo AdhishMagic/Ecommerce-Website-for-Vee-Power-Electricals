@@ -135,6 +135,28 @@ export default function InvoiceModal({ order, onClose }: InvoiceModalProps) {
                 <span>Grand Total</span>
                 <span>₹{total.toLocaleString("en-IN")}</span>
               </div>
+              {order.is_cod && (
+                <div className="pt-2 border-t border-dashed border-slate-300 space-y-1 text-xs">
+                  <div className="flex justify-between text-slate-700">
+                    <span>50% Advance Online Paid:</span>
+                    <span className="font-semibold text-emerald-700">
+                      ₹{Number(order.amount_paid || order.cod_advance_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-700">
+                    <span>Balance Due on Delivery (COD):</span>
+                    <span className="font-semibold text-amber-700">
+                      ₹{Number(order.outstanding_balance || order.cod_balance_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-500 text-[11px]">
+                    <span>COD Collection Status:</span>
+                    <span className="font-medium">
+                      {order.cod_balance_collected ? "✓ Collected upon Delivery" : "⏳ Pending Collection"}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

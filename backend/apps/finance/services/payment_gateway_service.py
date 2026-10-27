@@ -110,11 +110,17 @@ class PaymentGatewayService:
         if order.payment_status == PaymentStatus.PAID:
             raise ValidationError("This order has already been paid.")
 
+        if order.payment_status == PaymentStatus.PARTIALLY_PAID and order.is_cod:
+            raise ValidationError("The online advance for this COD order has already been verified and paid.")
+
         if order.status == OrderStatus.CANCELLED:
             raise ValidationError("Cannot initiate payment for a cancelled order.")
 
-        # Calculate authoritative amount in paise (1 INR = 100 paise)
-        amount_in_paise = int(order.total_amount * 100)
+        # Calculate authoritative payable amount in paise (1 INR = 100 paise)
+        # For COD with 50% advance, customer pays the advance amount online.
+        # For full online payments (UPI, Card, Net Banking), customer pays full total.
+        payable_amount = order.cod_advance_amount if (order.is_cod and order.cod_advance_amount > 0) else order.total_amount
+        amount_in_paise = int(payable_amount * 100)
         if amount_in_paise < 100:
             raise ValidationError("Payable amount must be at least 100 paise (1 INR).")
 
@@ -128,7 +134,7 @@ class PaymentGatewayService:
             order=order,
             gateway=PaymentGateway.RAZORPAY,
             status=PaymentTxStatus.INITIATED,
-            amount=order.total_amount
+            amount=payable_amount
         ).first()
 
         if existing_txn and existing_txn.gateway_order_id:
@@ -146,11 +152,14 @@ class PaymentGatewayService:
                         "notes": {
                             "order_id": str(order.id),
                             "customer_email": order.customer_email or '',
+                            "is_cod": str(order.is_cod),
+                            "advance_amount": str(payable_amount),
+                            "total_amount": str(order.total_amount),
                         }
                     }
                     res_data = client.order.create(data=payload)
                     gateway_order_id = res_data.get('id')
-                    logger.info("Created Razorpay gateway order %s for order %s", gateway_order_id, order.order_number)
+                    logger.info("Created Razorpay gateway order %s for order %s (amount: %s paise)", gateway_order_id, order.order_number, amount_in_paise)
                 except Exception as e:
                     err_msg = str(e)
                     logger.error("Razorpay order API error for order %s: %s", order.order_number, err_msg)
@@ -166,9 +175,15 @@ class PaymentGatewayService:
                 gateway=PaymentGateway.RAZORPAY,
                 gateway_order_id=gateway_order_id,
                 payment_method=payment_method,
-                amount=order.total_amount,
+                amount=payable_amount,
                 currency='INR',
                 status=PaymentTxStatus.INITIATED,
+                metadata={
+                    "is_cod": order.is_cod,
+                    "advance_amount": str(order.cod_advance_amount if order.is_cod else Decimal('0.00')),
+                    "balance_amount": str(order.cod_balance_amount if order.is_cod else Decimal('0.00')),
+                    "total_amount": str(order.total_amount),
+                }
             )
 
         return {
@@ -176,14 +191,19 @@ class PaymentGatewayService:
             "order_id": order.id,
             "order_number": order.order_number,
             "gateway_order_id": gateway_order_id,
+            "razorpay_order_id": gateway_order_id,
             "amount": amount_in_paise,
-            "amount_inr": str(order.total_amount),
+            "amount_inr": str(payable_amount),
             "currency": "INR",
             "customer_name": order.customer_name,
             "customer_email": order.customer_email,
             "customer_phone": order.customer_phone,
             "transaction_id": txn.id,
             "is_mock": cls.is_mock_mode(),
+            "is_cod": order.is_cod,
+            "advance_amount": str(order.cod_advance_amount if order.is_cod else Decimal('0.00')),
+            "balance_amount": str(order.cod_balance_amount if order.is_cod else Decimal('0.00')),
+            "total_amount": str(order.total_amount),
         }
 
     @classmethod
@@ -292,6 +312,9 @@ class PaymentGatewayService:
             if order.status == OrderStatus.CANCELLED:
                 raise ValidationError("Cannot confirm payment for a cancelled order.")
 
+            # Authoritative payable amount for this transaction (advance for COD, full total otherwise)
+            payable_amount = order.cod_advance_amount if (order.is_cod and order.cod_advance_amount > 0) else order.total_amount
+
             # Find or create PaymentTransaction
             txn = PaymentTransaction.objects.filter(
                 order=order,
@@ -306,14 +329,23 @@ class PaymentGatewayService:
                     gateway_transaction_id=razorpay_payment_id,
                     gateway_signature=razorpay_signature,
                     payment_method=payment_method,
-                    amount=order.total_amount,
+                    amount=payable_amount,
                     currency='INR',
                     status=PaymentTxStatus.SUCCESS,
+                    metadata={
+                        "is_cod": order.is_cod,
+                        "advance_amount": str(order.cod_advance_amount if order.is_cod else Decimal('0.00')),
+                        "balance_amount": str(order.cod_balance_amount if order.is_cod else Decimal('0.00')),
+                    }
                 )
             else:
-                # Idempotency check: if already SUCCESS, return directly without re-applying business side-effects
-                if txn.status == PaymentTxStatus.SUCCESS and order.payment_status == PaymentStatus.PAID:
-                    return txn
+                # Idempotency check: if already SUCCESS with appropriate payment_status, return directly
+                if order.is_cod:
+                    if txn.status == PaymentTxStatus.SUCCESS and order.payment_status == PaymentStatus.PARTIALLY_PAID:
+                        return txn
+                else:
+                    if txn.status == PaymentTxStatus.SUCCESS and order.payment_status == PaymentStatus.PAID:
+                        return txn
 
                 txn.gateway_transaction_id = razorpay_payment_id
                 txn.gateway_signature = razorpay_signature
@@ -321,18 +353,40 @@ class PaymentGatewayService:
                 txn.status = PaymentTxStatus.SUCCESS
                 txn.save()
 
-            # Update Order payment status
-            order.payment_status = PaymentStatus.PAID
-            order.save(update_fields=['payment_status', 'updated_at'])
+            # Update Order payment status and balances
+            if order.is_cod:
+                order.payment_status = PaymentStatus.PARTIALLY_PAID
+                order.amount_paid = order.cod_advance_amount
+                order.outstanding_balance = order.cod_balance_amount
+                order.cod_balance_collected = False
+                order.save(update_fields=['payment_status', 'amount_paid', 'outstanding_balance', 'cod_balance_collected', 'updated_at'])
+            else:
+                order.payment_status = PaymentStatus.PAID
+                order.amount_paid = order.total_amount
+                order.outstanding_balance = Decimal('0.00')
+                order.save(update_fields=['payment_status', 'amount_paid', 'outstanding_balance', 'updated_at'])
 
             # Transition order to CONFIRMED if currently PENDING
             if order.status == OrderStatus.PENDING:
+                reason_text = "50% COD advance payment verified via Razorpay" if order.is_cod else "Payment verified and received via Razorpay"
                 OrderWorkflowService.transition_order_status(
                     order_id=order.id,
                     target_status=OrderStatus.CONFIRMED,
                     changed_by=user,
-                    reason="Payment verified and received via Razorpay"
+                    reason=reason_text
                 )
+
+            # Clear purchased items from customer's persistent cart now that payment is confirmed
+            if order.user_id:
+                try:
+                    from apps.orders.models import Cart, CartItem
+                    user_cart = Cart.objects.filter(user_id=order.user_id, is_active=True).first()
+                    if user_cart:
+                        purchased_pids = list(order.items.values_list('product_id', flat=True))
+                        CartItem.objects.filter(cart=user_cart, product_id__in=purchased_pids).delete()
+                        user_cart.save(update_fields=['updated_at'])
+                except Exception:
+                    pass
 
             # Generate GST tax invoice snapshot for the paid order
             try:
@@ -399,8 +453,9 @@ class PaymentGatewayService:
             if not order:
                 return {"status": "ignored", "reason": "Order not associated"}
 
-            # Verify amount consistency against authoritative order amount
-            expected_paise = int(order.total_amount * 100)
+            # Verify amount consistency against authoritative expected amount (advance for COD, total otherwise)
+            expected_amount = order.cod_advance_amount if (order.is_cod and order.cod_advance_amount > 0) else order.total_amount
+            expected_paise = int(expected_amount * 100)
             if amount_in_paise is not None and int(amount_in_paise) != expected_paise:
                 raise ValidationError(
                     f"Webhook amount mismatch. Expected: {expected_paise} paise, received: {amount_in_paise} paise."
@@ -427,25 +482,51 @@ class PaymentGatewayService:
                     "reason": "Order was previously cancelled. Payment recorded for audit without order resurrection."
                 }
 
-            # Idempotency check: if already confirmed and paid, do not re-execute side effects
-            if txn.status == PaymentTxStatus.SUCCESS and order.payment_status == PaymentStatus.PAID:
-                return {"status": "idempotent_ok", "order_id": order.id}
+            # Idempotency check: if already confirmed and appropriately paid, do not re-execute side effects
+            if order.is_cod:
+                if txn.status == PaymentTxStatus.SUCCESS and order.payment_status == PaymentStatus.PARTIALLY_PAID:
+                    return {"status": "idempotent_ok", "order_id": order.id}
+            else:
+                if txn.status == PaymentTxStatus.SUCCESS and order.payment_status == PaymentStatus.PAID:
+                    return {"status": "idempotent_ok", "order_id": order.id}
 
             txn.gateway_transaction_id = razorpay_payment_id
             txn.status = PaymentTxStatus.SUCCESS
             txn.payment_method = payment_method
             txn.save()
 
-            order.payment_status = PaymentStatus.PAID
-            order.save(update_fields=['payment_status', 'updated_at'])
+            if order.is_cod:
+                order.payment_status = PaymentStatus.PARTIALLY_PAID
+                order.amount_paid = order.cod_advance_amount
+                order.outstanding_balance = order.cod_balance_amount
+                order.cod_balance_collected = False
+                order.save(update_fields=['payment_status', 'amount_paid', 'outstanding_balance', 'cod_balance_collected', 'updated_at'])
+            else:
+                order.payment_status = PaymentStatus.PAID
+                order.amount_paid = order.total_amount
+                order.outstanding_balance = Decimal('0.00')
+                order.save(update_fields=['payment_status', 'amount_paid', 'outstanding_balance', 'updated_at'])
 
             if order.status == OrderStatus.PENDING:
+                reason_text = "Webhook: 50% COD advance payment verified by Razorpay" if order.is_cod else "Webhook: Payment verified and captured by Razorpay"
                 OrderWorkflowService.transition_order_status(
                     order_id=order.id,
                     target_status=OrderStatus.CONFIRMED,
                     changed_by=order.user,
-                    reason="Webhook: Payment verified and captured by Razorpay"
+                    reason=reason_text
                 )
+
+            # Clear persistent cart on successful webhook verification
+            if order.user_id:
+                try:
+                    from apps.orders.models import Cart, CartItem
+                    user_cart = Cart.objects.filter(user_id=order.user_id, is_active=True).first()
+                    if user_cart:
+                        purchased_pids = list(order.items.values_list('product_id', flat=True))
+                        CartItem.objects.filter(cart=user_cart, product_id__in=purchased_pids).delete()
+                        user_cart.save(update_fields=['updated_at'])
+                except Exception:
+                    pass
 
             try:
                 invoice = InvoiceService.create_invoice_for_order(order=order)

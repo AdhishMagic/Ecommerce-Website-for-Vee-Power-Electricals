@@ -9,6 +9,7 @@ from .views import (
     OrderCancelView,
     OrderReturnRequestView,
     AdminOrderOperationsSummaryView,
+    AdminOrderCollectCodView,
 )
 
 urlpatterns = [
@@ -18,6 +19,7 @@ urlpatterns = [
     path('', AdminOrderListView.as_view(), name='order-admin-list'),
     path('<int:pk>/', OrderDetailView.as_view(), name='order-detail'),
     path('<int:pk>/status/', AdminOrderStatusUpdateView.as_view(), name='order-status-update'),
+    path('<int:pk>/collect-cod/', AdminOrderCollectCodView.as_view(), name='order-collect-cod'),
     path('<int:pk>/cancel/', OrderCancelView.as_view(), name='order-cancel'),
     path('<int:pk>/return/', OrderReturnRequestView.as_view(), name='order-return-request'),
     path('<int:pk>/return-request/', OrderReturnRequestView.as_view(), name='order-return-request-alias'),

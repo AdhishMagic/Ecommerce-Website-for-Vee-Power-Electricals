@@ -75,5 +75,11 @@ export const ordersApi = {
       body: { reason },
     });
   },
+
+  async collectCodBalance(id: number | string): Promise<OrderDetailData> {
+    return apiClient<OrderDetailData>(`/orders/${id}/collect-cod/`, {
+      method: 'POST',
+    });
+  },
 };
 

@@ -300,7 +300,8 @@ class CartUserIsolationTestCase(APITestCase):
         self.assertIn("Invalid shipping address", res.data["detail"])
 
     def test_15_cart_cleared_upon_successful_checkout(self):
-        """When an authenticated user completes checkout, their persistent cart is automatically cleared."""
+        """When an authenticated user completes checkout and verifies payment, their persistent cart is cleared."""
+        from apps.finance.services.payment_gateway_service import PaymentGatewayService
         cart_a = CartService.get_or_create_cart(user=self.user_a)
         CartService.add_item(cart_a, self.product_x.id, 2)
         self.assertEqual(cart_a.items.count(), 1)
@@ -309,11 +310,30 @@ class CartUserIsolationTestCase(APITestCase):
         res = client.post("/api/v1/orders/checkout/", {
             "shipping_address_id": self.address_a.id,
             "items": [{"product_id": self.product_x.id, "quantity": 2}],
-            "payment_method": "COD"
+            "payment_method": "COD_50"
         }, format='json')
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        order_id = res.data["id"]
 
-        # Cart is now empty in DB
+        # Cart items are safely preserved before payment verification to allow retry
+        cart_a.refresh_from_db()
+        self.assertEqual(cart_a.items.count(), 1)
+
+        # Confirm payment for the advance
+        intent = PaymentGatewayService.initiate_order_payment(order_id, user=self.user_a, payment_method='COD_50')
+        rzp_order_id = intent['gateway_order_id']
+        rzp_pay_id = 'pay_iso_test_15'
+        sig = PaymentGatewayService.generate_signature(rzp_order_id, rzp_pay_id)
+        PaymentGatewayService.confirm_payment(
+            order_id=order_id,
+            user=self.user_a,
+            razorpay_order_id=rzp_order_id,
+            razorpay_payment_id=rzp_pay_id,
+            razorpay_signature=sig,
+            payment_method='COD_50',
+        )
+
+        # Cart is now empty in DB upon confirmed payment state
         cart_a.refresh_from_db()
         self.assertEqual(cart_a.items.count(), 0)
 

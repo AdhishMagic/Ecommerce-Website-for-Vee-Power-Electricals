@@ -21,6 +21,7 @@ class OrderStatus(models.TextChoices):
 class PaymentStatus(models.TextChoices):
     PENDING = 'Pending', 'Pending'
     PAID = 'Paid', 'Paid'
+    PARTIALLY_PAID = 'Partially Paid', 'Partially Paid'
     FAILED = 'Failed', 'Failed'
     REFUNDED = 'Refunded', 'Refunded'
 
@@ -28,6 +29,7 @@ class PaymentStatus(models.TextChoices):
 class Order(TimeStampedModel):
     """
     Customer retail purchases and corporate procurement orders adhering to canonical 10-state FSM.
+    Supports full online payment as well as 50% online advance Cash on Delivery (COD).
     """
     order_number = models.CharField(max_length=100, unique=True)
     user = models.ForeignKey(
@@ -57,6 +59,16 @@ class Order(TimeStampedModel):
     shipping_fee = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     shipping_discount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     total_amount = models.DecimalField(max_digits=12, decimal_places=2)
+
+    # Split-Payment and Cash On Delivery (COD) tracking
+    amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    outstanding_balance = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    is_cod = models.BooleanField(default=False)
+    cod_advance_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    cod_balance_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    cod_balance_collected = models.BooleanField(default=False)
+    cod_collected_at = models.DateTimeField(null=True, blank=True)
+
     status = models.CharField(
         max_length=30,
         choices=OrderStatus.choices,
@@ -83,7 +95,7 @@ class Order(TimeStampedModel):
                 name='chk_order_status'
             ),
             models.CheckConstraint(
-                check=models.Q(payment_status__in=['Pending', 'Paid', 'Failed', 'Refunded']),
+                check=models.Q(payment_status__in=['Pending', 'Paid', 'Partially Paid', 'Failed', 'Refunded']),
                 name='chk_order_pay_status'
             ),
             models.CheckConstraint(
@@ -100,6 +112,25 @@ class Order(TimeStampedModel):
 
     def __str__(self):
         return f"{self.order_number} ({self.status} - ₹{self.total_amount})"
+
+    @property
+    def latest_payment_transaction(self):
+        return self.payments.order_by('-created_at').first()
+
+    @property
+    def razorpay_order_id(self):
+        txn = self.latest_payment_transaction
+        return txn.gateway_order_id if txn else None
+
+    @property
+    def razorpay_payment_id(self):
+        txn = self.latest_payment_transaction
+        return txn.gateway_transaction_id if txn else None
+
+    @property
+    def payment_verification_status(self):
+        txn = self.latest_payment_transaction
+        return txn.status if txn else None
 
 
 class OrderItem(models.Model):

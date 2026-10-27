@@ -223,9 +223,39 @@ export default function OrderDetailView({
                 ₹{Number(order.total_amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
               </span>
             </div>
+            {order.is_cod && (
+              <div className="pt-2 border-t border-dashed border-slate-200 space-y-1.5 text-xs">
+                <div className="flex justify-between text-emerald-700 font-medium">
+                  <span>50% Advance Paid Online:</span>
+                  <span>
+                    ₹{Number(order.amount_paid || order.cod_advance_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="flex justify-between text-amber-700 font-medium">
+                  <span>Remaining Balance Due on Delivery:</span>
+                  <span>
+                    ₹{Number(order.outstanding_balance || order.cod_balance_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="flex justify-between text-[11px] text-[#667085] pt-0.5">
+                  <span>COD Collection Status:</span>
+                  <span className={order.cod_balance_collected ? "text-emerald-700 font-semibold" : "text-amber-700 font-medium"}>
+                    {order.cod_balance_collected ? "✓ Collected upon Delivery" : "⏳ Due in Cash upon Delivery"}
+                  </span>
+                </div>
+              </div>
+            )}
             <div className="pt-2 text-xs text-[#667085] flex items-center justify-between border-t border-slate-200 flex-wrap gap-1">
               <span>Payment Method: {order.payment_method || "N/A"}</span>
-              <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/60">
+              <span
+                className={`font-semibold px-2 py-0.5 rounded border ${
+                  order.payment_status === "Paid"
+                    ? "text-emerald-700 bg-emerald-50 border-emerald-200/60"
+                    : order.payment_status === "Partially Paid"
+                    ? "text-blue-700 bg-blue-50 border-blue-200/60"
+                    : "text-amber-700 bg-amber-50 border-amber-200/60"
+                }`}
+              >
                 {order.payment_status || "Pending"}
               </span>
             </div>
