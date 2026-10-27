@@ -1,6 +1,7 @@
 from decimal import Decimal
 from django.db import models
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from apps.common.models import TimeStampedModel
 
 
@@ -176,3 +177,99 @@ class OrderStatusHistory(models.Model):
 
     def __str__(self):
         return f"{self.order.order_number}: {self.previous_status} -> {self.new_status}"
+
+
+class Cart(TimeStampedModel):
+    """
+    Persistent shopping cart strictly owned by an authenticated user or guest session.
+    Enforces at most one active cart per authenticated user in the database.
+    """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='carts'
+    )
+    session_key = models.CharField(max_length=100, null=True, blank=True, db_index=True)
+    is_active = models.BooleanField(default=True)
+    active_user_id = models.GeneratedField(
+        expression=models.Case(
+            models.When(is_active=True, then=models.F('user_id')),
+            default=None
+        ),
+        output_field=models.BigIntegerField(null=True),
+        db_persist=True,
+        unique=True
+    )
+
+    class Meta:
+        db_table = 'carts'
+        verbose_name = 'Cart'
+        verbose_name_plural = 'Carts'
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(user__isnull=False) | models.Q(session_key__isnull=False),
+                name='chk_cart_has_owner'
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['user', 'is_active'], name='idx_cart_user_active'),
+            models.Index(fields=['session_key', 'is_active'], name='idx_cart_session_active'),
+        ]
+
+    def __str__(self):
+        owner = f"User {self.user_id}" if self.user_id else f"Session {self.session_key}"
+        return f"Cart #{self.id} ({owner}, active={self.is_active})"
+
+    def clean(self):
+        super().clean()
+        if not self.user_id and not self.session_key:
+            raise ValidationError("Cart must have either an authenticated user or a session key.")
+
+    def validate_unique(self, exclude=None):
+        exclude_list = list(exclude or [])
+        if 'active_user_id' not in exclude_list:
+            exclude_list.append('active_user_id')
+        super().validate_unique(exclude=exclude_list)
+
+
+class CartItem(TimeStampedModel):
+    """
+    Line item in a shopping cart associated with a product and quantity.
+    Strictly isolated and validated through the parent Cart.
+    """
+    cart = models.ForeignKey(
+        Cart,
+        on_delete=models.CASCADE,
+        related_name='items'
+    )
+    product = models.ForeignKey(
+        'products.Product',
+        on_delete=models.CASCADE,
+        related_name='cart_items'
+    )
+    quantity = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = 'cart_items'
+        verbose_name = 'Cart Item'
+        verbose_name_plural = 'Cart Items'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['cart', 'product'],
+                name='uniq_cart_product'
+            ),
+            models.CheckConstraint(
+                check=models.Q(quantity__gte=1),
+                name='chk_cart_item_qty'
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['cart'], name='idx_cart_item_cart'),
+            models.Index(fields=['product'], name='idx_cart_item_product'),
+        ]
+
+    def __str__(self):
+        return f"Cart #{self.cart_id} - {self.product.name} x {self.quantity}"
+

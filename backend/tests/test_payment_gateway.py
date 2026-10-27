@@ -139,7 +139,7 @@ class PaymentGatewayTests(TestCase):
         # 1230.00 INR = 123000 paise
         self.assertEqual(res.data['amount'], 123000)
         self.assertEqual(res.data['amount_inr'], '1230.00')
-        self.assertTrue(res.data['gateway_order_id'].startswith('order_rzp_'))
+        self.assertTrue(res.data['gateway_order_id'].startswith('order_'))
 
         # Verify PaymentTransaction record created
         txn = PaymentTransaction.objects.get(order=self.order1)

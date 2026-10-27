@@ -60,6 +60,65 @@ export default function OrderSuccess() {
           </div>
         </div>
 
+        {/* Server-Controlled Razorpay Payment Handle Fallback Banner */}
+        {(order?.payment_method?.toUpperCase().includes('HANDLE') || location.state?.isPaymentHandle) && order?.payment_status !== 'Paid' && (
+          <div className="bg-[#FFFBEB] border-2 border-[#FCD34D] rounded-xl p-6 mb-8 text-left shadow-xs">
+            <div className="flex items-start gap-3.5">
+              <span className="text-3xl flex-shrink-0">🔗</span>
+              <div className="flex-1">
+                <h3 className="font-bold text-[#92400E] text-lg font-['Outfit']">Complete Payment via Razorpay</h3>
+                <p className="text-sm text-[#B45309] mt-1.5 leading-relaxed">
+                  Your order has been recorded in <strong className="font-semibold">Pending Payment</strong> status and your items are reserved.
+                  Please complete the payment of <strong className="text-[#0B3A63] font-bold">₹{totalAmount}</strong> using our verified Razorpay payment handle.
+                </p>
+
+                <div className="bg-white border border-[#FCD34D] rounded-xl p-4 my-4 space-y-2 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-slate-500 font-medium">Payment Destination:</span>
+                    <a
+                      href={location.state?.paymentHandleUrl || "https://razorpay.me/@veepowerelectricals"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono font-bold text-[#1769AA] hover:underline flex items-center gap-1"
+                    >
+                      {location.state?.paymentHandleUrl || "https://razorpay.me/@veepowerelectricals"} ↗
+                    </a>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2">
+                    <span className="text-slate-500 font-medium">Reference to enter on Razorpay:</span>
+                    <span className="font-mono font-bold text-[#0B3A63] bg-slate-100 px-2 py-0.5 rounded">{orderNumber}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2">
+                    <span className="text-slate-500 font-medium">Payable Amount:</span>
+                    <span className="font-bold text-[#12773D] text-sm">₹{totalAmount}</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <a
+                    href={location.state?.paymentHandleUrl || "https://razorpay.me/@veepowerelectricals"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 bg-[#1769AA] hover:bg-[#0B3A63] text-white font-bold text-sm px-6 py-3 rounded-xl transition-colors shadow-sm"
+                  >
+                    <span>💳</span> Open Razorpay Payment Link ↗
+                  </a>
+                </div>
+
+                <div className="mt-4 p-3 bg-amber-50/80 rounded-lg border border-amber-200/60 text-[11px] text-amber-900 space-y-1">
+                  <p className="font-bold flex items-center gap-1">
+                    <span>⚠️</span> Notice Regarding Payment Reconciliation:
+                  </p>
+                  <p>
+                    Opening this link or submitting a payment screenshot does not automatically mark your order as paid.
+                    Our accounts team verifies and reconciles handle payments against order number <span className="font-mono font-bold">{orderNumber}</span> before order packing and dispatch.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Canonical timeline preview */}
         <div className="flex items-center justify-center gap-0 mb-8">
           {["Placed", "Confirmed", "Packed", "Shipped", "Delivered"].map((status, i) => (

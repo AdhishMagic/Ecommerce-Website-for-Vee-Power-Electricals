@@ -23,6 +23,7 @@ from apps.orders.services.order_workflow_service import OrderWorkflowService
 from apps.finance.services.invoice_service import InvoiceService
 
 
+import sys
 import logging
 
 logger = logging.getLogger('apps.finance.payments')
@@ -36,15 +37,36 @@ class PaymentGatewayService:
 
     @classmethod
     def get_key_id(cls) -> str:
-        return getattr(settings, 'RAZORPAY_KEY_ID', 'rzp_test_mock_veepower_key')
+        val = getattr(settings, 'RAZORPAY_KEY_ID', '') or ''
+        return val.strip()
 
     @classmethod
     def get_key_secret(cls) -> str:
-        return getattr(settings, 'RAZORPAY_KEY_SECRET', 'mock_veepower_secret_key_12345')
+        val = getattr(settings, 'RAZORPAY_KEY_SECRET', '') or ''
+        if not val.strip() and (getattr(settings, 'DEBUG', False) or getattr(settings, 'TESTING', False) or 'test' in sys.argv):
+            return 'mock_veepower_secret_key_12345'
+        return val.strip()
 
     @classmethod
     def get_webhook_secret(cls) -> str:
-        return getattr(settings, 'RAZORPAY_WEBHOOK_SECRET', 'mock_veepower_webhook_secret_67890')
+        val = getattr(settings, 'RAZORPAY_WEBHOOK_SECRET', '') or ''
+        if not val.strip() and (getattr(settings, 'DEBUG', False) or getattr(settings, 'TESTING', False) or 'test' in sys.argv):
+            return 'mock_veepower_webhook_secret_67890'
+        return val.strip()
+
+    @classmethod
+    def get_payment_handle(cls) -> str:
+        return getattr(settings, 'RAZORPAY_PAYMENT_HANDLE', 'https://razorpay.me/@veepowerelectricals')
+
+    @classmethod
+    def is_gateway_configured(cls) -> bool:
+        key_id = (cls.get_key_id() or '').strip()
+        key_secret = (cls.get_key_secret() or '').strip()
+        if not key_id or not key_secret:
+            return False
+        if 'mock' in key_id.lower() or 'replace' in key_id.lower() or 'your_' in key_id.lower():
+            return False
+        return True
 
     @classmethod
     def is_mock(cls) -> bool:
@@ -52,7 +74,7 @@ class PaymentGatewayService:
         key_secret = (cls.get_key_secret() or '').strip()
         if not key_id or not key_secret:
             return True
-        return 'mock' in key_id.lower() or 'mock' in key_secret.lower()
+        return 'mock' in key_id.lower() or 'mock' in key_secret.lower() or 'replace' in key_id.lower() or 'your_' in key_id.lower()
 
     @classmethod
     def is_live(cls) -> bool:
@@ -93,8 +115,8 @@ class PaymentGatewayService:
 
         # Calculate authoritative amount in paise (1 INR = 100 paise)
         amount_in_paise = int(order.total_amount * 100)
-        if amount_in_paise <= 0:
-            raise ValidationError("Invalid order payable amount.")
+        if amount_in_paise < 100:
+            raise ValidationError("Payable amount must be at least 100 paise (1 INR).")
 
         # Generate or retrieve Gateway Order ID
         gateway_order_id = None
@@ -115,7 +137,9 @@ class PaymentGatewayService:
         else:
             if not cls.is_mock() and key_id and key_secret:
                 try:
-                    payload = json.dumps({
+                    import razorpay
+                    client = razorpay.Client(auth=(key_id, key_secret))
+                    payload = {
                         "amount": amount_in_paise,
                         "currency": "INR",
                         "receipt": order.order_number,
@@ -123,31 +147,16 @@ class PaymentGatewayService:
                             "order_id": str(order.id),
                             "customer_email": order.customer_email or '',
                         }
-                    }).encode('utf-8')
-
-                    req = urllib.request.Request(
-                        "https://api.razorpay.com/v1/orders",
-                        data=payload,
-                        headers={
-                            "Content-Type": "application/json",
-                            "Authorization": "Basic " + base64.b64encode(f"{key_id}:{key_secret}".encode()).decode()
-                        }
-                    )
-                    with urllib.request.urlopen(req, timeout=10) as response:
-                        res_data = json.loads(response.read().decode('utf-8'))
-                        gateway_order_id = res_data.get('id')
+                    }
+                    res_data = client.order.create(data=payload)
+                    gateway_order_id = res_data.get('id')
                     logger.info("Created Razorpay gateway order %s for order %s", gateway_order_id, order.order_number)
-                except urllib.error.HTTPError as e:
-                    err_msg = e.read().decode('utf-8', errors='ignore') if e.fp else str(e)
-                    logger.error("Razorpay order API error for order %s (HTTP %s): %s", order.order_number, e.code, err_msg)
-                    if cls.is_live():
-                        raise ValidationError(f"Payment gateway order initialization failed (HTTP {e.code}). Please try again.")
-                    gateway_order_id = f"order_rzp_{uuid.uuid4().hex[:14]}"
                 except Exception as e:
-                    logger.error("Razorpay order connection error for order %s: %s", order.order_number, str(e))
-                    if cls.is_live():
-                        raise ValidationError("Payment gateway is temporarily unavailable. Please try again.")
-                    gateway_order_id = f"order_rzp_{uuid.uuid4().hex[:14]}"
+                    err_msg = str(e)
+                    logger.error("Razorpay order API error for order %s: %s", order.order_number, err_msg)
+                    if 'auth' in err_msg.lower() or '401' in err_msg:
+                        raise ValidationError("Razorpay authentication failed. Please check credentials.")
+                    raise ValidationError(f"Payment gateway order initialization failed: {err_msg}")
             else:
                 gateway_order_id = f"order_rzp_mock_{order.id}_{uuid.uuid4().hex[:8]}"
 

@@ -8,3 +8,7 @@ export * from './finance';
 export * from './inquiries';
 export * from './config';
 export * from './customers';
+export * from './cart';
+export * from './payments';
+export * from './settings';
+

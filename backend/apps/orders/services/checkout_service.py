@@ -178,7 +178,19 @@ class CheckoutService:
             reason="Customer placed order at checkout",
         )
 
-        # 8. Dispatch Order Placed notification
+        # 8. Clear Purchased Items from User's Persistent Database Cart
+        if user and getattr(user, 'is_authenticated', False):
+            try:
+                from apps.orders.models import Cart, CartItem
+                user_cart = Cart.objects.filter(user=user, is_active=True).first()
+                if user_cart:
+                    purchased_product_ids = [item['product_id'] for item in items_data]
+                    CartItem.objects.filter(cart=user_cart, product_id__in=purchased_product_ids).delete()
+                    user_cart.save(update_fields=['updated_at'])
+            except Exception:
+                pass
+
+        # 9. Dispatch Order Placed notification
         try:
             from apps.core.services.communication_service import CommunicationService
             CommunicationService.send_order_placed(order=order)

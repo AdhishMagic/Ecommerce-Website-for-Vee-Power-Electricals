@@ -28,6 +28,19 @@ export default function Checkout() {
   const [paymentLifecycle, setPaymentLifecycle] = useState<PaymentLifecycle>('idle');
   const [paymentErrorMessage, setPaymentErrorMessage] = useState<string>("");
   const [activePaymentIntent, setActivePaymentIntent] = useState<PaymentIntentResponse | null>(null);
+  const [paymentConfig, setPaymentConfig] = useState<{
+    key_id: string;
+    payment_handle: string;
+    is_live: boolean;
+    gateway_enabled: boolean;
+    currency: string;
+  }>({
+    key_id: '',
+    payment_handle: 'https://razorpay.me/@veepowerelectricals',
+    is_live: false,
+    gateway_enabled: true,
+    currency: 'INR',
+  });
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -75,11 +88,15 @@ export default function Checkout() {
     let isMounted = true;
     const loadInitial = async () => {
       try {
-        const [addrs, configs] = await Promise.all([
+        const [addrs, configs, payCfg] = await Promise.all([
           addressesApi.getAddresses(),
           configApi.getDeliveryConfig(),
+          paymentsApi.getPaymentConfig().catch(() => null),
         ]);
         if (isMounted) {
+          if (payCfg) {
+            setPaymentConfig(payCfg);
+          }
           setSavedAddresses(addrs);
           if (addrs.length > 0) {
             const def = addrs.find(a => a.is_default) || addrs[0];
@@ -381,6 +398,19 @@ export default function Checkout() {
         navigate("/order-success", { state: { order: createdOrder } });
         return;
       }
+
+      if (paymentMethod.toLowerCase() === 'razorpay_handle') {
+        if (isSingleItem && singleItemState?.singleItem) {
+          removeFromCart(singleItemState.singleItem);
+        } else {
+          clearCart();
+        }
+        const handleUrl = paymentConfig.payment_handle || 'https://razorpay.me/@veepowerelectricals';
+        window.open(handleUrl, '_blank', 'noopener,noreferrer');
+        navigate("/order-success", { state: { order: createdOrder, isPaymentHandle: true, paymentHandleUrl: handleUrl } });
+        return;
+      }
+
       await launchRazorpayCheckout(createdOrder);
       return;
     }
@@ -411,6 +441,19 @@ export default function Checkout() {
           clearCart();
         }
         navigate("/order-success", { state: { order } });
+        return;
+      }
+
+      // Razorpay Payment Handle Fallback
+      if (paymentMethod.toLowerCase() === 'razorpay_handle') {
+        if (isSingleItem && singleItemState?.singleItem) {
+          removeFromCart(singleItemState.singleItem);
+        } else {
+          clearCart();
+        }
+        const handleUrl = paymentConfig.payment_handle || 'https://razorpay.me/@veepowerelectricals';
+        window.open(handleUrl, '_blank', 'noopener,noreferrer');
+        navigate("/order-success", { state: { order, isPaymentHandle: true, paymentHandleUrl: handleUrl } });
         return;
       }
 
@@ -702,6 +745,14 @@ export default function Checkout() {
                         >
                           Change Method
                         </button>
+                        <a
+                          href={paymentConfig.payment_handle || "https://razorpay.me/@veepowerelectricals"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-white border border-[#D9E1E8] hover:border-[#1769AA] text-[#0B3A63] text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors inline-flex items-center gap-1.5"
+                        >
+                          Pay via Razorpay Handle ↗
+                        </a>
                         <Link
                           to="/account/orders"
                           className="text-xs font-semibold text-[#1769AA] hover:underline ml-1"
@@ -743,6 +794,14 @@ export default function Checkout() {
                         >
                           Switch Payment Method
                         </button>
+                        <a
+                          href={paymentConfig.payment_handle || "https://razorpay.me/@veepowerelectricals"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-white border border-[#D9E1E8] hover:border-[#1769AA] text-[#0B3A63] text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors inline-flex items-center gap-1.5"
+                        >
+                          Pay via Razorpay Handle ↗
+                        </a>
                         <Link
                           to="/account/orders"
                           className="text-xs font-semibold text-[#1769AA] hover:underline ml-1"
@@ -789,10 +848,11 @@ export default function Checkout() {
 
               <div className="space-y-3 mb-6">
                 {[
-                  { id: "upi", label: "UPI / QR Code", desc: "PhonePe, GPay, Paytm, BHIM UPI", icon: "📱" },
-                  { id: "card", label: "Credit / Debit Card", desc: "Visa, Mastercard, RuPay", icon: "💳" },
-                  { id: "netbanking", label: "Net Banking", desc: "All major banks supported", icon: "🏦" },
-                  { id: "cod", label: "Cash on Delivery", desc: "Pay when your order arrives", icon: "💵" },
+                  { id: "upi", label: "UPI / QR Code (Razorpay)", desc: "PhonePe, Google Pay, Paytm, BHIM UPI", icon: "📱" },
+                  { id: "card", label: "Credit / Debit Card (Razorpay)", desc: "Visa, Mastercard, RuPay, Maestro", icon: "💳" },
+                  { id: "netbanking", label: "Net Banking (Razorpay)", desc: "All major Indian banks supported", icon: "🏦" },
+                  { id: "razorpay_handle", label: "Pay via Razorpay Handle (@veepowerelectricals)", desc: "Direct Razorpay handle (razorpay.me/@veepowerelectricals) with manual verification", icon: "🔗" },
+                  { id: "cod", label: "Cash on Delivery", desc: "Pay in cash upon physical delivery", icon: "💵" },
                 ].map(method => (
                   <label key={method.id} className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${paymentMethod === method.id ? "border-[#1769AA] bg-[#EFF6FF]" : "border-[#D9E1E8] hover:border-[#1769AA]/50"}`}>
                     <input type="radio" name="payment" value={method.id} checked={paymentMethod === method.id} onChange={(e) => setPaymentMethod(e.target.value)} className="accent-[#1769AA]" />
@@ -804,6 +864,28 @@ export default function Checkout() {
                   </label>
                 ))}
               </div>
+
+              {/* Server-Controlled Razorpay Handle Guidance */}
+              {paymentMethod === 'razorpay_handle' && (
+                <div className="mb-6 p-5 bg-[#EFF6FF] border border-[#BFDBFE] rounded-xl text-left space-y-2.5 text-xs">
+                  <div className="flex items-center gap-2 font-bold text-sm text-[#0B3A63]">
+                    <span>🔗</span> Server-Controlled Razorpay Payment Destination
+                  </div>
+                  <p className="text-[#1E40AF] leading-relaxed">
+                    Your order will be created and recorded in <strong className="font-semibold">Pending Payment</strong> status with inventory reserved.
+                    Clicking <strong>Place Order & Pay via Razorpay</strong> will securely open <a href={paymentConfig.payment_handle || "https://razorpay.me/@veepowerelectricals"} target="_blank" rel="noopener noreferrer" className="font-mono font-bold underline">{paymentConfig.payment_handle || "https://razorpay.me/@veepowerelectricals"}</a> in a new tab.
+                  </p>
+                  <div className="bg-white border border-[#93C5FD] rounded-lg p-3.5 text-[11px] text-slate-700 space-y-1.5">
+                    <p className="font-bold text-[#0B3A63]">Customer Payment Instructions:</p>
+                    <p>1. Open the verified Razorpay payment handle in the new window.</p>
+                    <p>2. Enter the exact order total of <strong className="font-bold text-[#0B3A63]">₹{previewTotal.toLocaleString("en-IN")}</strong>.</p>
+                    <p>3. Enter your generated <strong>Order Number</strong> in the Razorpay payment description/note.</p>
+                    <p className="text-amber-800 font-semibold pt-1 border-t border-slate-100">
+                      ⚠️ Notice: Clicking the link or submitting a screenshot does NOT automatically mark your order as paid. Our finance team manually verifies and reconciles handle receipts before dispatching.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Coupon Code Input */}
               {!createdOrder && (
@@ -864,6 +946,8 @@ export default function Checkout() {
                       <div className="w-5 h-5 border-2 border-[#0A2540] border-t-transparent rounded-full animate-spin"></div>
                       <span>Verifying payment…</span>
                     </>
+                  ) : paymentMethod === 'razorpay_handle' ? (
+                    `Place Order & Pay via Razorpay ↗ · ₹${previewTotal.toLocaleString("en-IN")}`
                   ) : createdOrder ? (
                     paymentLifecycle === 'cancelled' || paymentLifecycle === 'failed' ? (
                       `⚡ Retry Payment · ₹${Number(createdOrder.total_amount).toLocaleString("en-IN")}`

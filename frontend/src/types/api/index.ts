@@ -870,4 +870,40 @@ export interface SystemInformation {
   last_migration: LastMigration | null;
 }
 
+export interface ApiCartItemProduct {
+  id: number;
+  name: string;
+  slug: string;
+  sku: string;
+  brand: string;
+  category: string;
+  mrp: string | number;
+  price: string | number;
+  stock: number;
+  in_stock: boolean;
+  primary_image?: string;
+  active: boolean;
+}
+
+export interface ApiCartItem {
+  id: number;
+  product: ApiCartItemProduct;
+  quantity: number;
+  unit_price: string;
+  subtotal: string;
+  is_in_stock: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApiCart {
+  id: number;
+  items: ApiCartItem[];
+  total_items: number;
+  subtotal: string;
+  is_active: boolean;
+  updated_at: string;
+}
+
+
 

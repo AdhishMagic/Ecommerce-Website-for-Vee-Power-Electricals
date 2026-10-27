@@ -7,7 +7,7 @@ import {
   isInappropriateOrPlaceholderImage,
 } from '../utils/productImageResolver';
 
-const mapApiProductToProduct = (item: ProductSummary | ProductDetail): Product => {
+export const mapApiProductToProduct = (item: ProductSummary | ProductDetail | any): Product => {
   const brandName =
     typeof item.brand === 'object' && item.brand !== null
       ? (item.brand as any).name

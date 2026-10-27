@@ -190,6 +190,7 @@ export const clearAuthStorage = (): void => {
   localStorage.removeItem(STORAGE_KEYS.LEGACY_TOKEN);
   localStorage.removeItem(STORAGE_KEYS.USER);
   localStorage.removeItem(STORAGE_KEYS.ROLE);
+  localStorage.removeItem('vp_cart_items');
 
   sessionStorage.removeItem('vp_token');
   sessionStorage.removeItem('vp_refresh_token');

@@ -5,11 +5,19 @@ from django.conf.urls.static import static
 
 from apps.common.views_health import health_check
 from apps.users.views import GoogleOAuthCallbackView, GoogleOAuthInitView
+from apps.finance.views_payment import StandardCreateOrderView, StandardVerifyPaymentView, PaymentConfigView
 
 urlpatterns = [
     path('health/', health_check, name='health_check'),
     path('api/v1/health/', health_check, name='api_health_check'),
     path('admin/', admin.site.urls),
+    # Razorpay Standard Checkout endpoints
+    path('api/payments-config', PaymentConfigView.as_view(), name='api-payments-config-noslash'),
+    path('api/payments-config/', PaymentConfigView.as_view(), name='api-payments-config'),
+    path('api/create-order', StandardCreateOrderView.as_view(), name='api-create-order-noslash'),
+    path('api/create-order/', StandardCreateOrderView.as_view(), name='api-create-order'),
+    path('api/verify-payment', StandardVerifyPaymentView.as_view(), name='api-verify-payment-noslash'),
+    path('api/verify-payment/', StandardVerifyPaymentView.as_view(), name='api-verify-payment'),
     # Top-level OAuth 2.0 endpoints for Google redirect URIs
     path('auth/google/login/', GoogleOAuthInitView.as_view(), name='root-auth-google-login'),
     path('auth/google/callback/', GoogleOAuthCallbackView.as_view(), name='root-auth-google-callback'),
@@ -18,6 +26,7 @@ urlpatterns = [
     path('api/v1/catalog/', include('apps.products.urls')),
     path('api/v1/inventory/', include('apps.inventory.urls')),
     path('api/v1/addresses/', include('apps.users.urls_address')),
+    path('api/v1/cart/', include('apps.orders.urls_cart')),
     path('api/v1/orders/', include('apps.orders.urls')),
     path('api/v1/finance/', include('apps.finance.urls')),
     path('api/v1/expenses/', include('apps.finance.urls_expenses')),

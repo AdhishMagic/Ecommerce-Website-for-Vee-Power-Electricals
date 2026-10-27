@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test:integration": "node tests/integration.test.mjs",
     "test:dashboard": "node tests/dashboard_metrics.test.mjs",
+    "test:razorpay": "node tests/razorpay_checkout_flow.test.mjs",
+    "test:isolation": "node tests/cart_user_isolation_live.mjs && node tests/cart_frontend_switching.test.mjs",
     "format": "oxfmt"
   },
   "dependencies": {

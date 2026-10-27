@@ -303,6 +303,7 @@ GOOGLE_ADMIN_EMAILS = os.getenv(
 RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID', 'rzp_test_mock_veepower_key')
 RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET', 'mock_veepower_secret_key_12345')
 RAZORPAY_WEBHOOK_SECRET = os.getenv('RAZORPAY_WEBHOOK_SECRET', 'mock_veepower_webhook_secret_67890')
+RAZORPAY_PAYMENT_HANDLE = os.getenv('RAZORPAY_PAYMENT_HANDLE', 'https://razorpay.me/@veepowerelectricals')
 
 # Structured Logging with Correlation Request ID
 LOGGING = {
