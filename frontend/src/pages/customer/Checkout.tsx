@@ -290,7 +290,7 @@ export default function Checkout() {
     setPaymentErrorMessage("");
 
     try {
-      const backendPaymentMethod = isCOD ? 'COD' : paymentMethod.toUpperCase();
+      const backendPaymentMethod = paymentMethod.toUpperCase();
       // Parallelize payment intent initiation with Razorpay SDK script readiness
       const [paymentIntent, isLoaded] = await Promise.all([
         paymentsApi.initiatePayment(
@@ -302,7 +302,7 @@ export default function Checkout() {
 
       setActivePaymentIntent(paymentIntent);
 
-      const effectiveKeyId = paymentIntent.key_id || paymentConfig?.key_id || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_U0ScqWFimQ5AV8';
+      const effectiveKeyId = paymentIntent.key_id || paymentConfig?.key_id || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_live_U0UDkfEwDcShnF';
 
       // If server is in mock/sandbox mode without real Razorpay keys, launch interactive simulator
       if (isMockRazorpayKey(effectiveKeyId)) {

@@ -23,6 +23,8 @@ venv/
 *.pem
 *.crt
 *.key
+*.csv
+rzp-key.csv
 *.publishsettings
 
 # Database & Cache
