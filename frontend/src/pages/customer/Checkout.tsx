@@ -17,10 +17,6 @@ export default function Checkout() {
   const { items: cartItems, subtotal: cartSubtotal, clearCart, removeFromCart } = useCart();
   const [step, setStep] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState("upi");
-  const [couponCode, setCouponCode] = useState("");
-  const [couponDiscount, setCouponDiscount] = useState<number>(0);
-  const [couponMessage, setCouponMessage] = useState<string>("");
-  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
 
   // Hardened Payment State & Order Persistence
@@ -128,16 +124,11 @@ export default function Checkout() {
   const baseShippingFee = deliveryConfig ? Number(deliveryConfig.base_delivery_charge) : 99;
   const shipping = checkoutSubtotal >= freeThreshold ? 0 : baseShippingFee;
   const estimatedTax = Math.round(checkoutSubtotal * 0.18);
-  const previewTotal = Math.max(0, checkoutSubtotal - couponDiscount) + shipping + estimatedTax;
+  const previewTotal = checkoutSubtotal + shipping + estimatedTax;
 
-  // Decimal-safe 50% COD split-payment calculations
   const effectiveTotal = createdOrder ? Number(createdOrder.total_amount) : previewTotal;
-  const isCOD = paymentMethod === 'cod_50' || paymentMethod.toLowerCase() === 'cod';
-  // A = T * 50% (rounded half up to currency precision)
-  // B = T - A (exact remainder guaranteeing A + B = T)
-  const advanceAmount = Math.round(effectiveTotal * 0.5 * 100) / 100;
-  const codBalanceAmount = Math.round((effectiveTotal - advanceAmount) * 100) / 100;
-  const payableAmount = isCOD ? advanceAmount : effectiveTotal;
+  const isCOD = false;
+  const payableAmount = effectiveTotal;
 
   const PAYMENT_OPTIONS = [
     {
@@ -181,42 +172,7 @@ export default function Checkout() {
         </svg>
       ),
     },
-    {
-      id: "cod_50",
-      title: "Cash on Delivery · 50% Advance",
-      subtitle: "Pay 50% online now and the remaining 50% upon delivery.",
-      badge: "50% Online + 50% Cash",
-      icon: (
-        <svg className="w-5 h-5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-          <rect x="2" y="6" width="20" height="12" rx="2" />
-          <circle cx="12" cy="12" r="3" />
-          <path d="M6 12h.01M18 12h.01" />
-        </svg>
-      ),
-    },
   ];
-
-  const handleApplyCoupon = async () => {
-    if (!couponCode.trim()) return;
-    setIsApplyingCoupon(true);
-    setCouponMessage("");
-    try {
-      const res = await configApi.validateCoupon(couponCode, checkoutSubtotal);
-      if (res.valid) {
-        const disc = Number(res.calculated_discount) || 0;
-        setCouponDiscount(disc);
-        setCouponMessage(`✓ Coupon applied! ₹${disc} discount.`);
-      } else {
-        setCouponDiscount(0);
-        setCouponMessage(res.detail || "Invalid coupon code.");
-      }
-    } catch (err: any) {
-      setCouponDiscount(0);
-      setCouponMessage(err?.message || "Coupon is invalid or expired.");
-    } finally {
-      setIsApplyingCoupon(false);
-    }
-  };
 
   const handleContinueToReview = async () => {
     setValidationError("");
@@ -362,20 +318,12 @@ export default function Checkout() {
         setPaymentLifecycle('gateway_open');
         setIsSubmittingOrder(false);
 
-        const isOrderCod = Boolean(paymentIntent.is_cod || isCOD);
-        const advanceFormatted = Number(paymentIntent.advance_amount || advanceAmount).toLocaleString('en-IN', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        });
-
         const options: any = {
           key: effectiveKeyId,
-          amount: paymentIntent.amount, // Authoritative paise calculated server-side (advance for COD, total otherwise)
+          amount: paymentIntent.amount, // Authoritative paise calculated server-side
           currency: paymentIntent.currency || "INR",
           name: "Vee Power Electricals",
-          description: isOrderCod
-            ? `Order #${targetOrder.order_number} · 50% Online Advance (₹${advanceFormatted})`
-            : `Order #${targetOrder.order_number}`,
+          description: `Order #${targetOrder.order_number}`,
           prefill: {
             name: paymentIntent.customer_name || targetOrder.customer_name || activeShippingAddr?.recipient_name || '',
             email: paymentIntent.customer_email || targetOrder.customer_email || '',
@@ -386,7 +334,6 @@ export default function Checkout() {
           },
           notes: {
             order_id: String(targetOrder.id),
-            is_cod: String(isOrderCod),
           },
           theme: {
             color: "#0B3A63",
@@ -465,12 +412,11 @@ export default function Checkout() {
     }));
 
     try {
-      const backendPaymentMethod = isCOD ? 'COD' : paymentMethod.toUpperCase();
+      const backendPaymentMethod = paymentMethod.toUpperCase();
       const order = await ordersApi.checkout({
         shipping_address_id: selectedAddressId,
         items: orderItems,
         payment_method: backendPaymentMethod,
-        coupon_code: couponDiscount > 0 ? couponCode : undefined,
       });
 
       setCreatedOrder(order);
@@ -849,70 +795,6 @@ export default function Checkout() {
                 })}
               </div>
 
-              {/* Dynamic Split-Payment Breakdown for COD */}
-              {isCOD && (
-                <div className="mb-6 p-4.5 rounded-xl bg-gradient-to-br from-[#EFF6FF] to-[#F0FDF4] border border-[#BFDBFE] text-left">
-                  <div className="flex items-center gap-2 mb-2.5">
-                    <span className="text-lg">💵</span>
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-[#0B3A63] font-['Outfit']">
-                      Cash on Delivery · 50% Online Advance Breakdown
-                    </h4>
-                  </div>
-                  <div className="space-y-2 text-xs text-slate-700 bg-white/80 p-3.5 rounded-xl border border-blue-200/50">
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-600">Final Order Total:</span>
-                      <span className="font-bold text-slate-900 text-sm">
-                        ₹{effectiveTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center font-bold text-[#1769AA] text-sm pt-2 border-t border-slate-200">
-                      <span>50% Advance Payable Online Now:</span>
-                      <span>
-                        ₹{advanceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-[#B45309] font-semibold text-xs pt-1">
-                      <span>Remaining COD Balance Due on Delivery:</span>
-                      <span>
-                        ₹{codBalanceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="text-[11px] text-slate-600 mt-2.5 leading-relaxed">
-                    Pay <strong>₹{advanceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> securely online now through Razorpay Checkout to confirm your order. The remaining <strong>₹{codBalanceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> is payable in cash upon doorstep delivery.
-                  </p>
-                </div>
-              )}
-
-              {/* Coupon Code Input */}
-              {!createdOrder && (
-                <div className="mb-6 p-4 bg-[#F6F8FA] rounded-xl border border-[#D9E1E8]">
-                  <h4 className="font-semibold text-xs text-[#0B3A63] uppercase tracking-wider mb-2">Have a Promotional Coupon?</h4>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Enter coupon code (e.g. WELCOME10)"
-                      value={couponCode}
-                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                      className="flex-1 px-3 py-2 border border-[#D9E1E8] rounded-lg text-sm uppercase outline-none focus:border-[#1769AA]"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleApplyCoupon}
-                      disabled={isApplyingCoupon || !couponCode.trim()}
-                      className="px-4 py-2 bg-[#1769AA] text-white text-sm font-semibold rounded-lg hover:bg-[#0B3A63] transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      {isApplyingCoupon ? "Validating..." : "Apply"}
-                    </button>
-                  </div>
-                  {couponMessage && (
-                    <p className={`text-xs mt-2 font-medium ${couponDiscount > 0 ? 'text-[#12773D]' : 'text-[#C0392B]'}`}>
-                      {couponMessage}
-                    </p>
-                  )}
-                </div>
-              )}
-
               <div className="flex gap-3">
                 <button
                   type="button"
@@ -944,13 +826,7 @@ export default function Checkout() {
                       <span>Verifying payment…</span>
                     </>
                   ) : createdOrder && (paymentLifecycle === 'cancelled' || paymentLifecycle === 'failed') ? (
-                    isCOD ? (
-                      `⚡ Retry Pay ₹${advanceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Advance`
-                    ) : (
-                      `⚡ Retry Pay ₹${effectiveTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                    )
-                  ) : isCOD ? (
-                    `Pay ₹${advanceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Advance & Place Order`
+                    `⚡ Retry Pay ₹${effectiveTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                   ) : (
                     `Pay ₹${effectiveTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} & Place Order`
                   )}
@@ -1083,12 +959,6 @@ export default function Checkout() {
               <span>Items ({checkoutItems.length})</span>
               <span>₹{checkoutSubtotal.toLocaleString("en-IN")}</span>
             </div>
-            {couponDiscount > 0 && (
-              <div className="flex justify-between text-[#12773D] font-medium">
-                <span>Coupon Discount</span>
-                <span>−₹{couponDiscount.toLocaleString("en-IN")}</span>
-              </div>
-            )}
             <div className="flex justify-between text-[#667085]">
               <span>Delivery Charge</span>
               <span className={shipping === 0 ? "text-[#12773D] font-bold" : "font-medium"}>
@@ -1100,28 +970,11 @@ export default function Checkout() {
               <span>₹{estimatedTax.toLocaleString("en-IN")}</span>
             </div>
             <div className="border-t border-[#D9E1E8] pt-3 mt-1 flex justify-between font-bold text-[#0B3A63] text-base">
-              <span>{isCOD ? "Order Total" : "Estimated Total"}</span>
+              <span>Order Total</span>
               <span className="text-[#1769AA] text-xl">
                 ₹{effectiveTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
-
-            {/* Split Summary for COD with 50% Advance */}
-            {isCOD && (
-              <div className="mt-3 pt-3 border-t border-dashed border-[#BFDBFE] bg-gradient-to-br from-[#EFF6FF] to-[#F0FDF4] p-3.5 rounded-xl space-y-2 text-xs border border-blue-200/60">
-                <div className="flex justify-between items-center font-bold text-[#12773D]">
-                  <span>50% Advance Online:</span>
-                  <span>₹{advanceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                </div>
-                <div className="flex justify-between items-center font-medium text-[#B45309]">
-                  <span>Remaining COD Balance:</span>
-                  <span>₹{codBalanceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                </div>
-                <p className="text-[10px] text-slate-500 pt-1 border-t border-blue-200/40">
-                  Pay 50% now online to dispatch; remainder in cash upon delivery.
-                </p>
-              </div>
-            )}
           </div>
           {checkoutSubtotal >= freeThreshold ? (
             <p className="mt-4 text-xs font-medium text-[#12773D] bg-[#ECFDF5] border border-[#D1FAE5] px-3 py-2.5 rounded-lg flex gap-1.5">
