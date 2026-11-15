@@ -158,12 +158,45 @@ export const STORAGE_KEYS = {
   ROLE: 'vp_role',
 };
 
+export const isJwtExpired = (token: string): boolean => {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    const payload = JSON.parse(jsonPayload);
+    if (payload && typeof payload.exp === 'number') {
+      return Date.now() >= payload.exp * 1000 - 10000;
+    }
+  } catch {
+    // If not standard JWT format, do not assume expired
+  }
+  return false;
+};
+
 export const getAccessToken = (): string | null => {
-  return (
+  const token =
     localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN) ||
     sessionStorage.getItem('vp_token') ||
-    localStorage.getItem(STORAGE_KEYS.LEGACY_TOKEN)
-  );
+    localStorage.getItem(STORAGE_KEYS.LEGACY_TOKEN);
+
+  if (!token) return null;
+
+  if (isJwtExpired(token)) {
+    const refresh = getRefreshToken();
+    if (!refresh || isJwtExpired(refresh)) {
+      clearAuthStorage();
+      return null;
+    }
+  }
+
+  return token;
 };
 
 export const getRefreshToken = (): string | null => {
@@ -373,6 +406,24 @@ export async function apiClient<T>(
       newAccess = await refreshAccessToken();
     } catch {
       notifySessionExpired();
+
+      // If this request is for a public read endpoint (catalog, config, etc.),
+      // retry once as an unauthenticated guest so public browsing never breaks when a session expires.
+      const method = (options.method || 'GET').toUpperCase();
+      const isPublicRead =
+        method === 'GET' &&
+        (endpoint.startsWith('/catalog/') ||
+          endpoint.startsWith('/config/') ||
+          endpoint.startsWith('/inquiries/'));
+
+      if (isPublicRead) {
+        return apiClient<T>(endpoint, {
+          ...options,
+          skipAuth: true,
+          _isRetry: true,
+        });
+      }
+
       throw new ApiError(401, { detail: 'Session expired. Please log in again.' });
     }
 

@@ -97,6 +97,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return null;
         }
       } catch {
+        // Any error fetching current user (e.g. 401) means stored token is invalid
+        clearAuthStorage();
+        setToken(null);
+        setUser(null);
+        setIsAuthenticated(false);
         return null;
       } finally {
         activeRefreshPromise = null;
@@ -130,14 +135,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsBootstrapping(false);
 
       const { pathname, search } = window.location;
-      // Already on a login screen: never stack a redirect on top of it.
-      if (pathname === "/login" || pathname === "/admin/login") return;
+      // Already on an auth screen: never stack a redirect on top of it.
+      if (
+        pathname === "/login" ||
+        pathname === "/admin/login" ||
+        pathname === "/register" ||
+        pathname === "/forgot-password" ||
+        pathname === "/reset-password"
+      ) return;
 
-      const redirect = encodeURIComponent(pathname + search);
-      if (pathname.startsWith("/admin")) {
-        navigate(`/admin/login?redirect=${redirect}`);
-      } else {
-        navigate(`/login?redirect=${redirect}`);
+      // Only redirect to login if the current route strictly requires authentication!
+      // Public pages (Home /, Shop /shop, Product /product/:id, /cart, /categories, /brands, etc.)
+      // must NEVER kick a visitor to /login.
+      const isProtectedRoute =
+        pathname.startsWith("/admin") ||
+        pathname.startsWith("/account") ||
+        pathname.startsWith("/checkout") ||
+        pathname.startsWith("/order-success");
+
+      if (isProtectedRoute) {
+        const redirect = encodeURIComponent(pathname + search);
+        if (pathname.startsWith("/admin")) {
+          navigate(`/admin/login?redirect=${redirect}`);
+        } else {
+          navigate(`/login?redirect=${redirect}`);
+        }
       }
     };
 
