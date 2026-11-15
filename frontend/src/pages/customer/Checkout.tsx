@@ -351,7 +351,7 @@ export default function Checkout() {
             ondismiss: () => {
               setPaymentLifecycle('cancelled');
               setIsSubmittingOrder(false);
-              setPaymentErrorMessage("Payment window was closed. Your order is safely preserved. Click Retry Payment to proceed.");
+              setPaymentErrorMessage("");
             },
           },
         };
@@ -629,126 +629,99 @@ export default function Checkout() {
             <div className="bg-white border border-[#D9E1E8] rounded-xl p-6 shadow-sm">
               <h2 className="font-bold text-[#0B3A63] text-lg mb-5">Select Payment Method</h2>
 
-              {/* Status Banner: Cancelled State */}
+              {/* Status Banner: Cancelled State - Compact Modern E-Commerce Style */}
               {createdOrder && paymentLifecycle === 'cancelled' && (
-                <div className="mb-6 p-5 bg-[#FFFBEB] border-2 border-[#FCD34D] rounded-xl text-left">
-                  <div className="flex items-start gap-3">
-                    <span className="text-2xl flex-shrink-0">⚠️</span>
-                    <div className="flex-1">
-                      <h3 className="font-bold text-[#92400E] text-base font-['Outfit']">Payment Window Closed</h3>
-                      <p className="text-sm text-[#B45309] mt-1">
-                        The payment window was closed before completion. Your order <strong className="font-mono">#{createdOrder.order_number}</strong> is safely preserved in pending status.
-                      </p>
-                      <div className="flex flex-wrap gap-3 mt-4 items-center">
-                        <button
-                          type="button"
-                          onClick={() => launchRazorpayCheckout(createdOrder)}
-                          disabled={isSubmittingOrder}
-                          className="bg-[#1769AA] hover:bg-[#0B3A63] text-white text-sm font-bold px-5 py-2.5 rounded-lg shadow-sm transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                        >
-                          ⚡ Retry Payment Now
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPaymentLifecycle('idle')}
-                          className="bg-white border border-[#D9E1E8] hover:border-[#1769AA] text-[#17212B] text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors cursor-pointer"
-                        >
-                          Change Method
-                        </button>
-                        <Link
-                          to="/account/orders"
-                          className="text-xs font-semibold text-[#1769AA] hover:underline ml-1"
-                        >
-                          View in My Orders →
-                        </Link>
-                      </div>
-                    </div>
+                <div className="mb-5 px-4 py-3 bg-amber-50/90 border border-amber-200 rounded-xl flex items-center justify-between gap-3 text-amber-900 text-xs sm:text-sm animate-in fade-in duration-150">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="text-amber-500 text-base shrink-0">⚠️</span>
+                    <p className="font-medium truncate">
+                      Payment was cancelled. You can choose a method below or retry.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => launchRazorpayCheckout(createdOrder)}
+                      disabled={isSubmittingOrder}
+                      className="text-xs font-bold text-amber-900 bg-amber-200/80 hover:bg-amber-300 px-3 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      Retry
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentLifecycle('idle')}
+                      className="text-amber-700/60 hover:text-amber-900 text-xs p-1 cursor-pointer"
+                      title="Dismiss"
+                      aria-label="Dismiss alert"
+                    >
+                      ✕
+                    </button>
                   </div>
                 </div>
               )}
 
               {/* Status Banner: Failed State */}
               {createdOrder && paymentLifecycle === 'failed' && (
-                <div className="mb-6 p-5 bg-[#FEF2F2] border-2 border-[#FCA5A5] rounded-xl text-left">
-                  <div className="flex items-start gap-3">
-                    <span className="text-2xl flex-shrink-0">❌</span>
-                    <div className="flex-1">
-                      <h3 className="font-bold text-[#991B1B] text-base font-['Outfit']">Payment Failed or Declined</h3>
-                      <p className="text-sm text-[#B91C1C] mt-1">
-                        {paymentErrorMessage || "The payment transaction could not be authorized by the issuing bank."}
-                      </p>
-                      <p className="text-xs text-[#7F1D1D] mt-1">
-                        Your order <strong className="font-mono">#{createdOrder.order_number}</strong> is safely preserved. You can retry with another card, UPI, or Net Banking.
-                      </p>
-                      <div className="flex flex-wrap gap-3 mt-4 items-center">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPaymentErrorMessage('');
-                            launchRazorpayCheckout(createdOrder);
-                          }}
-                          disabled={isSubmittingOrder}
-                          className="bg-[#C0392B] hover:bg-[#A93226] text-white text-sm font-bold px-5 py-2.5 rounded-lg shadow-sm transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                        >
-                          {isSubmittingOrder ? (
-                            <>
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                              <span>Opening Razorpay...</span>
-                            </>
-                          ) : (
-                            <>⚡ Retry Payment</>
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPaymentLifecycle('idle');
-                            setPaymentErrorMessage('');
-                          }}
-                          className="bg-white border border-[#D9E1E8] hover:border-[#1769AA] text-[#17212B] text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors cursor-pointer"
-                        >
-                          Switch Payment Method
-                        </button>
-                        <Link
-                          to="/account/orders"
-                          className="text-xs font-semibold text-[#1769AA] hover:underline ml-1"
-                        >
-                          View in My Orders →
-                        </Link>
-                      </div>
-                    </div>
+                <div className="mb-5 px-4 py-3 bg-red-50/90 border border-red-200 rounded-xl flex items-center justify-between gap-3 text-red-900 text-xs sm:text-sm animate-in fade-in duration-150">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="text-red-500 text-base shrink-0">❌</span>
+                    <p className="font-medium truncate">
+                      {paymentErrorMessage || "Payment failed or declined. Please choose another method or retry."}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentErrorMessage('');
+                        launchRazorpayCheckout(createdOrder);
+                      }}
+                      disabled={isSubmittingOrder}
+                      className="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      Retry
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentLifecycle('idle');
+                        setPaymentErrorMessage('');
+                      }}
+                      className="text-red-700/60 hover:text-red-900 text-xs p-1 cursor-pointer"
+                      title="Dismiss"
+                      aria-label="Dismiss alert"
+                    >
+                      ✕
+                    </button>
                   </div>
                 </div>
               )}
 
               {/* Status Banner: Verification Delayed / Timeout Pending State */}
               {createdOrder && paymentLifecycle === 'timeout_pending' && (
-                <div className="mb-6 p-5 bg-[#EFF6FF] border-2 border-[#93C5FD] rounded-xl text-left">
-                  <div className="flex items-start gap-3">
-                    <span className="text-2xl flex-shrink-0">⏳</span>
-                    <div className="flex-1">
-                      <h3 className="font-bold text-[#1E40AF] text-base font-['Outfit']">Payment Verification In Progress</h3>
-                      <p className="text-sm text-[#1D4ED8] mt-1">
-                        Your payment attempt for order <strong className="font-mono">#{createdOrder.order_number}</strong> is currently being confirmed with the bank.
-                      </p>
-                      <p className="text-xs text-[#2563EB] mt-1">
-                        Please do not submit another payment. As soon as settlement is confirmed, your order status will update and you will receive an email confirmation.
-                      </p>
-                      <div className="flex flex-wrap gap-3 mt-4 items-center">
-                        <Link
-                          to="/account/orders"
-                          className="bg-[#1769AA] hover:bg-[#0B3A63] text-white text-sm font-bold px-5 py-2.5 rounded-lg shadow-sm transition-colors"
-                        >
-                          Check Status in My Orders
-                        </Link>
-                        <Link
-                          to="/shop"
-                          className="bg-white border border-[#D9E1E8] hover:border-[#1769AA] text-[#17212B] text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
-                        >
-                          Continue Shopping
-                        </Link>
-                      </div>
-                    </div>
+                <div className="mb-5 px-4 py-3 bg-blue-50/90 border border-blue-200 rounded-xl flex items-center justify-between gap-3 text-blue-900 text-xs sm:text-sm animate-in fade-in duration-150">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="text-blue-500 text-base shrink-0">⏳</span>
+                    <p className="font-medium truncate">
+                      Payment confirmation pending with bank. Check your bank app before retrying.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Link
+                      to="/account/orders"
+                      className="text-xs font-bold text-blue-900 bg-blue-200/80 hover:bg-blue-300 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                    >
+                      My Orders
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentLifecycle('idle')}
+                      className="text-blue-700/60 hover:text-blue-900 text-xs p-1 cursor-pointer"
+                      title="Dismiss"
+                      aria-label="Dismiss alert"
+                    >
+                      ✕
+                    </button>
                   </div>
                 </div>
               )}
@@ -773,7 +746,12 @@ export default function Checkout() {
                         name="payment_selection"
                         value={method.id}
                         checked={isSelected}
-                        onChange={(e) => setPaymentMethod(e.target.value)}
+                        onChange={(e) => {
+                          setPaymentMethod(e.target.value);
+                          if (paymentLifecycle === 'cancelled' || paymentLifecycle === 'failed') {
+                            setPaymentLifecycle('idle');
+                          }
+                        }}
                         className="w-4 h-4 text-[#1769AA] accent-[#1769AA] cursor-pointer focus:ring-2 focus:ring-[#1769AA]/40 shrink-0"
                       />
                       <div className="w-10 h-10 rounded-xl bg-white border border-slate-200/80 flex items-center justify-center shrink-0 shadow-2xs">
