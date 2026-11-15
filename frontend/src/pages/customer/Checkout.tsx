@@ -817,7 +817,11 @@ export default function Checkout() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setPaymentLifecycle('idle')}
+                          onClick={() => {
+                            setPaymentLifecycle('idle');
+                            setCreatedOrder(null);
+                            setPaymentErrorMessage('');
+                          }}
                           className="bg-white border border-[#D9E1E8] hover:border-[#1769AA] text-[#17212B] text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors cursor-pointer"
                         >
                           Switch Payment Method
