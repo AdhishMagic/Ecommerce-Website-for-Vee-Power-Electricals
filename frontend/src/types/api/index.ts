@@ -556,6 +556,7 @@ export interface PaymentIntentResponse {
   order_id: number;
   order_number: string;
   gateway_order_id: string;
+  razorpay_order_id?: string;
   amount: number;
   amount_inr: string;
   currency: string;
@@ -572,9 +573,9 @@ export interface PaymentIntentResponse {
 
 export interface PaymentVerifyPayload {
   order_id: number;
-  razorpay_order_id: string;
+  razorpay_order_id?: string;
   razorpay_payment_id: string;
-  razorpay_signature: string;
+  razorpay_signature?: string;
   payment_method?: string;
 }
 

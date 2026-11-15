@@ -288,7 +288,7 @@ class PaymentGatewayService:
             raise ValidationError("Cannot confirm payment for a cancelled order.")
 
         # Integrity check: Ensure gateway_order_id is not linked to a different order
-        if razorpay_order_id and not razorpay_order_id.startswith('order_direct_'):
+        if razorpay_order_id:
             foreign_order_txn = PaymentTransaction.objects.filter(
                 gateway_order_id=razorpay_order_id
             ).exclude(order=order).first()
@@ -344,7 +344,7 @@ class PaymentGatewayService:
             if not txn:
                 txn = PaymentTransaction.objects.filter(
                     order=order,
-                    status__in=[PaymentTxStatus.INITIATED, PaymentTxStatus.PENDING]
+                    status=PaymentTxStatus.INITIATED
                 ).order_by('-created_at').select_for_update().first()
 
             if not txn:

@@ -93,7 +93,7 @@ class OrderDetailView(generics.RetrieveAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        base_qs = Order.objects.prefetch_related('items', 'status_history__changed_by', 'items__product')
+        base_qs = Order.objects.prefetch_related('items', 'status_history__changed_by', 'items__product', 'payments')
         if user.is_staff or getattr(user, 'role', '') == 'admin':
             return base_qs.all()
         return base_qs.filter(user=user)

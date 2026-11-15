@@ -677,7 +677,7 @@ class Step7OrderReturnTestCase(TestCase):
         OrderWorkflowService.transition_order_status(order.id, OrderStatus.PACKED, changed_by=self.admin)
 
         self.client.force_authenticate(user=self.customer_a)
-        with self.assertNumQueries(5):  # Order, items, status_history, items__product, status_history__changed_by
+        with self.assertNumQueries(6):  # Order, items, status_history, items__product, status_history__changed_by, payments
             res = self.client.get(f'/api/v1/orders/{order.id}/')
             self.assertEqual(res.status_code, status.HTTP_200_OK)
 

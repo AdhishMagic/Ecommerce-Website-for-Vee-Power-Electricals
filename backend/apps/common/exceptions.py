@@ -352,6 +352,7 @@ def custom_exception_handler(exc: Exception, context: Dict[str, Any]) -> Optiona
             'success': False,
             'error': canonical_error,
             'detail': safe_message,
+            'code': code,
             'errors': details if isinstance(details, dict) else {'non_field_errors': details},
         }
 
