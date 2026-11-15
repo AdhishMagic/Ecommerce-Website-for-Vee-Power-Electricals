@@ -26,10 +26,10 @@ def check_razorpay_configuration(app_configs, **kwargs):
                 )
             if not webhook_secret or 'mock' in webhook_secret.lower():
                 errors.append(
-                    Error(
+                    Warning(
                         "RAZORPAY_KEY_ID is set to live credentials, but RAZORPAY_WEBHOOK_SECRET is missing or using a mock secret.",
                         hint="Configure RAZORPAY_WEBHOOK_SECRET with your live webhook secret from Razorpay Merchant Dashboard.",
-                        id="finance.E002",
+                        id="finance.W002",
                     )
                 )
         elif key_id == 'rzp_test_mock_veepower_key' or not key_id:
