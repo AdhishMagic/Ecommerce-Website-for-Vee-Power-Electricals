@@ -1,12 +1,28 @@
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "../../context/CartContext";
+import { configApi } from "../../api/config";
+import { DeliveryConfiguration } from "../../types/api";
 import { resolveProductImage, handleProductImageError } from "../../utils/productImageResolver";
 
 export default function Cart() {
   const { items, removeFromCart, updateQty, subtotal, totalItems } = useCart();
   const navigate = useNavigate();
 
-  const shipping = subtotal >= 999 ? 0 : 99;
+  const [deliveryConfig, setDeliveryConfig] = useState<DeliveryConfiguration | null>(null);
+
+  useEffect(() => {
+    configApi.getDeliveryConfig().then(configs => {
+      if (Array.isArray(configs) && configs.length > 0) {
+        setDeliveryConfig(configs[0]);
+      }
+    }).catch(() => null);
+  }, []);
+
+  const freeThreshold = deliveryConfig ? Number(deliveryConfig.free_delivery_threshold) : 999;
+  const baseShippingFee = deliveryConfig ? Number(deliveryConfig.base_delivery_charge) : 99;
+  const isFreeShipping = deliveryConfig?.free_delivery_enabled !== false && subtotal >= freeThreshold;
+  const shipping = isFreeShipping ? 0 : baseShippingFee;
   const tax = Math.round(subtotal * 0.18);
   const total = subtotal + shipping + tax;
 
@@ -111,11 +127,11 @@ export default function Cart() {
                 <span className="font-medium text-[#17212B]">₹{tax.toLocaleString("en-IN")}</span>
               </div>
               
-              {subtotal < 999 && (
+              {deliveryConfig?.free_delivery_enabled !== false && subtotal < freeThreshold && (
                 <div className="bg-[#FFFBEB] border border-[#FDE68A] rounded-lg p-3 mt-3 flex items-start gap-2">
                   <span className="text-[#B45309]">ℹ️</span>
                   <p className="text-xs text-[#B45309] font-medium leading-snug">
-                    Add ₹{(999 - subtotal).toLocaleString("en-IN")} more to your cart to qualify for free shipping!
+                    Add ₹{(freeThreshold - subtotal).toLocaleString("en-IN")} more to your cart to qualify for free shipping! (Threshold: ₹{freeThreshold.toLocaleString("en-IN")})
                   </p>
                 </div>
               )}

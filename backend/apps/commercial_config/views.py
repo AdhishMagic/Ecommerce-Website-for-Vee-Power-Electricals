@@ -180,6 +180,19 @@ class DeliveryConfigurationViewSet(viewsets.ModelViewSet):
         return [IsAdminUser()]
 
     def get_queryset(self):
+        if not DeliveryConfiguration.objects.exists():
+            DeliveryConfiguration.objects.create(
+                origin_name='Vee Power Coimbatore Hub',
+                origin_address='No 28/1, 2nd floor, MTP Road, NSN palayam',
+                origin_city='Coimbatore',
+                origin_state='Tamil Nadu',
+                origin_pincode='641031',
+                base_delivery_charge=Decimal('99.00'),
+                free_delivery_threshold=Decimal('999.00'),
+                free_delivery_enabled=True,
+                fallback_regional_rate=Decimal('99.00'),
+                is_active=True
+            )
         qs = DeliveryConfiguration.objects.prefetch_related('slabs').all().order_by('-version_number')
         if not (self.request.user and self.request.user.is_authenticated and (self.request.user.is_staff or getattr(self.request.user, 'role', '') == 'admin')):
             qs = qs.filter(is_active=True)

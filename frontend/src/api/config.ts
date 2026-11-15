@@ -35,6 +35,13 @@ export const configApi = {
     });
   },
 
+  async createDeliveryConfig(data: Partial<DeliveryConfiguration>): Promise<DeliveryConfiguration> {
+    return apiClient<DeliveryConfiguration>('/config/delivery/', {
+      method: 'POST',
+      body: data,
+    });
+  },
+
   // Distance Slabs
   async getDistanceSlabs(): Promise<DistanceSlab[]> {
     const res = await apiClient<PaginatedResponse<DistanceSlab> | DistanceSlab[]>('/config/slabs/');

@@ -47,6 +47,7 @@ export default function Checkout() {
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
   const [useNewAddress, setUseNewAddress] = useState(false);
   const [deliveryConfig, setDeliveryConfig] = useState<DeliveryConfiguration | null>(null);
+  const [shippingRules, setShippingRules] = useState<any[]>([]);
 
   // Address and Validation states
   const [validationError, setValidationError] = useState("");
@@ -78,14 +79,18 @@ export default function Checkout() {
     let isMounted = true;
     const loadInitial = async () => {
       try {
-        const [addrs, configs, payCfg] = await Promise.all([
+        const [addrs, configs, payCfg, rules] = await Promise.all([
           addressesApi.getAddresses(),
           configApi.getDeliveryConfig(),
           paymentsApi.getPaymentConfig().catch(() => null),
+          configApi.getShippingRules().catch(() => []),
         ]);
         if (isMounted) {
           if (payCfg) {
             setPaymentConfig(payCfg);
+          }
+          if (rules) {
+            setShippingRules(rules);
           }
           setSavedAddresses(addrs);
           if (addrs.length > 0) {
@@ -120,9 +125,13 @@ export default function Checkout() {
   }, []);
 
   // Compute display preview estimates (backend will calculate authoritative total on checkout)
+  const activeAddr = savedAddresses.find(a => a.id === selectedAddressId) || (useNewAddress ? newAddress : null);
+  const destState = (activeAddr?.state || "").trim().toLowerCase();
+  const matchedRule = shippingRules.find(r => (r.state || "").trim().toLowerCase() === destState && r.is_active !== false);
+  const baseShippingFee = matchedRule ? Number(matchedRule.cost) : (deliveryConfig ? Number(deliveryConfig.base_delivery_charge) : 99);
   const freeThreshold = deliveryConfig ? Number(deliveryConfig.free_delivery_threshold) : 999;
-  const baseShippingFee = deliveryConfig ? Number(deliveryConfig.base_delivery_charge) : 99;
-  const shipping = checkoutSubtotal >= freeThreshold ? 0 : baseShippingFee;
+  const isFreeDelivery = deliveryConfig?.free_delivery_enabled !== false && checkoutSubtotal >= freeThreshold;
+  const shipping = isFreeDelivery ? 0 : baseShippingFee;
   const estimatedTax = Math.round(checkoutSubtotal * 0.18);
   const previewTotal = checkoutSubtotal + shipping + estimatedTax;
 

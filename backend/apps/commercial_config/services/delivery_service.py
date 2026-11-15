@@ -49,7 +49,23 @@ class DeliveryService:
             config = date_qs.order_by('-version_number').first()
             if config:
                 return config
-        return qs.order_by('-version_number').first()
+        config = qs.order_by('-version_number').first()
+        if not config:
+            config, _ = DeliveryConfiguration.objects.get_or_create(
+                is_active=True,
+                defaults=dict(
+                    origin_name='Vee Power Coimbatore Hub',
+                    origin_address='No 28/1, 2nd floor, MTP Road, NSN palayam',
+                    origin_city='Coimbatore',
+                    origin_state='Tamil Nadu',
+                    origin_pincode='641031',
+                    base_delivery_charge=Decimal('99.00'),
+                    free_delivery_threshold=Decimal('999.00'),
+                    free_delivery_enabled=True,
+                    fallback_regional_rate=Decimal('99.00'),
+                )
+            )
+        return config
 
     @classmethod
     def calculate_delivery(

@@ -324,6 +324,8 @@ export interface DeliveryConfiguration {
   distance_slab_km: number | string;
   charge_per_slab: number | string;
   free_delivery_threshold: number | string;
+  free_delivery_enabled?: boolean;
+  fallback_regional_rate?: number | string;
   is_active: boolean;
   slabs?: DistanceSlab[];
 }
