@@ -17,13 +17,16 @@ class CustomerAddressViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # Admin can view all addresses if needed, but customers strictly see their own
         user = self.request.user
-        if user.is_staff or getattr(user, 'role', '') == 'admin':
+        # Admin can view other users' addresses with explicit query params (e.g., in backoffice tools)
+        if (user.is_staff or getattr(user, 'role', '') == 'admin') and (
+            self.request.query_params.get('all') == 'true' or self.request.query_params.get('user_id')
+        ):
             user_param = self.request.query_params.get('user_id')
             if user_param:
                 return CustomerAddress.objects.filter(user_id=user_param).order_by('-is_default', '-id')
             return CustomerAddress.objects.all().order_by('-is_default', '-id')
+        # Default: each user (including admin shopping in retail storefront) strictly sees their own addresses
         return CustomerAddress.objects.filter(user=user).order_by('-is_default', '-id')
 
     def perform_create(self, serializer):

@@ -119,7 +119,10 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
   const getBackendOAuthUrl = useCallback(() => {
     if (typeof window === "undefined") return "/auth/google/login/";
     const frontendOrigin = window.location.origin;
-    return `http://127.0.0.1:8000/auth/google/login/?frontend_url=${encodeURIComponent(frontendOrigin)}`;
+    if (window.location.hostname === "localhost") {
+      return `http://127.0.0.1:8000/auth/google/login/?frontend_url=${encodeURIComponent(frontendOrigin)}`;
+    }
+    return `/auth/google/login/?frontend_url=${encodeURIComponent(frontendOrigin)}`;
   }, []);
 
   const handleOAuthRedirect = useCallback(() => {
@@ -267,23 +270,22 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
 
   // Case 3: Configured and rendering GIS iframe button
   return (
-    <div className={`w-full flex justify-center ${disabled ? "pointer-events-none opacity-50 cursor-not-allowed" : ""}`}>
+    <div className={`w-full flex flex-col items-center justify-center ${disabled ? "pointer-events-none opacity-50 cursor-not-allowed" : ""}`}>
+      {gisLoading && (
+        <div className="w-[320px] h-[40px] rounded-xl border border-border bg-gray-50 flex items-center justify-center gap-2 text-xs text-muted animate-pulse">
+          <svg className="w-3.5 h-3.5 animate-spin text-electric" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+          </svg>
+          Loading Google Sign-In...
+        </div>
+      )}
       <div
         ref={containerRef}
-        className="flex w-full justify-center min-h-[40px]"
+        className={`flex w-full justify-center min-h-[40px] ${gisLoading ? "hidden" : ""}`}
         data-testid="google-signin-button"
         aria-label="Continue with Google"
-      >
-        {gisLoading && (
-          <div className="w-[320px] h-[40px] rounded-xl border border-border bg-gray-50 flex items-center justify-center gap-2 text-xs text-muted animate-pulse">
-            <svg className="w-3.5 h-3.5 animate-spin text-electric" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-            </svg>
-            Loading Google Sign-In...
-          </div>
-        )}
-      </div>
+      />
     </div>
   );
 }
