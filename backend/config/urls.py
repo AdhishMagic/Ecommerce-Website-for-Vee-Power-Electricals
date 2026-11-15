@@ -10,6 +10,7 @@ from apps.finance.views_payment import StandardCreateOrderView, StandardVerifyPa
 urlpatterns = [
     path('health/', health_check, name='health_check'),
     path('api/v1/health/', health_check, name='api_health_check'),
+    path('django-admin/', admin.site.urls),
     path('admin/', admin.site.urls),
     # Razorpay Standard Checkout endpoints
     path('api/payments-config', PaymentConfigView.as_view(), name='api-payments-config-noslash'),

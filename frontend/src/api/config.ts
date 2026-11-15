@@ -9,6 +9,19 @@ import {
   PaginatedResponse,
 } from '../types/api';
 
+const CONFIG_CACHE_TTL_MS = 60 * 1000;
+
+let deliveryConfigCache: { data: DeliveryConfiguration[]; timestamp: number } | null = null;
+let deliveryConfigPending: Promise<DeliveryConfiguration[]> | null = null;
+
+let shippingRulesCache: { data: any[]; timestamp: number } | null = null;
+let shippingRulesPending: Promise<any[]> | null = null;
+
+export const clearConfigCache = () => {
+  deliveryConfigCache = null;
+  shippingRulesCache = null;
+};
+
 export const configApi = {
   // Store Profile
   async getStoreProfile(): Promise<StoreProfile> {
@@ -16,6 +29,7 @@ export const configApi = {
   },
 
   async updateStoreProfile(data: Partial<StoreProfile>): Promise<StoreProfile> {
+    clearConfigCache();
     return apiClient<StoreProfile>('/config/store/', {
       method: 'PATCH',
       body: data,
@@ -23,12 +37,29 @@ export const configApi = {
   },
 
   // Delivery Configuration
-  async getDeliveryConfig(): Promise<DeliveryConfiguration[]> {
-    const res = await apiClient<PaginatedResponse<DeliveryConfiguration> | DeliveryConfiguration[]>('/config/delivery/');
-    return Array.isArray(res) ? res : res.results || [];
+  async getDeliveryConfig(options?: { forceRefresh?: boolean }): Promise<DeliveryConfiguration[]> {
+    const now = Date.now();
+    if (!options?.forceRefresh && deliveryConfigCache && now - deliveryConfigCache.timestamp < CONFIG_CACHE_TTL_MS) {
+      return deliveryConfigCache.data;
+    }
+    if (deliveryConfigPending) {
+      return deliveryConfigPending;
+    }
+    deliveryConfigPending = (async () => {
+      try {
+        const res = await apiClient<PaginatedResponse<DeliveryConfiguration> | DeliveryConfiguration[]>('/config/delivery/');
+        const data = Array.isArray(res) ? res : res.results || [];
+        deliveryConfigCache = { data, timestamp: Date.now() };
+        return data;
+      } finally {
+        deliveryConfigPending = null;
+      }
+    })();
+    return deliveryConfigPending;
   },
 
   async updateDeliveryConfig(id: number | string, data: Partial<DeliveryConfiguration>): Promise<DeliveryConfiguration> {
+    clearConfigCache();
     return apiClient<DeliveryConfiguration>(`/config/delivery/${id}/`, {
       method: 'PATCH',
       body: data,
@@ -36,6 +67,7 @@ export const configApi = {
   },
 
   async createDeliveryConfig(data: Partial<DeliveryConfiguration>): Promise<DeliveryConfiguration> {
+    clearConfigCache();
     return apiClient<DeliveryConfiguration>('/config/delivery/', {
       method: 'POST',
       body: data,
@@ -49,6 +81,7 @@ export const configApi = {
   },
 
   async createDistanceSlab(data: Partial<DistanceSlab>): Promise<DistanceSlab> {
+    clearConfigCache();
     return apiClient<DistanceSlab>('/config/slabs/', {
       method: 'POST',
       body: data,
@@ -56,6 +89,7 @@ export const configApi = {
   },
 
   async updateDistanceSlab(id: number | string, data: Partial<DistanceSlab>): Promise<DistanceSlab> {
+    clearConfigCache();
     return apiClient<DistanceSlab>(`/config/slabs/${id}/`, {
       method: 'PATCH',
       body: data,
@@ -63,18 +97,36 @@ export const configApi = {
   },
 
   async deleteDistanceSlab(id: number | string): Promise<void> {
+    clearConfigCache();
     return apiClient<void>(`/config/slabs/${id}/`, {
       method: 'DELETE',
     });
   },
 
   // Shipping Rules
-  async getShippingRules(): Promise<any[]> {
-    const res = await apiClient<any>('/config/shipping-rules/');
-    return Array.isArray(res) ? res : res.results || [];
+  async getShippingRules(options?: { forceRefresh?: boolean }): Promise<any[]> {
+    const now = Date.now();
+    if (!options?.forceRefresh && shippingRulesCache && now - shippingRulesCache.timestamp < CONFIG_CACHE_TTL_MS) {
+      return shippingRulesCache.data;
+    }
+    if (shippingRulesPending) {
+      return shippingRulesPending;
+    }
+    shippingRulesPending = (async () => {
+      try {
+        const res = await apiClient<any>('/config/shipping-rules/');
+        const data = Array.isArray(res) ? res : res.results || [];
+        shippingRulesCache = { data, timestamp: Date.now() };
+        return data;
+      } finally {
+        shippingRulesPending = null;
+      }
+    })();
+    return shippingRulesPending;
   },
 
   async createShippingRule(data: { state: string; cost: number; is_active?: boolean }): Promise<any> {
+    clearConfigCache();
     return apiClient<any>('/config/shipping-rules/', {
       method: 'POST',
       body: data,
@@ -82,6 +134,7 @@ export const configApi = {
   },
 
   async deleteShippingRule(id: string | number): Promise<void> {
+    clearConfigCache();
     return apiClient<void>(`/config/shipping-rules/${id}/`, {
       method: 'DELETE',
     });

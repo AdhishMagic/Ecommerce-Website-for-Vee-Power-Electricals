@@ -150,10 +150,20 @@ let heroCategoriesPendingPromise: Promise<HeroCategory[]> | null = null;
 let brandsCache: CacheEntry<string[]> | null = null;
 let brandsPendingPromise: Promise<string[]> | null = null;
 
+const productsCache = new Map<string, CacheEntry<Product[]>>();
+const productsPendingPromises = new Map<string, Promise<Product[]>>();
+
+const productDetailCache = new Map<string, CacheEntry<Product>>();
+const productDetailPendingPromises = new Map<string, Promise<Product | undefined>>();
+
 export const clearProductServiceCache = () => {
   categoriesCache = null;
   heroCategoriesCache = null;
   brandsCache = null;
+  productsCache.clear();
+  productsPendingPromises.clear();
+  productDetailCache.clear();
+  productDetailPendingPromises.clear();
 };
 
 if (typeof window !== 'undefined') {
@@ -161,18 +171,21 @@ if (typeof window !== 'undefined') {
 }
 
 export const productService = {
-  async getProducts(params?: {
-    category?: string;
-    brand?: string;
-    search?: string;
-    q?: string;
-    min_price?: number;
-    max_price?: number;
-    featured?: boolean;
-    ordering?: string;
-    page?: number;
-    page_size?: number;
-  }): Promise<Product[]> {
+  async getProducts(
+    params?: {
+      category?: string;
+      brand?: string;
+      search?: string;
+      q?: string;
+      min_price?: number;
+      max_price?: number;
+      featured?: boolean;
+      ordering?: string;
+      page?: number;
+      page_size?: number;
+    },
+    options?: { forceRefresh?: boolean }
+  ): Promise<Product[]> {
     const apiParams: ProductFilterParams = {
       category: params?.category,
       brand: params?.brand,
@@ -185,18 +198,64 @@ export const productService = {
       page_size: params?.page_size,
     };
 
-    const res = await catalogApi.getProducts(apiParams);
-    const results = Array.isArray(res) ? res : res.results || [];
-    return results.map(mapApiProductToProduct);
+    const cacheKey = JSON.stringify(apiParams);
+    const now = Date.now();
+    if (!options?.forceRefresh) {
+      const cached = productsCache.get(cacheKey);
+      if (cached && now - cached.timestamp < MEMORY_CACHE_TTL_MS) {
+        return cached.data;
+      }
+      const pending = productsPendingPromises.get(cacheKey);
+      if (pending) {
+        return pending;
+      }
+    }
+
+    const promise = (async () => {
+      try {
+        const res = await catalogApi.getProducts(apiParams);
+        const results = Array.isArray(res) ? res : res.results || [];
+        const mapped = results.map(mapApiProductToProduct);
+        productsCache.set(cacheKey, { data: mapped, timestamp: Date.now() });
+        return mapped;
+      } finally {
+        productsPendingPromises.delete(cacheKey);
+      }
+    })();
+
+    productsPendingPromises.set(cacheKey, promise);
+    return promise;
   },
 
-  async getProductById(id: string | number): Promise<Product | undefined> {
-    try {
-      const detail = await catalogApi.getProductDetail(id);
-      return mapApiProductToProduct(detail);
-    } catch {
-      return undefined;
+  async getProductById(id: string | number, options?: { forceRefresh?: boolean }): Promise<Product | undefined> {
+    const key = String(id);
+    const now = Date.now();
+    if (!options?.forceRefresh) {
+      const cached = productDetailCache.get(key);
+      if (cached && now - cached.timestamp < MEMORY_CACHE_TTL_MS) {
+        return cached.data;
+      }
+      const pending = productDetailPendingPromises.get(key);
+      if (pending) {
+        return pending;
+      }
     }
+
+    const promise = (async () => {
+      try {
+        const detail = await catalogApi.getProductDetail(id);
+        const mapped = mapApiProductToProduct(detail);
+        productDetailCache.set(key, { data: mapped, timestamp: Date.now() });
+        return mapped;
+      } catch {
+        return undefined;
+      } finally {
+        productDetailPendingPromises.delete(key);
+      }
+    })();
+
+    productDetailPendingPromises.set(key, promise);
+    return promise;
   },
 
   async getCategories(options?: { forceRefresh?: boolean }): Promise<Category[]> {

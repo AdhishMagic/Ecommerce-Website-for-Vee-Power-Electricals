@@ -80,7 +80,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   const refreshProducts = useCallback(async () => {
     try {
       setLoading(true);
-      const items = await productService.getProducts();
+      const items = await productService.getProducts(undefined, { forceRefresh: true });
       setProducts(items.map(p => ({
         ...p,
         image: p.images?.[0] || p.image || '',
