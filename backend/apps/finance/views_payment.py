@@ -293,6 +293,22 @@ class StandardCreateOrderView(APIView):
             if not PaymentGatewayService.is_live():
                 fallback_order_id = f"order_test_{uuid.uuid4().hex[:14]}"
                 logger.warning("Test mode order API fallback triggered: returning %s", fallback_order_id)
+                if internal_order_id:
+                    try:
+                        order = Order.objects.filter(pk=internal_order_id).first()
+                        if order:
+                            PaymentTransaction.objects.create(
+                                order=order,
+                                gateway=PaymentGateway.RAZORPAY,
+                                gateway_order_id=fallback_order_id,
+                                payment_method=data.get('payment_method', 'UPI'),
+                                amount=order.total_amount,
+                                currency=currency,
+                                status=PaymentTxStatus.INITIATED,
+                            )
+                    except Exception as log_err:
+                        logger.warning("Could not associate transaction with order %s: %s", internal_order_id, log_err)
+
                 return Response({
                     "order_id": fallback_order_id,
                     "amount": amount_in_paise,

@@ -242,26 +242,16 @@ class PaymentGatewayService:
 
         if not cls.is_live():
             # In test mode, direct payment mode has no server order ID or signature
-            if not razorpay_order_id or not razorpay_signature:
+            if not razorpay_signature:
                 return razorpay_payment_id.startswith('pay_')
-            secret = cls.get_key_secret()
-            if secret:
-                try:
-                    expected = cls.generate_signature(razorpay_order_id, razorpay_payment_id, secret)
-                    if hmac.compare_digest(expected, razorpay_signature):
-                        return True
-                except Exception:
-                    pass
-            # If secret failed in test mode but payment succeeded on Razorpay
-            if razorpay_payment_id.startswith('pay_'):
-                logger.warning("Test mode accepting payment %s without HMAC secret match", razorpay_payment_id)
-                return True
-            return False
 
         if not razorpay_order_id or not razorpay_signature:
             return False
 
         secret = cls.get_key_secret()
+        if not secret:
+            return not cls.is_live()
+
         expected = cls.generate_signature(razorpay_order_id, razorpay_payment_id, secret)
         return hmac.compare_digest(expected, razorpay_signature)
 
