@@ -34,7 +34,7 @@ class TaxConfiguration(TimeStampedModel):
     tax_calculation_mode = models.CharField(
         max_length=20,
         choices=TaxMode.choices,
-        default=TaxMode.TAX_EXCLUSIVE
+        default=TaxMode.TAX_INCLUSIVE
     )
     business_state = models.CharField(max_length=100, default='Tamil Nadu')
     effective_from = models.DateTimeField(default=timezone.now)

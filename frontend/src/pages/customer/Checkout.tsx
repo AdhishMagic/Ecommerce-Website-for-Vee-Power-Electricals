@@ -132,13 +132,11 @@ export default function Checkout() {
   const freeThreshold = deliveryConfig ? Number(deliveryConfig.free_delivery_threshold) : 999;
   const isFreeDelivery = deliveryConfig?.free_delivery_enabled !== false && checkoutSubtotal >= freeThreshold;
   const previewShipping = isFreeDelivery ? 0 : baseShippingFee;
-  const previewTax = Math.round(checkoutSubtotal * 18) / 100;
-  const previewTotal = Math.round((checkoutSubtotal + previewShipping + previewTax) * 100) / 100;
+  const previewTotal = Math.round((checkoutSubtotal + previewShipping) * 100) / 100;
 
   // Use authoritative order breakdown if order was created, otherwise preview values
   const displaySubtotal = createdOrder ? Number(createdOrder.subtotal) : checkoutSubtotal;
   const displayShipping = createdOrder ? Number(createdOrder.shipping_fee) : previewShipping;
-  const displayTax = createdOrder ? Number(createdOrder.tax_amount) : previewTax;
   const displayTotal = createdOrder ? Number(createdOrder.total_amount) : previewTotal;
 
   const effectiveTotal = displayTotal;
@@ -958,10 +956,6 @@ export default function Checkout() {
                 {displayShipping === 0 ? "FREE" : `₹${displayShipping.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </span>
             </div>
-            <div className="flex justify-between text-[#667085]">
-              <span>Estimated GST (18%)</span>
-              <span>₹{displayTax.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            </div>
             <div className="border-t border-[#D9E1E8] pt-3 mt-1 flex justify-between font-bold text-[#0B3A63] text-base">
               <span>Order Total</span>
               <span className="text-[#1769AA] text-xl">
@@ -978,9 +972,6 @@ export default function Checkout() {
               Add ₹{(freeThreshold - displaySubtotal).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} more to qualify for free delivery.
             </p>
           )}
-          <p className="text-[11px] text-gray-400 mt-3 text-center">
-            * Final tax split and billing calculations are authoritatively computed by Vee Power Electricals backend.
-          </p>
         </div>
       </div>
     </div>

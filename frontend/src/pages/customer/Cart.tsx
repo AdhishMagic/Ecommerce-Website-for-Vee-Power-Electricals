@@ -23,8 +23,7 @@ export default function Cart() {
   const baseShippingFee = deliveryConfig ? Number(deliveryConfig.base_delivery_charge) : 99;
   const isFreeShipping = deliveryConfig?.free_delivery_enabled !== false && subtotal >= freeThreshold;
   const shipping = isFreeShipping ? 0 : baseShippingFee;
-  const tax = Math.round(subtotal * 18) / 100;
-  const total = Math.round((subtotal + shipping + tax) * 100) / 100;
+  const total = Math.round((subtotal + shipping) * 100) / 100;
 
   if (items.length === 0) {
     return (
@@ -121,10 +120,6 @@ export default function Cart() {
                 ) : (
                   <span className="font-medium text-[#17212B]">₹{shipping.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 )}
-              </div>
-              <div className="flex justify-between text-[#667085]">
-                <span>GST (18%)</span>
-                <span className="font-medium text-[#17212B]">₹{tax.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               
               {deliveryConfig?.free_delivery_enabled !== false && freeThreshold > 0 && subtotal < freeThreshold && (

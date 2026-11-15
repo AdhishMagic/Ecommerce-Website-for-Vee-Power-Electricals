@@ -82,7 +82,7 @@ class TaxService:
         if tax_config is None:
             tax_config = cls.get_active_tax_configuration(target_date=target_date)
 
-        tax_mode = override_tax_mode or (tax_config.tax_calculation_mode if tax_config else 'TAX_EXCLUSIVE')
+        tax_mode = override_tax_mode or (tax_config.tax_calculation_mode if tax_config else 'TAX_INCLUSIVE')
         origin_state = cls.get_origin_state()
         is_intra_state = origin_state.strip().lower() == destination_state.strip().lower()
 
