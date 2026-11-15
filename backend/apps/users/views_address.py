@@ -18,11 +18,12 @@ class CustomerAddressViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        params = getattr(self.request, 'query_params', getattr(self.request, 'GET', {}))
         # Admin can view other users' addresses with explicit query params (e.g., in backoffice tools)
         if (user.is_staff or getattr(user, 'role', '') == 'admin') and (
-            self.request.query_params.get('all') == 'true' or self.request.query_params.get('user_id')
+            params.get('all') == 'true' or params.get('user_id')
         ):
-            user_param = self.request.query_params.get('user_id')
+            user_param = params.get('user_id')
             if user_param:
                 return CustomerAddress.objects.filter(user_id=user_param).order_by('-is_default', '-id')
             return CustomerAddress.objects.all().order_by('-is_default', '-id')
