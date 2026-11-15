@@ -280,6 +280,17 @@ export default function Checkout() {
         setValidationError("Please select a delivery address.");
         return;
       }
+      const addressExists = savedAddresses.some(a => a.id === selectedAddressId);
+      if (!addressExists) {
+        const fallback = savedAddresses.find(a => a.is_default) || savedAddresses[0];
+        if (fallback) {
+          setSelectedAddressId(fallback.id);
+        } else {
+          setValidationError("Please enter or select a valid delivery address.");
+          setUseNewAddress(true);
+          return;
+        }
+      }
     }
 
     if (isBusinessUser && !billingAddress.company) {
@@ -362,8 +373,10 @@ export default function Checkout() {
 
       setActivePaymentIntent(paymentIntent);
 
+      const effectiveKeyId = paymentIntent.key_id || paymentConfig?.key_id || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_U0NpR6VRoNPAqa';
+
       // If server is in mock/sandbox mode without real Razorpay keys, launch interactive simulator
-      if (isMockRazorpayKey(paymentIntent.key_id)) {
+      if (isMockRazorpayKey(effectiveKeyId)) {
         setPaymentLifecycle('gateway_open');
         setIsSubmittingOrder(false);
         setShowMockSimulator(true);
@@ -383,7 +396,7 @@ export default function Checkout() {
         });
 
         const options: any = {
-          key: paymentIntent.key_id,
+          key: effectiveKeyId,
           amount: paymentIntent.amount, // Authoritative paise calculated server-side (advance for COD, total otherwise)
           currency: paymentIntent.currency || "INR",
           name: "Vee Power Electricals",
@@ -392,9 +405,9 @@ export default function Checkout() {
             : `Order #${targetOrder.order_number}`,
           order_id: paymentIntent.gateway_order_id,
           prefill: {
-            name: paymentIntent.customer_name,
-            email: paymentIntent.customer_email,
-            contact: paymentIntent.customer_phone,
+            name: paymentIntent.customer_name || targetOrder.customer_name || activeShippingAddr?.recipient_name || '',
+            email: paymentIntent.customer_email || targetOrder.customer_email || '',
+            contact: paymentIntent.customer_phone || targetOrder.customer_phone || activeShippingAddr?.phone || '',
             ...(paymentMethod === 'upi' ? { method: 'upi' } : {}),
             ...(paymentMethod === 'card' ? { method: 'card' } : {}),
             ...(paymentMethod === 'netbanking' ? { method: 'netbanking' } : {}),
@@ -445,8 +458,9 @@ export default function Checkout() {
   };
 
   const handlePlaceOrder = async () => {
-    if (!selectedAddressId) {
-      setValidationError("A valid shipping address is required.");
+    const activeAddress = savedAddresses.find(a => a.id === selectedAddressId);
+    if (!selectedAddressId || !activeAddress) {
+      setValidationError("A valid shipping address is required. Please select or add your delivery address.");
       setStep(0);
       return;
     }

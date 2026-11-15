@@ -35,3 +35,4 @@ def invalidate_store_config_cache():
         cache.delete(CACHE_KEY_STORE_CONFIG)
     except Exception:
         pass
+
