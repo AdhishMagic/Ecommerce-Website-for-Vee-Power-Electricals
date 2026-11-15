@@ -103,3 +103,7 @@ LOGGING = {
         },
     },
 }
+
+# 8. Production Email Delivery
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+EMAIL_TEST_MODE = os.getenv('EMAIL_TEST_MODE', 'False').lower() in ('true', '1', 't')

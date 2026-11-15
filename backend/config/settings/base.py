@@ -241,9 +241,9 @@ BREVO_SENDER_NAME = os.getenv('BREVO_SENDER_NAME', 'Vee Power Electricals')
 BREVO_API_URL = os.getenv('BREVO_API_URL', 'https://api.brevo.com/v3/smtp/email')
 BREVO_REQUEST_TIMEOUT = int(os.getenv('BREVO_REQUEST_TIMEOUT', 10))
 
-# Test Mode & Allowlist (Strictly fail-closed)
-EMAIL_TEST_MODE = os.getenv('EMAIL_TEST_MODE', 'true').lower() in ('true', '1', 't')
-raw_test_allowlist = os.getenv('EMAIL_TEST_ALLOWLIST', 'balaadhish.cbe@gmail.com,balaadhish333@gmail.com')
+# Test Mode & Allowlist (Defaults to False in production)
+EMAIL_TEST_MODE = os.getenv('EMAIL_TEST_MODE', 'False').lower() in ('true', '1', 't')
+raw_test_allowlist = os.getenv('EMAIL_TEST_ALLOWLIST', 'veepower.cbe@gmail.com,balaadhish.cbe@gmail.com,balaadhish333@gmail.com')
 EMAIL_TEST_ALLOWLIST = [e.strip().lower() for e in raw_test_allowlist.split(',') if e.strip()]
 
 # Outbox & Asynchronous Delivery
