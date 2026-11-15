@@ -52,15 +52,8 @@ export default function Checkout() {
   const [useNewAddress, setUseNewAddress] = useState(false);
   const [deliveryConfig, setDeliveryConfig] = useState<DeliveryConfiguration | null>(null);
 
-  // Address and Business states
-  const [isBusinessUser, setIsBusinessUser] = useState(false);
-  const [gstInput, setGstInput] = useState("");
-  const [isFetchingGST, setIsFetchingGST] = useState(false);
+  // Address and Validation states
   const [validationError, setValidationError] = useState("");
-
-  const [billingAddress, setBillingAddress] = useState({
-    company: "", gstin: "", address: ""
-  });
 
   const [newAddress, setNewAddress] = useState({
     name: "", phone: "", line1: "", line2: "", city: "Coimbatore", state: "Tamil Nadu", pincode: "",
@@ -225,21 +218,6 @@ export default function Checkout() {
     }
   };
 
-  const handleGSTBlur = () => {
-    if (gstInput.length >= 10) {
-      setIsFetchingGST(true);
-      setValidationError("");
-      setTimeout(() => {
-        setBillingAddress({
-          company: "Corporate Buyer",
-          gstin: gstInput,
-          address: "Tamil Nadu, India"
-        });
-        setIsFetchingGST(false);
-      }, 500);
-    }
-  };
-
   const handleContinueToReview = async () => {
     setValidationError("");
 
@@ -291,11 +269,6 @@ export default function Checkout() {
           return;
         }
       }
-    }
-
-    if (isBusinessUser && !billingAddress.company) {
-      setValidationError("Please enter a valid GST number and wait for billing details to fetch.");
-      return;
     }
 
     setStep(1);
@@ -498,7 +471,6 @@ export default function Checkout() {
         items: orderItems,
         payment_method: backendPaymentMethod,
         coupon_code: couponDiscount > 0 ? couponCode : undefined,
-        notes: isBusinessUser ? `GSTIN: ${gstInput}` : undefined,
       });
 
       setCreatedOrder(order);
@@ -554,15 +526,6 @@ export default function Checkout() {
             <div className="bg-white border border-[#D9E1E8] rounded-xl p-6 shadow-sm">
               <div className="flex flex-wrap gap-4 justify-between items-center mb-6 pb-4 border-b border-[#D9E1E8]">
                 <h2 className="font-bold text-[#0B3A63] text-lg">Delivery Information</h2>
-                <label className="flex items-center gap-2 cursor-pointer text-sm font-medium text-[#1769AA] bg-[#EFF6FF] px-3 py-1.5 rounded-lg border border-[#BFDBFE]">
-                  <input
-                    type="checkbox"
-                    checked={isBusinessUser}
-                    onChange={e => setIsBusinessUser(e.target.checked)}
-                    className="accent-[#1769AA] w-4 h-4 cursor-pointer"
-                  />
-                  Use GST No. for Business
-                </label>
               </div>
 
               {/* Saved Addresses List */}
@@ -663,39 +626,6 @@ export default function Checkout() {
                 </div>
               )}
 
-              {/* Billing Address Section (B2B Only) */}
-              {isBusinessUser && (
-                <div className="bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl p-5 mb-6">
-                  <h3 className="font-bold text-[#0B3A63] mb-4 flex items-center gap-2">
-                    <span>🏢</span> Billing Address (B2B)
-                  </h3>
-                  <div className="mb-4">
-                    <label className="text-sm font-medium text-[#17212B] mb-1.5 block">GSTIN / Business Registration Number *</label>
-                    <div className="relative">
-                      <input
-                        value={gstInput}
-                        onChange={e => setGstInput(e.target.value.toUpperCase())}
-                        onBlur={handleGSTBlur}
-                        className="w-full border border-[#D9E1E8] rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#1769AA] pr-10"
-                        placeholder="e.g. 33AABFV1234A1ZX"
-                      />
-                      {isFetchingGST && (
-                        <div className="absolute right-3 top-2.5">
-                          <div className="w-5 h-5 border-2 border-[#1769AA] border-t-transparent rounded-full animate-spin"></div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {billingAddress.company && (
-                    <div className="bg-white border border-[#D9E1E8] rounded-lg p-3 text-sm">
-                      <span className="font-semibold text-[#17212B] block">{billingAddress.company}</span>
-                      <span className="text-[#667085] text-xs">{billingAddress.address}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
               <button
                 onClick={handleContinueToReview}
                 className="w-full mt-4 bg-[#0B3A63] hover:bg-[#1769AA] text-white font-semibold px-8 py-3.5 rounded-lg transition-colors flex justify-center items-center gap-2"
@@ -730,27 +660,14 @@ export default function Checkout() {
 
               {activeShippingAddr && (
                 <div className="bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl p-5 text-sm text-[#667085] mb-6">
-                  <div className={`grid ${isBusinessUser ? 'md:grid-cols-2 gap-6' : 'gap-4'}`}>
-                    {isBusinessUser && (
-                      <div className="space-y-1.5 relative">
-                        <h4 className="font-bold text-[#17212B] mb-2 border-b border-[#D9E1E8] pb-2 flex items-center gap-2">
-                          <span>🏢</span> Billing Details
-                        </h4>
-                        <p className="font-bold text-[#0B3A63]">{billingAddress.company}</p>
-                        <p className="text-xs uppercase tracking-wider font-semibold text-[#1769AA]">GST: {billingAddress.gstin}</p>
-                        <p className="pt-1">{billingAddress.address}</p>
-                        <div className="hidden md:block absolute right-[-12px] top-0 bottom-0 w-px bg-[#D9E1E8]"></div>
-                      </div>
-                    )}
-                    <div className="space-y-1.5">
-                      <h4 className="font-bold text-[#17212B] mb-2 border-b border-[#D9E1E8] pb-2 flex items-center gap-2">
-                        <span>📍</span> Delivery To
-                      </h4>
-                      <p className="font-bold text-[#17212B]">{activeShippingAddr.recipient_name}</p>
-                      <p className="text-[#1769AA] font-medium">{activeShippingAddr.phone}</p>
-                      <p className="pt-1">{activeShippingAddr.address_line1}{activeShippingAddr.address_line2 ? `, ${activeShippingAddr.address_line2}` : ''}</p>
-                      <p>{activeShippingAddr.city}, {activeShippingAddr.state} - {activeShippingAddr.pincode}</p>
-                    </div>
+                  <div className="space-y-1.5">
+                    <h4 className="font-bold text-[#17212B] mb-2 border-b border-[#D9E1E8] pb-2 flex items-center gap-2">
+                      <span>📍</span> Delivery Address
+                    </h4>
+                    <p className="font-bold text-[#17212B]">{activeShippingAddr.recipient_name}</p>
+                    <p className="text-[#1769AA] font-medium">{activeShippingAddr.phone}</p>
+                    <p className="pt-1">{activeShippingAddr.address_line1}{activeShippingAddr.address_line2 ? `, ${activeShippingAddr.address_line2}` : ''}</p>
+                    <p>{activeShippingAddr.city}, {activeShippingAddr.state} - {activeShippingAddr.pincode}</p>
                   </div>
                 </div>
               )}
