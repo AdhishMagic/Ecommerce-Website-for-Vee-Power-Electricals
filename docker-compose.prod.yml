@@ -13,6 +13,7 @@ services:
       EMAIL_TEST_MODE: ${EMAIL_TEST_MODE:-False}
 
   frontend:
+    command: ["nginx", "-g", "daemon off;"]
     build:
       context: ./frontend
       dockerfile: Dockerfile
