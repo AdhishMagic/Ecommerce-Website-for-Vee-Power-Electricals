@@ -131,11 +131,17 @@ export default function Checkout() {
   const baseShippingFee = matchedRule ? Number(matchedRule.cost) : (deliveryConfig ? Number(deliveryConfig.base_delivery_charge) : 99);
   const freeThreshold = deliveryConfig ? Number(deliveryConfig.free_delivery_threshold) : 999;
   const isFreeDelivery = deliveryConfig?.free_delivery_enabled !== false && checkoutSubtotal >= freeThreshold;
-  const shipping = isFreeDelivery ? 0 : baseShippingFee;
-  const estimatedTax = Math.round(checkoutSubtotal * 0.18);
-  const previewTotal = checkoutSubtotal + shipping + estimatedTax;
+  const previewShipping = isFreeDelivery ? 0 : baseShippingFee;
+  const previewTax = Math.round(checkoutSubtotal * 18) / 100;
+  const previewTotal = Math.round((checkoutSubtotal + previewShipping + previewTax) * 100) / 100;
 
-  const effectiveTotal = createdOrder ? Number(createdOrder.total_amount) : previewTotal;
+  // Use authoritative order breakdown if order was created, otherwise preview values
+  const displaySubtotal = createdOrder ? Number(createdOrder.subtotal) : checkoutSubtotal;
+  const displayShipping = createdOrder ? Number(createdOrder.shipping_fee) : previewShipping;
+  const displayTax = createdOrder ? Number(createdOrder.tax_amount) : previewTax;
+  const displayTotal = createdOrder ? Number(createdOrder.total_amount) : previewTotal;
+
+  const effectiveTotal = displayTotal;
   const isCOD = false;
   const payableAmount = effectiveTotal;
 
@@ -944,32 +950,32 @@ export default function Checkout() {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between text-[#667085]">
               <span>Items ({checkoutItems.length})</span>
-              <span>₹{checkoutSubtotal.toLocaleString("en-IN")}</span>
+              <span>₹{displaySubtotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
             <div className="flex justify-between text-[#667085]">
               <span>Delivery Charge</span>
-              <span className={shipping === 0 ? "text-[#12773D] font-bold" : "font-medium"}>
-                {shipping === 0 ? "FREE" : `₹${shipping}`}
+              <span className={displayShipping === 0 ? "text-[#12773D] font-bold" : "font-medium"}>
+                {displayShipping === 0 ? "FREE" : `₹${displayShipping.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </span>
             </div>
             <div className="flex justify-between text-[#667085]">
               <span>Estimated GST (18%)</span>
-              <span>₹{estimatedTax.toLocaleString("en-IN")}</span>
+              <span>₹{displayTax.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
             <div className="border-t border-[#D9E1E8] pt-3 mt-1 flex justify-between font-bold text-[#0B3A63] text-base">
               <span>Order Total</span>
               <span className="text-[#1769AA] text-xl">
-                ₹{effectiveTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ₹{displayTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
           </div>
-          {checkoutSubtotal >= freeThreshold ? (
+          {displayShipping === 0 ? (
             <p className="mt-4 text-xs font-medium text-[#12773D] bg-[#ECFDF5] border border-[#D1FAE5] px-3 py-2.5 rounded-lg flex gap-1.5">
-              <span>✓</span> You qualify for free shipping! (Threshold: ₹{freeThreshold})
+              <span>✓</span> You qualify for free shipping! {freeThreshold > 0 && `(Threshold: ₹${freeThreshold.toLocaleString("en-IN")})`}
             </p>
           ) : (
             <p className="mt-4 text-xs font-medium text-[#B45309] bg-[#FFFBEB] border border-[#FEF3C7] px-3 py-2.5 rounded-lg">
-              Add ₹{(freeThreshold - checkoutSubtotal).toLocaleString("en-IN")} more to qualify for free delivery.
+              Add ₹{(freeThreshold - displaySubtotal).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} more to qualify for free delivery.
             </p>
           )}
           <p className="text-[11px] text-gray-400 mt-3 text-center">

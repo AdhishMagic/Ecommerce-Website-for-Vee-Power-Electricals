@@ -23,8 +23,8 @@ export default function Cart() {
   const baseShippingFee = deliveryConfig ? Number(deliveryConfig.base_delivery_charge) : 99;
   const isFreeShipping = deliveryConfig?.free_delivery_enabled !== false && subtotal >= freeThreshold;
   const shipping = isFreeShipping ? 0 : baseShippingFee;
-  const tax = Math.round(subtotal * 0.18);
-  const total = subtotal + shipping + tax;
+  const tax = Math.round(subtotal * 18) / 100;
+  const total = Math.round((subtotal + shipping + tax) * 100) / 100;
 
   if (items.length === 0) {
     return (
@@ -112,33 +112,33 @@ export default function Cart() {
             <div className="space-y-3 text-sm">
               <div className="flex justify-between text-[#667085]">
                 <span>Subtotal ({totalItems} items)</span>
-                <span className="font-medium text-[#17212B]">₹{subtotal.toLocaleString("en-IN")}</span>
+                <span className="font-medium text-[#17212B]">₹{subtotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between text-[#667085]">
                 <span>Shipping</span>
                 {shipping === 0 ? (
                   <span className="text-[#12773D] font-bold">FREE</span>
                 ) : (
-                  <span className="font-medium text-[#17212B]">₹{shipping}</span>
+                  <span className="font-medium text-[#17212B]">₹{shipping.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 )}
               </div>
               <div className="flex justify-between text-[#667085]">
                 <span>GST (18%)</span>
-                <span className="font-medium text-[#17212B]">₹{tax.toLocaleString("en-IN")}</span>
+                <span className="font-medium text-[#17212B]">₹{tax.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               
-              {deliveryConfig?.free_delivery_enabled !== false && subtotal < freeThreshold && (
+              {deliveryConfig?.free_delivery_enabled !== false && freeThreshold > 0 && subtotal < freeThreshold && (
                 <div className="bg-[#FFFBEB] border border-[#FDE68A] rounded-lg p-3 mt-3 flex items-start gap-2">
                   <span className="text-[#B45309]">ℹ️</span>
                   <p className="text-xs text-[#B45309] font-medium leading-snug">
-                    Add ₹{(freeThreshold - subtotal).toLocaleString("en-IN")} more to your cart to qualify for free shipping! (Threshold: ₹{freeThreshold.toLocaleString("en-IN")})
+                    Add ₹{(freeThreshold - subtotal).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} more to your cart to qualify for free shipping! (Threshold: ₹{freeThreshold.toLocaleString("en-IN")})
                   </p>
                 </div>
               )}
               
               <div className="border-t border-[#D9E1E8] pt-4 mt-2 flex justify-between items-end">
                 <span className="font-bold text-[#0B3A63] text-base">Total</span>
-                <span className="font-bold text-[#1769AA] text-2xl">₹{total.toLocaleString("en-IN")}</span>
+                <span className="font-bold text-[#1769AA] text-2xl">₹{total.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
             </div>
             
