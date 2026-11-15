@@ -25,6 +25,7 @@ export default function Checkout() {
 
   // Hardened Payment State & Order Persistence
   const [createdOrder, setCreatedOrder] = useState<any | null>(null);
+  const [showMockSimulator, setShowMockSimulator] = useState(false);
   const [paymentLifecycle, setPaymentLifecycle] = useState<PaymentLifecycle>('idle');
   const [paymentErrorMessage, setPaymentErrorMessage] = useState<string>("");
   const [activePaymentIntent, setActivePaymentIntent] = useState<PaymentIntentResponse | null>(null);
@@ -305,6 +306,44 @@ export default function Checkout() {
     return false;
   };
 
+  const handleVerifyPayment = async (verifyPayload: {
+    order_id: number;
+    razorpay_order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+    payment_method: string;
+  }) => {
+    setIsSubmittingOrder(true);
+    setPaymentLifecycle('verifying');
+    try {
+      await paymentsApi.verifyPayment(verifyPayload);
+
+      const freshOrder = await ordersApi.getOrderDetail(verifyPayload.order_id);
+      if (isSingleItem && singleItemState?.singleItem) {
+        removeFromCart(singleItemState.singleItem);
+      } else {
+        clearCart();
+      }
+      navigate("/order-success", { state: { order: freshOrder } });
+    } catch (verifyErr: any) {
+      console.warn("Direct verify call delayed or network error. Polling authoritative order status...", verifyErr);
+      const isConfirmed = await pollOrderPaymentStatus(verifyPayload.order_id);
+      if (isConfirmed) {
+        const freshOrder = await ordersApi.getOrderDetail(verifyPayload.order_id);
+        if (isSingleItem && singleItemState?.singleItem) {
+          removeFromCart(singleItemState.singleItem);
+        } else {
+          clearCart();
+        }
+        navigate("/order-success", { state: { order: freshOrder } });
+      } else {
+        setPaymentLifecycle('timeout_pending');
+        setIsSubmittingOrder(false);
+        setPaymentErrorMessage("Payment verification is pending confirmation from your bank. Please do not submit duplicate payments.");
+      }
+    }
+  };
+
   const launchRazorpayCheckout = async (targetOrder: any) => {
     setIsSubmittingOrder(true);
     setPaymentLifecycle('initiating');
@@ -322,6 +361,14 @@ export default function Checkout() {
       ]);
 
       setActivePaymentIntent(paymentIntent);
+
+      // If server is in mock/sandbox mode without real Razorpay keys, launch interactive simulator
+      if (isMockRazorpayKey(paymentIntent.key_id)) {
+        setPaymentLifecycle('gateway_open');
+        setIsSubmittingOrder(false);
+        setShowMockSimulator(true);
+        return;
+      }
 
       const rzpConstructor = (window as any).Razorpay;
 
@@ -360,41 +407,13 @@ export default function Checkout() {
             color: "#0B3A63",
           },
           handler: async (response: any) => {
-            setIsSubmittingOrder(true);
-            setPaymentLifecycle('verifying');
-            try {
-              await paymentsApi.verifyPayment({
-                order_id: Number(targetOrder.id),
-                razorpay_order_id: response.razorpay_order_id || paymentIntent.gateway_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                payment_method: backendPaymentMethod,
-              });
-
-              const freshOrder = await ordersApi.getOrderDetail(targetOrder.id);
-              if (isSingleItem && singleItemState?.singleItem) {
-                removeFromCart(singleItemState.singleItem);
-              } else {
-                clearCart();
-              }
-              navigate("/order-success", { state: { order: freshOrder } });
-            } catch (verifyErr: any) {
-              console.warn("Direct verify call delayed or network error. Polling authoritative order status...", verifyErr);
-              const isConfirmed = await pollOrderPaymentStatus(Number(targetOrder.id));
-              if (isConfirmed) {
-                const freshOrder = await ordersApi.getOrderDetail(targetOrder.id);
-                if (isSingleItem && singleItemState?.singleItem) {
-                  removeFromCart(singleItemState.singleItem);
-                } else {
-                  clearCart();
-                }
-                navigate("/order-success", { state: { order: freshOrder } });
-              } else {
-                setPaymentLifecycle('timeout_pending');
-                setIsSubmittingOrder(false);
-                setPaymentErrorMessage("Payment verification is pending confirmation from your bank. Please do not submit duplicate payments.");
-              }
-            }
+            await handleVerifyPayment({
+              order_id: Number(targetOrder.id),
+              razorpay_order_id: response.razorpay_order_id || paymentIntent.gateway_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              payment_method: backendPaymentMethod,
+            });
           },
           modal: {
             ondismiss: () => {
@@ -985,8 +1004,98 @@ export default function Checkout() {
             </div>
           )}
 
+          {/* Mock/Sandbox Payment Simulator Modal */}
+          {showMockSimulator && activePaymentIntent && createdOrder && (
+            <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200">
+              <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">
+                      🧪 Sandbox Mode
+                    </span>
+                    <h3 className="font-bold text-[#0B3A63] text-base">Payment Simulator</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMockSimulator(false);
+                      setPaymentLifecycle('cancelled');
+                      setPaymentErrorMessage("Payment simulation was cancelled. Your order is safely preserved.");
+                    }}
+                    className="text-slate-400 hover:text-slate-600 text-sm font-bold p-1 cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <p className="text-xs text-slate-500 mb-4">
+                  The server is running in development sandbox mode. Use the options below to test your checkout order confirmation lifecycle.
+                </p>
+
+                <div className="bg-slate-50 rounded-xl p-4 mb-5 border border-slate-200 space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Order Number:</span>
+                    <span className="font-semibold text-slate-800">#{createdOrder?.order_number}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Payment Option:</span>
+                    <span className="font-semibold text-slate-800 uppercase">{isCOD ? '50% COD Advance' : paymentMethod}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-slate-200 pt-2 text-sm font-bold text-[#0B3A63]">
+                    <span>Payable Amount:</span>
+                    <span className="text-[#1769AA]">₹{(Number(activePaymentIntent.amount) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2.5">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setShowMockSimulator(false);
+                      await handleVerifyPayment({
+                        order_id: Number(createdOrder.id),
+                        razorpay_order_id: activePaymentIntent.gateway_order_id,
+                        razorpay_payment_id: `pay_mock_${Date.now()}`,
+                        razorpay_signature: 'mock_signature_ok',
+                        payment_method: isCOD ? 'COD' : paymentMethod.toUpperCase(),
+                      });
+                    }}
+                    className="w-full py-3 px-4 rounded-xl bg-[#12773D] hover:bg-[#0E5C2F] text-white text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <span>✅</span> Complete Payment (Simulate Success)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMockSimulator(false);
+                      setPaymentLifecycle('failed');
+                      setIsSubmittingOrder(false);
+                      setPaymentErrorMessage("Simulated payment was declined.");
+                    }}
+                    className="w-full py-2.5 px-4 rounded-xl border border-red-300 text-red-700 bg-red-50 hover:bg-red-100 text-xs font-semibold transition-all cursor-pointer"
+                  >
+                    <span>❌</span> Simulate Payment Failure
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMockSimulator(false);
+                      setPaymentLifecycle('cancelled');
+                      setPaymentErrorMessage("Payment simulation was cancelled.");
+                    }}
+                    className="w-full py-2 text-slate-500 hover:text-slate-700 text-xs font-medium cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Floating indicator while standard real Razorpay checkout is open */}
-          {paymentLifecycle === 'gateway_open' && activePaymentIntent && (
+          {paymentLifecycle === 'gateway_open' && activePaymentIntent && !showMockSimulator && (
             <div className="fixed bottom-6 right-6 z-40 bg-[#0B3A63] text-white px-5 py-4 rounded-2xl shadow-2xl border border-blue-400/30 max-w-sm flex items-center gap-3">
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin flex-shrink-0"></div>
               <div className="text-xs">
