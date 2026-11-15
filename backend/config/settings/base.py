@@ -49,6 +49,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'apps.common.middleware.RequestIdMiddleware',
+    'django.middleware.gzip.GZipMiddleware',
     'apps.common.middleware.SecurityHeadersMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -123,7 +124,21 @@ DATABASES = {
         'PASSWORD': DB_PASSWORD,
         'HOST': DB_HOST,
         'PORT': DB_PORT,
+        'CONN_MAX_AGE': int(os.getenv('DATABASE_CONN_MAX_AGE', '300')),
+        'CONN_HEALTH_CHECKS': True,
         'OPTIONS': db_options,
+    }
+}
+
+# High-performance in-memory application cache for public catalog and store metadata
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'veepower-cache',
+        'TIMEOUT': int(os.getenv('CACHE_TIMEOUT', '300')),
+        'OPTIONS': {
+            'MAX_ENTRIES': 2000,
+        }
     }
 }
 

@@ -134,6 +134,32 @@ const mapApiCategoryToCategory = (item: ApiCategory | any): Category => {
   };
 };
 
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+const MEMORY_CACHE_TTL_MS = 60 * 1000; // 60 seconds
+
+let categoriesCache: CacheEntry<Category[]> | null = null;
+let categoriesPendingPromise: Promise<Category[]> | null = null;
+
+let heroCategoriesCache: CacheEntry<HeroCategory[]> | null = null;
+let heroCategoriesPendingPromise: Promise<HeroCategory[]> | null = null;
+
+let brandsCache: CacheEntry<string[]> | null = null;
+let brandsPendingPromise: Promise<string[]> | null = null;
+
+export const clearProductServiceCache = () => {
+  categoriesCache = null;
+  heroCategoriesCache = null;
+  brandsCache = null;
+};
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('hero_categories_updated', clearProductServiceCache);
+}
+
 export const productService = {
   async getProducts(params?: {
     category?: string;
@@ -173,42 +199,81 @@ export const productService = {
     }
   },
 
-  async getCategories(): Promise<Category[]> {
-    const res = await catalogApi.getCategories();
-    const rawCategories: any[] = Array.isArray(res) ? res : res.results || [];
-    return rawCategories.map(mapApiCategoryToCategory);
+  async getCategories(options?: { forceRefresh?: boolean }): Promise<Category[]> {
+    const now = Date.now();
+    if (!options?.forceRefresh && categoriesCache && now - categoriesCache.timestamp < MEMORY_CACHE_TTL_MS) {
+      return categoriesCache.data;
+    }
+
+    if (categoriesPendingPromise) {
+      return categoriesPendingPromise;
+    }
+
+    categoriesPendingPromise = (async () => {
+      try {
+        const res = await catalogApi.getCategories();
+        const rawCategories: any[] = Array.isArray(res) ? res : res.results || [];
+        const mapped = rawCategories.map(mapApiCategoryToCategory);
+        categoriesCache = { data: mapped, timestamp: Date.now() };
+        return mapped;
+      } finally {
+        categoriesPendingPromise = null;
+      }
+    })();
+
+    return categoriesPendingPromise;
   },
 
-  async getHeroCategories(): Promise<HeroCategory[]> {
-    const res = await catalogApi.getHeroCategories();
-    const raw: any[] = Array.isArray(res) ? res : (res as any).results || [];
+  async getHeroCategories(options?: { forceRefresh?: boolean }): Promise<HeroCategory[]> {
+    const now = Date.now();
+    if (!options?.forceRefresh && heroCategoriesCache && now - heroCategoriesCache.timestamp < MEMORY_CACHE_TTL_MS) {
+      return heroCategoriesCache.data;
+    }
 
-    return raw.map((item) => {
-      const discountVal = Number(item.discount_value ?? item.discountValue ?? 0);
-      const discountType = (item.discount_type || item.discountType || 'percentage') as 'percentage' | 'fixed';
-      const discountEnabled = Boolean(item.discount_enabled ?? item.discountEnabled) && discountVal > 0;
-      let discountLabel = (item.discount_label || item.discountLabel || '').trim();
-      if (!discountLabel && discountEnabled) {
-        discountLabel = discountType === 'fixed' ? `₹${discountVal} OFF` : `UP TO ${discountVal}% OFF`;
+    if (heroCategoriesPendingPromise) {
+      return heroCategoriesPendingPromise;
+    }
+
+    heroCategoriesPendingPromise = (async () => {
+      try {
+        const res = await catalogApi.getHeroCategories();
+        const raw: any[] = Array.isArray(res) ? res : (res as any).results || [];
+
+        const mapped = raw.map((item) => {
+          const discountVal = Number(item.discount_value ?? item.discountValue ?? 0);
+          const discountType = (item.discount_type || item.discountType || 'percentage') as 'percentage' | 'fixed';
+          const discountEnabled = Boolean(item.discount_enabled ?? item.discountEnabled) && discountVal > 0;
+          let discountLabel = (item.discount_label || item.discountLabel || '').trim();
+          if (!discountLabel && discountEnabled) {
+            discountLabel = discountType === 'fixed' ? `₹${discountVal} OFF` : `UP TO ${discountVal}% OFF`;
+          }
+
+          return {
+            id: item.id,
+            name: item.name,
+            slug: item.slug || String(item.id),
+            link: `/shop?category=${item.slug || item.id}`,
+            image: item.image && !isInappropriateOrPlaceholderImage(item.image)
+              ? item.image
+              : getCategoryDefaultImage(item.slug || item.id || item.name),
+            subtitle: item.subtitle || 'Genuine Brands',
+            heroOrder: Number(item.hero_order ?? item.heroOrder ?? 99),
+            heroBadge: item.hero_badge || item.heroBadge || '',
+            discountEnabled,
+            discountType,
+            discountValue: discountVal,
+            discountLabel,
+          };
+        }).sort((a, b) => a.heroOrder - b.heroOrder);
+
+        heroCategoriesCache = { data: mapped, timestamp: Date.now() };
+        return mapped;
+      } finally {
+        heroCategoriesPendingPromise = null;
       }
+    })();
 
-      return {
-        id: item.id,
-        name: item.name,
-        slug: item.slug || String(item.id),
-        link: `/shop?category=${item.slug || item.id}`,
-        image: item.image && !isInappropriateOrPlaceholderImage(item.image)
-          ? item.image
-          : getCategoryDefaultImage(item.slug || item.id || item.name),
-        subtitle: item.subtitle || 'Genuine Brands',
-        heroOrder: Number(item.hero_order ?? item.heroOrder ?? 99),
-        heroBadge: item.hero_badge || item.heroBadge || '',
-        discountEnabled,
-        discountType,
-        discountValue: discountVal,
-        discountLabel,
-      };
-    }).sort((a, b) => a.heroOrder - b.heroOrder);
+    return heroCategoriesPendingPromise;
   },
 
   async updateCategory(id: string | number, data: Partial<Category>): Promise<any> {
@@ -227,13 +292,33 @@ export const productService = {
     };
 
     const updated = await catalogApi.updateCategory(id, payload);
+    clearProductServiceCache();
     window.dispatchEvent(new CustomEvent('hero_categories_updated'));
     return updated;
   },
 
-  async getBrands(): Promise<string[]> {
-    const res = await catalogApi.getBrands();
-    const raw: any[] = Array.isArray(res) ? res : (res as any).results || [];
-    return raw.map((b) => (typeof b === 'string' ? b : b.name));
+  async getBrands(options?: { forceRefresh?: boolean }): Promise<string[]> {
+    const now = Date.now();
+    if (!options?.forceRefresh && brandsCache && now - brandsCache.timestamp < MEMORY_CACHE_TTL_MS) {
+      return brandsCache.data;
+    }
+
+    if (brandsPendingPromise) {
+      return brandsPendingPromise;
+    }
+
+    brandsPendingPromise = (async () => {
+      try {
+        const res = await catalogApi.getBrands();
+        const raw: any[] = Array.isArray(res) ? res : (res as any).results || [];
+        const mapped = raw.map((b) => (typeof b === 'string' ? b : b.name));
+        brandsCache = { data: mapped, timestamp: Date.now() };
+        return mapped;
+      } finally {
+        brandsPendingPromise = null;
+      }
+    })();
+
+    return brandsPendingPromise;
   },
 };

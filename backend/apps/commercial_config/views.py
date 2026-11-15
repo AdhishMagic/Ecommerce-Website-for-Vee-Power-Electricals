@@ -1,4 +1,5 @@
 from decimal import Decimal
+from django.core.cache import cache
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.permissions import AllowAny
@@ -59,14 +60,25 @@ class CompanyStoreConfigView(APIView):
         )
 
     def get(self, request):
-        config = self.get_object()
-        # Administrators see bank settlement coordinates; anonymous and customer
-        # callers receive the public projection without them.
         if self._is_administrator(request.user):
+            config = self.get_object()
             return Response(CompanyStoreConfigurationSerializer(config).data)
-        return Response(CompanyStoreConfigurationPublicSerializer(config).data)
+
+        cached_data = cache.get('config:store:public')
+        if cached_data is not None:
+            response = Response(cached_data)
+            response['Cache-Control'] = 'public, max-age=60, s-maxage=300, stale-while-revalidate=600'
+            return response
+
+        config = self.get_object()
+        data = CompanyStoreConfigurationPublicSerializer(config).data
+        cache.set('config:store:public', data, timeout=300)
+        response = Response(data)
+        response['Cache-Control'] = 'public, max-age=60, s-maxage=300, stale-while-revalidate=600'
+        return response
 
     def put(self, request):
+        cache.delete('config:store:public')
         config = self.get_object()
         old_data = CompanyStoreConfigurationSerializer(config).data
         serializer = CompanyStoreConfigurationSerializer(config, data=request.data, partial=False)
@@ -85,6 +97,7 @@ class CompanyStoreConfigView(APIView):
         return Response(serializer.data)
 
     def patch(self, request):
+        cache.delete('config:store:public')
         config = self.get_object()
         old_data = CompanyStoreConfigurationSerializer(config).data
         serializer = CompanyStoreConfigurationSerializer(config, data=request.data, partial=True)

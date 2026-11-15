@@ -44,6 +44,7 @@ class Category(TimeStampedModel):
         ]
         indexes = [
             models.Index(fields=['show_in_hero', 'is_active', 'hero_order'], name='idx_cat_hero'),
+            models.Index(fields=['is_active', 'id'], name='idx_cat_active_id'),
         ]
 
     def clean(self):
@@ -212,6 +213,10 @@ class Product(TimeStampedModel):
             models.Index(fields=['featured', 'active'], name='idx_prod_featured'),
             models.Index(fields=['price'], name='idx_prod_price'),
             models.Index(fields=['created_at'], name='idx_prod_created'),
+            models.Index(fields=['active', '-created_at', '-id'], name='idx_prod_act_created'),
+            models.Index(fields=['active', 'category'], name='idx_prod_act_cat'),
+            models.Index(fields=['active', 'subcategory'], name='idx_prod_act_subcat'),
+            models.Index(fields=['active', 'brand'], name='idx_prod_act_brand'),
         ]
 
     def clean(self):

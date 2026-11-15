@@ -80,7 +80,7 @@ class CustomerMyOrdersView(generics.ListAPIView):
     def get_queryset(self):
         return Order.objects.filter(user=self.request.user).annotate(
             annotated_items_count=Count('items')
-        ).order_by('-created_at', '-id')
+        ).prefetch_related('payments').order_by('-created_at', '-id')
 
 
 class OrderDetailView(generics.RetrieveAPIView):
@@ -111,7 +111,7 @@ class AdminOrderListView(generics.ListAPIView):
     def get_queryset(self):
         qs = Order.objects.annotate(
             annotated_items_count=Count('items')
-        ).order_by('-created_at', '-id')
+        ).prefetch_related('payments').order_by('-created_at', '-id')
 
         status_param = self.request.query_params.get('status')
         if status_param and status_param.upper() in [s.value for s in OrderStatus]:

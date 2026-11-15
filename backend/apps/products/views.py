@@ -1,4 +1,5 @@
 from decimal import Decimal, InvalidOperation
+from django.core.cache import cache
 from django.db import models, transaction
 from django.db.models import Q
 from rest_framework import viewsets, status
@@ -26,6 +27,13 @@ from .serializers import (
     ProductListSerializer,
     ProductDetailSerializer,
     ProductAdminCreateUpdateSerializer,
+)
+from .cache_utils import (
+    CACHE_KEY_CAT_HERO,
+    CACHE_KEY_CAT_LIST,
+    CACHE_KEY_BRANDS_LIST,
+    invalidate_catalog_cache,
+    invalidate_brands_cache,
 )
 
 
@@ -67,14 +75,59 @@ class CategoryViewSet(viewsets.ModelViewSet):
         self.check_object_permissions(self.request, obj)
         return obj
 
+    def list(self, request, *args, **kwargs):
+        is_admin = bool(
+            request.user
+            and request.user.is_authenticated
+            and (request.user.is_staff or getattr(request.user, 'role', '') == 'admin')
+        )
+        show_in_hero = request.query_params.get('show_in_hero')
+        is_default_public = not is_admin and show_in_hero is None
+
+        if is_default_public:
+            cached_data = cache.get(CACHE_KEY_CAT_LIST)
+            if cached_data is not None:
+                response = Response(cached_data)
+                response['Cache-Control'] = 'public, max-age=60, s-maxage=300, stale-while-revalidate=600'
+                return response
+
+        response = super().list(request, *args, **kwargs)
+        if is_default_public:
+            cache.set(CACHE_KEY_CAT_LIST, response.data, timeout=300)
+            response['Cache-Control'] = 'public, max-age=60, s-maxage=300, stale-while-revalidate=600'
+        return response
+
     @action(detail=False, methods=['get'])
     def hero(self, request):
+        cached_data = cache.get(CACHE_KEY_CAT_HERO)
+        if cached_data is not None:
+            response = Response(cached_data)
+            response['Cache-Control'] = 'public, max-age=60, s-maxage=300, stale-while-revalidate=600'
+            return response
+
         categories = Category.objects.filter(is_active=True, show_in_hero=True).order_by('hero_order')
         serializer = self.get_serializer(categories, many=True)
-        return Response({'count': categories.count(), 'results': serializer.data})
+        data = {'count': len(serializer.data), 'results': serializer.data}
+        cache.set(CACHE_KEY_CAT_HERO, data, timeout=300)
+        response = Response(data)
+        response['Cache-Control'] = 'public, max-age=60, s-maxage=300, stale-while-revalidate=600'
+        return response
+
+    def perform_create(self, serializer):
+        super().perform_create(serializer)
+        invalidate_catalog_cache()
+
+    def perform_update(self, serializer):
+        super().perform_update(serializer)
+        invalidate_catalog_cache()
+
+    def perform_destroy(self, instance):
+        super().perform_destroy(instance)
+        invalidate_catalog_cache()
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        invalidate_catalog_cache()
         if instance.products.exists():
             instance.is_active = False
             instance.save()
@@ -131,8 +184,21 @@ class SubcategoryViewSet(viewsets.ModelViewSet):
         self.check_object_permissions(self.request, obj)
         return obj
 
+    def perform_create(self, serializer):
+        super().perform_create(serializer)
+        invalidate_catalog_cache()
+
+    def perform_update(self, serializer):
+        super().perform_update(serializer)
+        invalidate_catalog_cache()
+
+    def perform_destroy(self, instance):
+        super().perform_destroy(instance)
+        invalidate_catalog_cache()
+
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        invalidate_catalog_cache()
         if instance.products.exists():
             instance.is_active = False
             instance.save()
@@ -174,8 +240,40 @@ class BrandViewSet(viewsets.ModelViewSet):
         self.check_object_permissions(self.request, obj)
         return obj
 
+    def list(self, request, *args, **kwargs):
+        is_admin = bool(
+            request.user
+            and request.user.is_authenticated
+            and (request.user.is_staff or getattr(request.user, 'role', '') == 'admin')
+        )
+        if not is_admin:
+            cached_data = cache.get(CACHE_KEY_BRANDS_LIST)
+            if cached_data is not None:
+                response = Response(cached_data)
+                response['Cache-Control'] = 'public, max-age=60, s-maxage=300, stale-while-revalidate=600'
+                return response
+
+        response = super().list(request, *args, **kwargs)
+        if not is_admin:
+            cache.set(CACHE_KEY_BRANDS_LIST, response.data, timeout=300)
+            response['Cache-Control'] = 'public, max-age=60, s-maxage=300, stale-while-revalidate=600'
+        return response
+
+    def perform_create(self, serializer):
+        super().perform_create(serializer)
+        invalidate_brands_cache()
+
+    def perform_update(self, serializer):
+        super().perform_update(serializer)
+        invalidate_brands_cache()
+
+    def perform_destroy(self, instance):
+        super().perform_destroy(instance)
+        invalidate_brands_cache()
+
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        invalidate_brands_cache()
         if instance.products.exists():
             instance.is_active = False
             instance.save()
@@ -198,7 +296,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     """
     Master catalog product endpoints with rich filtering, search, and protected stock deletion safety.
     """
-    queryset = Product.objects.select_related('category', 'subcategory', 'brand').prefetch_related('images', 'specifications')
+    queryset = Product.objects.select_related('category', 'subcategory', 'brand')
     parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_permissions(self):
@@ -214,7 +312,9 @@ class ProductViewSet(viewsets.ModelViewSet):
         return ProductAdminCreateUpdateSerializer
 
     def get_queryset(self):
-        qs = Product.objects.select_related('category', 'subcategory', 'brand').prefetch_related('images', 'specifications')
+        qs = Product.objects.select_related('category', 'subcategory', 'brand')
+        if getattr(self, 'action', None) in ['retrieve', 'default_images'] or getattr(self, 'detail', False):
+            qs = qs.prefetch_related('images', 'specifications')
         is_admin_user = (
             self.request.user
             and self.request.user.is_authenticated
@@ -339,12 +439,37 @@ class ProductViewSet(viewsets.ModelViewSet):
         self.check_object_permissions(self.request, obj)
         return obj
 
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        if not (request.user and request.user.is_authenticated and (request.user.is_staff or getattr(request.user, 'role', '') == 'admin')):
+            response['Cache-Control'] = 'public, max-age=30, s-maxage=120, stale-while-revalidate=300'
+        return response
+
+    def retrieve(self, request, *args, **kwargs):
+        response = super().retrieve(request, *args, **kwargs)
+        if not (request.user and request.user.is_authenticated and (request.user.is_staff or getattr(request.user, 'role', '') == 'admin')):
+            response['Cache-Control'] = 'public, max-age=60, s-maxage=300, stale-while-revalidate=600'
+        return response
+
+    def perform_create(self, serializer):
+        super().perform_create(serializer)
+        invalidate_catalog_cache()
+
+    def perform_update(self, serializer):
+        super().perform_update(serializer)
+        invalidate_catalog_cache()
+
+    def perform_destroy(self, instance):
+        super().perform_destroy(instance)
+        invalidate_catalog_cache()
+
     def destroy(self, request, *args, **kwargs):
         """
         Safely handle product deletion. If product is protected by stock ledger entries,
         order items, invoice items, or quotation items, soft-deactivate it instead of throwing
         an unhandled database exception or orphaning historical audit records.
         """
+        invalidate_catalog_cache()
         product = self.get_object()
         has_orders = product.orderitem_set.exists() if hasattr(product, 'orderitem_set') else False
         has_invoices = product.invoiceitem_set.exists() if hasattr(product, 'invoiceitem_set') else False
@@ -461,7 +586,9 @@ class ProductViewSet(viewsets.ModelViewSet):
             {"key": "electrical-accessories", "name": "Electrical Accessories", "image_url": "/media/defaults/electrical-accessories.webp"},
             {"key": "generic-electrical", "name": "Generic Electrical", "image_url": "/media/defaults/generic-electrical.webp"},
         ]
-        return Response(defaults, status=status.HTTP_200_OK)
+        response = Response(defaults, status=status.HTTP_200_OK)
+        response['Cache-Control'] = 'public, max-age=86400, s-maxage=86400'
+        return response
 
     @action(detail=False, methods=['post'], url_path='bulk-import', permission_classes=[IsAdminUser])
     def bulk_import(self, request):

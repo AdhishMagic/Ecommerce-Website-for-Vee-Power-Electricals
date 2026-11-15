@@ -115,7 +115,15 @@ class Order(TimeStampedModel):
 
     @property
     def latest_payment_transaction(self):
-        return self.payments.order_by('-created_at').first()
+        if hasattr(self, '_latest_payment_transaction_cache'):
+            return self._latest_payment_transaction_cache
+        if hasattr(self, '_prefetched_objects_cache') and 'payments' in self._prefetched_objects_cache:
+            payments = sorted(self.payments.all(), key=lambda p: (p.created_at, p.id), reverse=True)
+            self._latest_payment_transaction_cache = payments[0] if payments else None
+            return self._latest_payment_transaction_cache
+        txn = self.payments.order_by('-created_at', '-id').first()
+        self._latest_payment_transaction_cache = txn
+        return txn
 
     @property
     def razorpay_order_id(self):
