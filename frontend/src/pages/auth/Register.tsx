@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate, useLocation, Link, useSearchParams } from "react-router-dom";
 import AuthLayout from "../../components/layout/AuthLayout";
 import VeeElectricalsLoader, { AuthLoaderStatus } from "../../components/brand/VeeElectricalsLoader";
 import GoogleSignInButton from "../../components/auth/GoogleSignInButton";
@@ -22,6 +22,24 @@ export default function Register() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+
+  // Resolve where the user was before reaching registration
+  const redirectParam = searchParams.get("redirect");
+  const fromState = (location.state as any)?.from;
+  const fromPath = typeof fromState === "string" ? fromState : fromState?.pathname ? `${fromState.pathname}${fromState.search || ""}` : "";
+  const redirect = redirectParam || fromPath || sessionStorage.getItem("auth_redirect") || "";
+
+  // Persist redirect in session so Google OAuth or page refreshes preserve it
+  useEffect(() => {
+    if (redirectParam) {
+      sessionStorage.setItem("auth_redirect", redirectParam);
+    } else if (fromPath) {
+      sessionStorage.setItem("auth_redirect", fromPath);
+    }
+  }, [redirectParam, fromPath]);
+
   const { login } = useAuth();
 
   const validateEmail = (emailStr: string) => {
@@ -74,7 +92,10 @@ export default function Register() {
       setAuthStatus("success");
       setTimeout(() => {
         setIsLoading(false);
-        navigate("/login?registered=true");
+        const loginUrl = redirect
+          ? `/login?registered=true&redirect=${encodeURIComponent(redirect)}`
+          : "/login?registered=true";
+        navigate(loginUrl);
       }, 500);
     } catch (err: any) {
       const msg = err?.message || err?.detail || "Registration failed. Please check your details.";
@@ -103,14 +124,15 @@ export default function Register() {
         setGoogleNotice("Signed in with Google using your existing account.");
       }
       setTimeout(() => {
-        login(authToken, authUser, "/");
+        sessionStorage.removeItem("auth_redirect");
+        login(authToken, authUser, redirect);
       }, 400);
     } catch (err: any) {
       setError(err?.message || "Google sign-in failed. Please try again or use email and password.");
       setAuthStatus("idle");
       setIsLoading(false);
     }
-  }, [isLoading, authStatus, login]);
+  }, [isLoading, authStatus, login, redirect]);
 
   return (
     <AuthLayout
@@ -246,7 +268,10 @@ export default function Register() {
 
         <p className="text-center text-xs sm:text-sm text-muted mt-4">
           Already have an account?{" "}
-          <Link to="/login" className="text-electric hover:text-electric-dark font-semibold transition-colors">
+          <Link
+            to={redirect ? `/login?redirect=${encodeURIComponent(redirect)}` : "/login"}
+            className="text-electric hover:text-electric-dark font-semibold transition-colors"
+          >
             Sign In
           </Link>
         </p>

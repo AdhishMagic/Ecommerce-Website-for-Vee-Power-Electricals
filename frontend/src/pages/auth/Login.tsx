@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate, Link, useSearchParams } from "react-router-dom";
+import { useNavigate, useLocation, Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import AuthLayout from "../../components/layout/AuthLayout";
 import VeeElectricalsLoader, { AuthLoaderStatus } from "../../components/brand/VeeElectricalsLoader";
@@ -19,8 +19,23 @@ export default function Login() {
   const [googleNotice, setGoogleNotice] = useState("");
   
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
-  const redirect = searchParams.get("redirect") || "";
+
+  // Resolve where the user was before login
+  const redirectParam = searchParams.get("redirect");
+  const fromState = (location.state as any)?.from;
+  const fromPath = typeof fromState === "string" ? fromState : fromState?.pathname ? `${fromState.pathname}${fromState.search || ""}` : "";
+  const redirect = redirectParam || fromPath || sessionStorage.getItem("auth_redirect") || "";
+
+  // Persist redirect in session so Google OAuth or page refreshes preserve it
+  useEffect(() => {
+    if (redirectParam) {
+      sessionStorage.setItem("auth_redirect", redirectParam);
+    } else if (fromPath) {
+      sessionStorage.setItem("auth_redirect", fromPath);
+    }
+  }, [redirectParam, fromPath]);
   
   const { login } = useAuth();
 
@@ -69,6 +84,7 @@ export default function Login() {
             setGoogleNotice("Signed in with Google using your existing account.");
           }
           setTimeout(() => {
+            sessionStorage.removeItem("auth_redirect");
             login(oauthToken, user, redirect);
           }, 400);
         })
@@ -118,6 +134,7 @@ export default function Login() {
       const { user: authUser, token: authToken } = await authService.login(email, password);
       setAuthStatus("success");
       setTimeout(() => {
+        sessionStorage.removeItem("auth_redirect");
         login(authToken, authUser, redirect);
       }, 400);
     } catch (err: any) {
@@ -143,6 +160,7 @@ export default function Login() {
         setGoogleNotice("Signed in with Google using your existing account.");
       }
       setTimeout(() => {
+        sessionStorage.removeItem("auth_redirect");
         login(authToken, authUser, redirect);
       }, 400);
     } catch (err: any) {
@@ -277,7 +295,13 @@ export default function Login() {
         />
 
         <div className="mt-4.5 text-center text-xs sm:text-sm text-muted">
-          Don't have an account? <Link to="/register" className="text-electric font-semibold hover:underline">Create account</Link>
+          Don't have an account?{" "}
+          <Link
+            to={redirect ? `/register?redirect=${encodeURIComponent(redirect)}` : "/register"}
+            className="text-electric font-semibold hover:underline"
+          >
+            Create account
+          </Link>
         </div>
       </div>
     </AuthLayout>

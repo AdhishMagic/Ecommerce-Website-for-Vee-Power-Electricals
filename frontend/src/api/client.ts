@@ -201,6 +201,7 @@ export const clearAuthStorage = (): void => {
   sessionStorage.removeItem('vp_refresh_token');
   sessionStorage.removeItem('vp_user');
   sessionStorage.removeItem('vp_role');
+  sessionStorage.removeItem('auth_redirect');
 };
 
 // Ends the session exactly once, no matter how many requests were in flight when

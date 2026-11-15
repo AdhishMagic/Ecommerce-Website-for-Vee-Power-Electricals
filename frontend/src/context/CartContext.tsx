@@ -7,6 +7,7 @@ import {
   useRef,
   type ReactNode,
 } from "react";
+import { Link } from "react-router-dom";
 import type { Product } from "../types/product";
 import { useAuth } from "./AuthContext";
 import { cartApi } from "../api/cart";
@@ -15,6 +16,11 @@ import { ApiCart, ApiCartItem } from "../types/api";
 
 export interface CartItem {
   id?: number | string;
+  product: Product;
+  quantity: number;
+}
+
+export interface CartNotification {
   product: Product;
   quantity: number;
 }
@@ -29,6 +35,8 @@ interface CartContextType {
   subtotal: number;
   isLoading: boolean;
   refreshCart: () => Promise<void>;
+  cartNotification: CartNotification | null;
+  dismissNotification: () => void;
 }
 
 const CartContext = createContext<CartContextType | null>(null);
@@ -96,6 +104,35 @@ export function CartProvider({ children }: { children: ReactNode }) {
   });
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [cartNotification, setCartNotification] = useState<CartNotification | null>(null);
+  const notificationTimeoutRef = useRef<NodeJS.Timeout | number | null>(null);
+
+  const dismissNotification = useCallback(() => {
+    if (notificationTimeoutRef.current) {
+      clearTimeout(notificationTimeoutRef.current);
+      notificationTimeoutRef.current = null;
+    }
+    setCartNotification(null);
+  }, []);
+
+  const triggerNotification = useCallback((product: Product, quantity = 1) => {
+    if (notificationTimeoutRef.current) {
+      clearTimeout(notificationTimeoutRef.current);
+    }
+    setCartNotification({ product, quantity });
+    notificationTimeoutRef.current = setTimeout(() => {
+      setCartNotification(null);
+      notificationTimeoutRef.current = null;
+    }, 4500);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (notificationTimeoutRef.current) {
+        clearTimeout(notificationTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // References to guarantee race-condition safety and cancel stale in-flight requests
   const activeUserIdRef = useRef<string | null>(currentUserId);
@@ -215,6 +252,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const addToCart = useCallback(
     (product: Product, qty = 1) => {
       requireAuth(() => {
+        triggerNotification(product, qty);
+
         // Optimistic UI update
         setItems((prev) => {
           const existing = prev.find((i) => String(i.product.id) === String(product.id));
@@ -243,7 +282,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           });
       });
     },
-    [requireAuth, currentUserId, refreshCart]
+    [requireAuth, triggerNotification, currentUserId, refreshCart]
   );
 
   const removeFromCart = useCallback(
@@ -333,9 +372,55 @@ export function CartProvider({ children }: { children: ReactNode }) {
         subtotal,
         isLoading,
         refreshCart,
+        cartNotification,
+        dismissNotification,
       }}
     >
       {children}
+
+      {/* Floating Add to Cart Toast Notification */}
+      {cartNotification && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-5 right-5 z-50 max-w-sm w-[calc(100vw-2.5rem)] bg-white border border-[#1769AA]/30 rounded-2xl shadow-2xl p-4 flex items-center gap-3.5 animate-in slide-in-from-bottom-5 duration-300 pointer-events-auto"
+        >
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 rounded uppercase tracking-wider">Added</span>
+              <p className="text-xs font-bold text-[#0B3A63] truncate">{cartNotification.product.name}</p>
+            </div>
+            <p className="text-[11px] text-[#667085] mt-0.5">
+              Qty: <span className="font-semibold text-[#17212B]">{cartNotification.quantity}</span> • ₹{((cartNotification.product.price || 0) * cartNotification.quantity).toLocaleString("en-IN")}
+            </p>
+          </div>
+          <div className="flex flex-col gap-1 items-end shrink-0">
+            <Link
+              to="/cart"
+              onClick={dismissNotification}
+              className="px-3 py-1.5 bg-[#F2A900] hover:bg-[#DDA006] text-[#0B3A63] font-bold text-xs rounded-lg transition-colors shadow-2xs whitespace-nowrap flex items-center gap-1"
+            >
+              <span>Go to Cart</span>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
+            <button
+              type="button"
+              onClick={dismissNotification}
+              className="text-[10px] text-[#667085] hover:text-[#17212B] transition-colors p-0.5 cursor-pointer"
+              aria-label="Dismiss notification"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
     </CartContext.Provider>
   );
 }

@@ -9,7 +9,7 @@ import { resolveProductImage, handleProductImageError } from "../../utils/produc
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { addToCart } = useCart();
+  const { addToCart, items, updateQty, removeFromCart } = useCart();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [related, setRelated] = useState<Product[]>([]);
@@ -17,6 +17,9 @@ export default function ProductDetail() {
   const [activeTab, setActiveTab] = useState("description");
   const [added, setAdded] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+
+  const cartItem = product ? items.find((i) => String(i.product.id) === String(product.id)) : undefined;
+  const quantityInCart = cartItem ? cartItem.quantity : 0;
 
   useEffect(() => {
     let isMounted = true;
@@ -89,14 +92,18 @@ export default function ProductDetail() {
   const lowStock = product.stock > 0 && product.stock <= (product.lowStockThreshold || 5);
 
   const handleAddToCart = () => {
+    if (!product) return;
     addToCart(product, qty);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   };
 
   const handleBuyNow = () => {
-    addToCart(product, qty);
-    navigate("/cart");
+    if (!product) return;
+    if (quantityInCart === 0) {
+      addToCart(product, qty);
+    }
+    navigate("/checkout");
   };
 
   return (
@@ -194,29 +201,116 @@ export default function ProductDetail() {
           {/* Qty */}
           <div className="flex items-center gap-3 mb-5">
             <span className="text-sm font-medium text-[#17212B]">Quantity:</span>
-            <div className="flex items-center border border-[#D9E1E8] rounded-lg overflow-hidden">
-              <button disabled={qty <= 1} onClick={() => setQty(q => q - 1)} className="px-3 py-2 text-[#17212B] hover:bg-[#F6F8FA] disabled:opacity-40">−</button>
-              <span className="px-4 py-2 text-sm font-semibold border-x border-[#D9E1E8] min-w-[3rem] text-center">{qty}</span>
-              <button disabled={qty >= product.stock} onClick={() => setQty(q => q + 1)} className="px-3 py-2 text-[#17212B] hover:bg-[#F6F8FA] disabled:opacity-40">+</button>
+            <div className="flex items-center border border-[#D9E1E8] rounded-lg overflow-hidden bg-[#F8FAFC]">
+              {quantityInCart > 0 ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (quantityInCart <= 1) {
+                        removeFromCart(product.id);
+                      } else {
+                        updateQty(product.id, quantityInCart - 1);
+                      }
+                    }}
+                    className="px-3.5 py-2 text-[#0B3A63] font-bold hover:bg-[#E2E8F0] active:scale-95 transition-colors cursor-pointer select-none"
+                    title="Decrease cart quantity"
+                    aria-label="Decrease cart quantity"
+                  >
+                    −
+                  </button>
+                  <span className="px-4 py-2 text-sm font-bold text-[#0B3A63] border-x border-[#D9E1E8] min-w-[3rem] text-center select-none">
+                    {quantityInCart}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={product.stock !== undefined && quantityInCart >= product.stock}
+                    onClick={() => updateQty(product.id, quantityInCart + 1)}
+                    className="px-3.5 py-2 text-[#0B3A63] font-bold hover:bg-[#E2E8F0] active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer select-none"
+                    title="Increase cart quantity"
+                    aria-label="Increase cart quantity"
+                  >
+                    +
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    disabled={qty <= 1}
+                    onClick={() => setQty(q => Math.max(1, q - 1))}
+                    className="px-3.5 py-2 text-[#17212B] font-bold hover:bg-[#E2E8F0] disabled:opacity-40 transition-colors cursor-pointer select-none"
+                    aria-label="Decrease quantity"
+                  >
+                    −
+                  </button>
+                  <span className="px-4 py-2 text-sm font-semibold border-x border-[#D9E1E8] min-w-[3rem] text-center select-none">
+                    {qty}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={product.stock !== undefined && qty >= product.stock}
+                    onClick={() => setQty(q => q + 1)}
+                    className="px-3.5 py-2 text-[#17212B] font-bold hover:bg-[#E2E8F0] disabled:opacity-40 transition-colors cursor-pointer select-none"
+                    aria-label="Increase quantity"
+                  >
+                    +
+                  </button>
+                </>
+              )}
             </div>
+            {quantityInCart > 0 && (
+              <span className="text-xs text-emerald-700 font-semibold bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-md">
+                ✓ In Cart
+              </span>
+            )}
           </div>
 
           {/* CTAs */}
           <div className="flex gap-3 mb-6">
-            <button
-              disabled={!inStock}
-              onClick={handleAddToCart}
-              className="flex-1 py-3 font-semibold rounded-lg border-2 border-[#0B3A63] text-[#0B3A63] hover:bg-[#0B3A63] hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {added ? "✓ Added to Cart!" : "Add to Cart"}
-            </button>
-            <button
-              disabled={!inStock}
-              onClick={handleBuyNow}
-              className="flex-1 py-3 font-semibold rounded-lg bg-[#F2A900] hover:bg-[#D4920A] text-[#0B3A63] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Buy Now
-            </button>
+            {quantityInCart > 0 ? (
+              <>
+                <Link
+                  to="/cart"
+                  className="flex-1 py-3 font-bold rounded-lg bg-[#F2A900] hover:bg-[#DDA006] text-[#0B3A63] transition-colors shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                  </svg>
+                  <span>Go to Cart ({quantityInCart})</span>
+                </Link>
+                <button
+                  type="button"
+                  disabled={!inStock}
+                  onClick={handleBuyNow}
+                  className="flex-1 py-3 font-semibold rounded-lg border-2 border-[#0B3A63] text-[#0B3A63] hover:bg-[#0B3A63] hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  Proceed to Checkout
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  disabled={!inStock}
+                  onClick={handleAddToCart}
+                  className="flex-1 py-3 font-semibold rounded-lg border-2 border-[#0B3A63] text-[#0B3A63] hover:bg-[#0B3A63] hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                  </svg>
+                  <span>{added ? "✓ Added to Cart!" : "Add to Cart"}</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={!inStock}
+                  onClick={handleBuyNow}
+                  className="flex-1 py-3 font-semibold rounded-lg bg-[#F2A900] hover:bg-[#D4920A] text-[#0B3A63] transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  Buy Now
+                </button>
+              </>
+            )}
           </div>
 
           {/* Info snippets */}

@@ -11,7 +11,10 @@ interface Props {
 }
 
 export default function ProductCard({ product, compact }: Props) {
-  const { addToCart } = useCart();
+  const { addToCart, items, updateQty, removeFromCart } = useCart();
+  const cartItem = items.find((i) => String(i.product.id) === String(product.id));
+  const quantityInCart = cartItem ? cartItem.quantity : 0;
+
   const discount = Math.round(((product.mrp - product.price) / product.mrp) * 100);
   const stockStatus = calculateStockStatus(product.stock, product.lowStockThreshold);
   const inStock = stockStatus !== "OUT OF STOCK";
@@ -78,17 +81,80 @@ export default function ProductCard({ product, compact }: Props) {
             )}
           </div>
 
-          <button
-            disabled={!inStock}
-            onClick={(e) => { e.preventDefault(); addToCart(product); }}
-            className={`mt-2 w-full py-2 text-xs font-semibold rounded-lg border transition-all duration-200 active:scale-[0.98] ${
-              inStock 
-                ? "bg-[#0B3A63] text-white hover:bg-[#1769AA] border-transparent shadow-2xs hover:shadow-xs cursor-pointer" 
-                : "bg-gray-200 text-gray-500 border-gray-200 cursor-not-allowed"
-            }`}
-          >
-            {inStock ? "Add to Cart" : "Out of Stock"}
-          </button>
+          {inStock && quantityInCart > 0 ? (
+            <div className="mt-2 flex items-center gap-1.5 w-full">
+              {/* In-Card Quantity Adjuster */}
+              <div className="flex items-center border border-[#1769AA]/40 rounded-lg bg-[#F8FAFC] overflow-hidden shrink-0 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (quantityInCart <= 1) {
+                      removeFromCart(product.id);
+                    } else {
+                      updateQty(product.id, quantityInCart - 1);
+                    }
+                  }}
+                  className="w-7 h-8 flex items-center justify-center text-sm font-bold text-[#0B3A63] hover:bg-[#E2E8F0] active:scale-95 transition-colors cursor-pointer select-none"
+                  title="Decrease quantity"
+                  aria-label="Decrease quantity"
+                >
+                  −
+                </button>
+                <span className="w-7 text-center text-xs font-bold text-[#0B3A63] select-none">
+                  {quantityInCart}
+                </span>
+                <button
+                  type="button"
+                  disabled={product.stock !== undefined && quantityInCart >= product.stock}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    updateQty(product.id, quantityInCart + 1);
+                  }}
+                  className="w-7 h-8 flex items-center justify-center text-sm font-bold text-[#0B3A63] hover:bg-[#E2E8F0] active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer select-none"
+                  title="Increase quantity"
+                  aria-label="Increase quantity"
+                >
+                  +
+                </button>
+              </div>
+
+              {/* Go to Cart button */}
+              <Link
+                to="/cart"
+                onClick={(e) => e.stopPropagation()}
+                className="flex-1 h-8 px-2 py-1 text-center text-xs font-bold rounded-lg bg-[#F2A900] hover:bg-[#DDA006] text-[#0B3A63] transition-colors shadow-2xs flex items-center justify-center gap-1 cursor-pointer truncate"
+              >
+                <span>Go to Cart</span>
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+              </Link>
+            </div>
+          ) : (
+            <button
+              disabled={!inStock}
+              onClick={(e) => { e.preventDefault(); addToCart(product); }}
+              className={`mt-2 w-full py-2 text-xs font-semibold rounded-lg border transition-all duration-200 active:scale-[0.98] ${
+                inStock 
+                  ? "bg-[#0B3A63] text-white hover:bg-[#1769AA] border-transparent shadow-2xs hover:shadow-xs cursor-pointer flex items-center justify-center gap-1.5" 
+                  : "bg-gray-200 text-gray-500 border-gray-200 cursor-not-allowed"
+              }`}
+            >
+              {inStock ? (
+                <>
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                  </svg>
+                  <span>Add to Cart</span>
+                </>
+              ) : (
+                "Out of Stock"
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>
