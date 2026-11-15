@@ -403,7 +403,6 @@ export default function Checkout() {
           description: isOrderCod
             ? `Order #${targetOrder.order_number} · 50% Online Advance (₹${advanceFormatted})`
             : `Order #${targetOrder.order_number}`,
-          order_id: paymentIntent.gateway_order_id,
           prefill: {
             name: paymentIntent.customer_name || targetOrder.customer_name || activeShippingAddr?.recipient_name || '',
             email: paymentIntent.customer_email || targetOrder.customer_email || '',
@@ -422,9 +421,9 @@ export default function Checkout() {
           handler: async (response: any) => {
             await handleVerifyPayment({
               order_id: Number(targetOrder.id),
-              razorpay_order_id: response.razorpay_order_id || paymentIntent.gateway_order_id,
+              razorpay_order_id: response.razorpay_order_id || paymentIntent.gateway_order_id || '',
               razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
+              razorpay_signature: response.razorpay_signature || '',
               payment_method: backendPaymentMethod,
             });
           },
@@ -436,6 +435,18 @@ export default function Checkout() {
             },
           },
         };
+
+        const gOrderId = paymentIntent.gateway_order_id || paymentIntent.razorpay_order_id;
+        if (
+          gOrderId &&
+          gOrderId.startsWith('order_') &&
+          !gOrderId.startsWith('order_direct_') &&
+          !gOrderId.startsWith('order_rzp_mock_') &&
+          !gOrderId.startsWith('order_test_') &&
+          !gOrderId.startsWith('order_mock_')
+        ) {
+          options.order_id = gOrderId;
+        }
 
         const rzp = new rzpConstructor(options);
         rzp.on('payment.failed', (failRes: any) => {
@@ -809,17 +820,26 @@ export default function Checkout() {
                       <div className="flex flex-wrap gap-3 mt-4 items-center">
                         <button
                           type="button"
-                          onClick={() => launchRazorpayCheckout(createdOrder)}
+                          onClick={() => {
+                            setPaymentErrorMessage('');
+                            launchRazorpayCheckout(createdOrder);
+                          }}
                           disabled={isSubmittingOrder}
                           className="bg-[#C0392B] hover:bg-[#A93226] text-white text-sm font-bold px-5 py-2.5 rounded-lg shadow-sm transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
                         >
-                          ⚡ Retry Payment
+                          {isSubmittingOrder ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                              <span>Opening Razorpay...</span>
+                            </>
+                          ) : (
+                            <>⚡ Retry Payment</>
+                          )}
                         </button>
                         <button
                           type="button"
                           onClick={() => {
                             setPaymentLifecycle('idle');
-                            setCreatedOrder(null);
                             setPaymentErrorMessage('');
                           }}
                           className="bg-white border border-[#D9E1E8] hover:border-[#1769AA] text-[#17212B] text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors cursor-pointer"

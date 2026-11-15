@@ -16,8 +16,8 @@ class PaymentVerifySerializer(serializers.Serializer):
     Input serializer for client-side Razorpay payment callback verification.
     """
     order_id = serializers.IntegerField(required=True)
-    razorpay_order_id = serializers.CharField(required=True, max_length=100)
+    razorpay_order_id = serializers.CharField(required=False, allow_blank=True, default='', max_length=100)
     razorpay_payment_id = serializers.CharField(required=True, max_length=100)
-    razorpay_signature = serializers.CharField(required=True, max_length=255)
+    razorpay_signature = serializers.CharField(required=False, allow_blank=True, default='', max_length=255)
     payment_method = serializers.CharField(required=False, default='UPI', max_length=50)
     currency = serializers.CharField(required=False, default='INR', max_length=10)
