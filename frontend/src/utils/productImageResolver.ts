@@ -173,6 +173,9 @@ export function normalizeMediaUrl(url?: string | null): string {
         return assetUrl;
       }
     }
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      return trimmed;
+    }
     if (import.meta.env.PROD) {
       const backendBase = import.meta.env.VITE_API_URL
         ? import.meta.env.VITE_API_URL.replace('/api/v1', '')

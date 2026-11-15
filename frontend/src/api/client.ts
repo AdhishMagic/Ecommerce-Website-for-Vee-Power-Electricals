@@ -124,6 +124,11 @@ export function normalizeApiError(err: unknown): NormalizedError {
 }
 
 const getApiBaseUrl = (): string => {
+  // If running in a browser on a deployed/non-localhost domain, always use relative path so Nginx reverse-proxies /api/
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return '/api/v1';
+  }
+
   const envUrl = import.meta.env.VITE_API_URL;
   if (envUrl) {
     let cleanUrl = envUrl.replace(/\/+$/, '');

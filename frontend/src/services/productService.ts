@@ -32,6 +32,9 @@ export const mapApiProductToProduct = (item: ProductSummary | ProductDetail | an
   const normalizeImageUrl = (url?: string) => {
     if (!url) return '';
     if (url.startsWith('/media/')) {
+      if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        return url;
+      }
       if (import.meta.env.PROD) {
         const backendBase = import.meta.env.VITE_API_URL
           ? import.meta.env.VITE_API_URL.replace('/api/v1', '')
