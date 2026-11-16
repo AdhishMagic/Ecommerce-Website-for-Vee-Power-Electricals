@@ -25,7 +25,7 @@ export default function BrandCard({ brand, index = 0 }: BrandCardProps) {
 
   return (
     <Link
-      to={`/shop?brand=${encodeURIComponent(brandSlug)}`}
+      to={`/brands/${encodeURIComponent(brandSlug)}`}
       className="group relative bg-white border border-[#E2E8F0] hover:border-[#1769AA]/50 rounded-xl p-5 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between h-full hover:-translate-y-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1769AA] focus-visible:ring-offset-2"
       style={{
         animationDelay: `${Math.min(index * 40, 400)}ms`,

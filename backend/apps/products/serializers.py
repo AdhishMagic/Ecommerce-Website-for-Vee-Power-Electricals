@@ -140,6 +140,7 @@ class ProductListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'slug', 'sku', 'category', 'subcategory', 'brand',
             'mrp', 'price', 'in_stock', 'primary_image', 'featured', 'active',
+            'meta_title', 'meta_description', 'canonical_url', 'is_indexable',
             'created_at'
         ]
 
@@ -176,13 +177,18 @@ class ProductDetailSerializer(ProductListSerializer):
 class ProductAdminCreateUpdateSerializer(serializers.ModelSerializer):
     slug = serializers.SlugField(required=False, allow_blank=True)
     active = serializers.BooleanField(required=False, default=True)
+    meta_title = serializers.CharField(required=False, allow_blank=True, max_length=200)
+    meta_description = serializers.CharField(required=False, allow_blank=True)
+    canonical_url = serializers.CharField(required=False, allow_blank=True, max_length=500)
+    is_indexable = serializers.BooleanField(required=False, default=True)
 
     class Meta:
         model = Product
         fields = [
             'id', 'name', 'slug', 'sku', 'category', 'subcategory', 'brand',
             'mrp', 'price', 'stock', 'low_stock_threshold', 'description',
-            'primary_image', 'featured', 'active'
+            'primary_image', 'featured', 'active',
+            'meta_title', 'meta_description', 'canonical_url', 'is_indexable'
         ]
         read_only_fields = ['id']
 

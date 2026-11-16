@@ -269,9 +269,9 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
     'x-request-id',
 ]
 
-# CSRF Trusted Origins
+# CSRF Trusted Origins (Preserving existing origins + adding production domains)
 raw_csrf = os.getenv('CSRF_TRUSTED_ORIGINS', '')
-CSRF_TRUSTED_ORIGINS = [c.strip() for c in raw_csrf.split(',') if c.strip()] if raw_csrf else [
+base_csrf = [c.strip() for c in raw_csrf.split(',') if c.strip()] if raw_csrf else [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'http://localhost:3000',
@@ -281,6 +281,19 @@ CSRF_TRUSTED_ORIGINS = [c.strip() for c in raw_csrf.split(',') if c.strip()] if 
     'http://127.0.0.1:80',
     'http://127.0.0.1',
 ]
+for origin in ['https://veepowerelectricals.com', 'https://www.veepowerelectricals.com']:
+    if origin not in base_csrf:
+        base_csrf.append(origin)
+CSRF_TRUSTED_ORIGINS = base_csrf
+
+# Primary Canonical Domain and SEO Configuration
+SITE_DOMAIN = os.getenv('SITE_DOMAIN', 'veepowerelectricals.com')
+SITE_URL = os.getenv('SITE_URL', 'https://veepowerelectricals.com')
+SECONDARY_DOMAIN = 'www.veepowerelectricals.com'
+
+# IndexNow API Key & Endpoint Configuration (Bing, Yandex, IndexNow engines)
+INDEXNOW_API_KEY = os.getenv('INDEXNOW_API_KEY', 'veepower49e8a5b2f1c07d39e248b61a')
+INDEXNOW_KEY_LOCATION = f"{SITE_URL}/{INDEXNOW_API_KEY}.txt"
 
 # Security Headers & Cookie Policies
 SECURE_CONTENT_TYPE_NOSNIFF = True

@@ -181,6 +181,12 @@ class Product(TimeStampedModel):
     featured = models.BooleanField(default=False)
     active = models.BooleanField(default=True)
 
+    # SEO Metadata Fields (Phase 3 & Phase 10)
+    meta_title = models.CharField(max_length=200, blank=True, default='', help_text="Custom SEO title (recommended: 50-60 characters)")
+    meta_description = models.TextField(blank=True, default='', help_text="Custom meta description (recommended: 140-160 characters)")
+    canonical_url = models.CharField(max_length=500, blank=True, default='', help_text="Explicit canonical URL override")
+    is_indexable = models.BooleanField(default=True, help_text="Allow search engines to index this product page")
+
     class Meta:
         db_table = 'products'
         verbose_name = 'Product'
@@ -217,7 +223,50 @@ class Product(TimeStampedModel):
             models.Index(fields=['active', 'category'], name='idx_prod_act_cat'),
             models.Index(fields=['active', 'subcategory'], name='idx_prod_act_subcat'),
             models.Index(fields=['active', 'brand'], name='idx_prod_act_brand'),
+            models.Index(fields=['active', 'is_indexable'], name='idx_prod_act_idxable'),
         ]
+
+    def generate_unique_slug(self):
+        """
+        Generate a collision-free, URL-friendly slug based on product name and SKU.
+        """
+        base_slug = slugify(self.name) if self.name else ''
+        if not base_slug:
+            base_slug = slugify(self.sku) if self.sku else 'product'
+
+        slug = base_slug
+        counter = 1
+        qs = Product.objects.all()
+        if self.pk:
+            qs = qs.exclude(pk=self.pk)
+
+        while qs.filter(slug=slug).exists():
+            slug = f"{base_slug}-{counter}"
+            counter += 1
+
+        return slug
+
+    def generate_seo_metadata(self):
+        """
+        Dynamically synthesize accurate, high-CTR SEO title, meta description, and canonical URL.
+        Preserves admin-specified custom overrides.
+        """
+        brand_name = self.brand.name if self.brand else 'Vee Power'
+        category_name = self.category.name if self.category else 'Electrical Supplies'
+
+        if not self.meta_title:
+            self.meta_title = f"{self.name} | {brand_name} | Vee Power Electricals"[:200]
+
+        if not self.meta_description:
+            avail_str = "In Stock" if (self.stock and self.stock > 0) else "Order Online"
+            price_val = self.price if self.price is not None else 0
+            self.meta_description = (
+                f"Buy genuine {brand_name} {self.name} online at ₹{price_val} INR from Vee Power Electricals. "
+                f"{category_name}. {avail_str} with fast shipping across India."
+            )[:320]
+
+        if not self.canonical_url and self.slug:
+            self.canonical_url = f"https://veepowerelectricals.com/product/{self.slug}"
 
     def clean(self):
         super().clean()
@@ -240,14 +289,37 @@ class Product(TimeStampedModel):
             raise ValidationError({'subcategory': f"Subcategory '{self.subcategory.name}' does not belong to category '{self.category.name}'."})
 
     def save(self, *args, **kwargs):
-        if not self.slug and self.name:
-            self.slug = slugify(self.name)
+        is_new = self.pk is None
+        if not self.slug:
+            self.slug = self.generate_unique_slug()
         if self.sku:
             self.sku = self.sku.upper().strip()
         if self.subcategory and self.category and self.subcategory.category_id != self.category_id:
             from django.core.exceptions import ValidationError
             raise ValidationError({'subcategory': f"Subcategory '{self.subcategory.name}' does not belong to category '{self.category.name}'."})
+        self.generate_seo_metadata()
         super().save(*args, **kwargs)
+
+        # Notify IndexNow asynchronously for real-time search discovery
+        if self.active and self.is_indexable and not getattr(self, '_skip_indexnow', False):
+            try:
+                import threading
+                from apps.products.services_indexnow import notify_product_change
+                action = 'create' if is_new else 'update'
+                threading.Thread(target=notify_product_change, args=(self.slug, action), daemon=True).start()
+            except Exception:
+                pass
+
+    def delete(self, *args, **kwargs):
+        slug = self.slug
+        super().delete(*args, **kwargs)
+        if slug and not getattr(self, '_skip_indexnow', False):
+            try:
+                import threading
+                from apps.products.services_indexnow import notify_product_change
+                threading.Thread(target=notify_product_change, args=(slug, 'delete'), daemon=True).start()
+            except Exception:
+                pass
 
     def __str__(self):
         return f"{self.name} ({self.sku})"
@@ -288,6 +360,14 @@ class ProductImage(models.Model):
     def save(self, *args, **kwargs):
         if self.image_url:
             self.image_url = self.image_url.strip()
+        if not self.alt_text and self.product_id:
+            try:
+                prod = Product.objects.filter(pk=self.product_id).select_related('brand').first()
+                if prod:
+                    b_name = prod.brand.name if prod.brand else 'Vee Power'
+                    self.alt_text = f"{b_name} {prod.name} - Vee Power Electricals"[:255]
+            except Exception:
+                pass
         super().save(*args, **kwargs)
         if self.is_primary:
             ProductImage.objects.filter(product_id=self.product_id).exclude(pk=self.pk).update(is_primary=False)

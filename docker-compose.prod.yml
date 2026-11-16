@@ -9,7 +9,7 @@ services:
       USE_SQLITE: "False"
       DJANGO_SETTINGS_MODULE: "config.settings.production"
       SEED_DEMO_DATA: "False"
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,backend,*}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-veepowerelectricals.com,www.veepowerelectricals.com,localhost,127.0.0.1,backend,*}
       EMAIL_TEST_MODE: ${EMAIL_TEST_MODE:-False}
 
   frontend:

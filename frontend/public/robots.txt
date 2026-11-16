@@ -1,0 +1,31 @@
+User-agent: *
+Allow: /
+Allow: /shop
+Allow: /product/
+Allow: /categories
+Allow: /brands
+Allow: /about
+Allow: /contact
+Allow: /privacy-policy
+Allow: /terms-and-conditions
+Allow: /shipping-policy
+Allow: /return-policy
+Allow: /media/
+Allow: /assets/
+Allow: /static/
+
+# Disallow administrative, authenticated customer, cart, and checkout paths
+Disallow: /admin/
+Disallow: /django-admin/
+Disallow: /api/
+Disallow: /auth/
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /cart
+Disallow: /checkout
+Disallow: /account
+Disallow: /order-success
+
+Sitemap: https://veepowerelectricals.com/sitemap.xml

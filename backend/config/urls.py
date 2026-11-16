@@ -4,10 +4,19 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 from apps.common.views_health import health_check
+from apps.common.views_seo import sitemap_xml, robots_txt, indexnow_key_verify, seo_render, google_shopping_feed
 from apps.users.views import GoogleOAuthCallbackView, GoogleOAuthInitView
 from apps.finance.views_payment import StandardCreateOrderView, StandardVerifyPaymentView, PaymentConfigView
 
 urlpatterns = [
+    # SEO & Search Engine Endpoints
+    path('sitemap.xml', sitemap_xml, name='sitemap_xml'),
+    path('robots.txt', robots_txt, name='robots_txt'),
+    path('seo/render/', seo_render, name='seo_render'),
+    path('feeds/google-shopping.xml', google_shopping_feed, name='google_shopping_feed'),
+    path('feeds/merchant-feed.xml', google_shopping_feed, name='merchant_feed'),
+    path('<str:key>.txt', indexnow_key_verify, name='indexnow_key_verify'),
+
     path('health/', health_check, name='health_check'),
     path('api/v1/health/', health_check, name='api_health_check'),
     path('django-admin/', admin.site.urls),

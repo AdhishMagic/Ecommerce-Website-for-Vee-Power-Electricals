@@ -4,6 +4,8 @@ import { productService } from "../../services/productService";
 import { Product } from "../../types/product";
 import { useCart } from "../../context/CartContext";
 import ProductCard from "../../components/common/ProductCard";
+import Breadcrumbs from "../../components/common/Breadcrumbs";
+import SEOHead from "../../components/common/SEOHead";
 import { resolveProductImage, handleProductImageError } from "../../utils/productImageResolver";
 
 export default function ProductDetail() {
@@ -77,6 +79,11 @@ export default function ProductDetail() {
   if (!product) {
     return (
       <div className="site-container py-20 text-center">
+        <SEOHead
+          title="Product Not Found"
+          description="The electrical product you are looking for does not exist or has been removed."
+          robots="noindex, follow"
+        />
         <div className="text-6xl mb-4">😕</div>
         <h2 className="text-2xl font-bold text-[#0B3A63] mb-2">Product Not Found</h2>
         <p className="text-gray-500 mb-4">The product you are looking for does not exist or has been removed.</p>
@@ -90,6 +97,54 @@ export default function ProductDetail() {
     : 0;
   const inStock = product.stock > 0;
   const lowStock = product.stock > 0 && product.stock <= (product.lowStockThreshold || 5);
+
+  const productCanonical = product.canonicalUrl || product.canonical_url || `https://veepowerelectricals.com/product/${product.slug || product.id}`;
+  const productTitle = product.metaTitle || product.meta_title || `${product.name} | ${product.brand} | Vee Power Electricals`;
+  const productDescription = product.metaDescription || product.meta_description || `Buy genuine ${product.brand} ${product.name} at ₹${product.price} INR from Vee Power Electricals. High quality ${product.category} with fast shipping across India.`;
+  const primaryImgUrl = resolveProductImage({
+    image: product.images?.[selectedImageIndex] || product.image,
+    category: product.category,
+  });
+
+  const jsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      "name": product.name,
+      "image": [primaryImgUrl],
+      "description": product.description || productDescription,
+      "sku": product.sku,
+      "brand": {
+        "@type": "Brand",
+        "name": product.brand,
+      },
+      "category": product.category,
+      "offers": {
+        "@type": "Offer",
+        "url": productCanonical,
+        "priceCurrency": "INR",
+        "price": String(product.price),
+        "priceValidUntil": "2027-12-31",
+        "itemCondition": "https://schema.org/NewCondition",
+        "availability": inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+        "seller": {
+          "@type": "Organization",
+          "name": "Vee Power Electricals",
+          "url": "https://veepowerelectricals.com",
+        }
+      }
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://veepowerelectricals.com" },
+        { "@type": "ListItem", "position": 2, "name": "Shop", "item": "https://veepowerelectricals.com/shop" },
+        { "@type": "ListItem", "position": 3, "name": product.category, "item": `https://veepowerelectricals.com/shop?category=${encodeURIComponent(product.categorySlug || product.category)}` },
+        { "@type": "ListItem", "position": 4, "name": product.name, "item": productCanonical },
+      ]
+    }
+  ];
 
   const handleAddToCart = () => {
     if (!product) return;
@@ -108,18 +163,32 @@ export default function ProductDetail() {
 
   return (
     <div className="site-container py-6">
-      {/* Breadcrumb */}
-      <nav className="text-xs text-[#667085] mb-6 flex items-center gap-1.5 flex-wrap">
-        <Link to="/" className="hover:text-[#1769AA]">Home</Link>
-        <span>/</span>
-        <Link to="/shop" className="hover:text-[#1769AA]">Shop</Link>
-        <span>/</span>
-        <Link to={`/shop?category=${encodeURIComponent(product.category)}`} className="hover:text-[#1769AA]">
-          {product.subcategory || product.category}
-        </Link>
-        <span>/</span>
-        <span className="text-[#17212B] line-clamp-1">{product.name}</span>
-      </nav>
+      <SEOHead
+        title={productTitle}
+        description={productDescription}
+        canonicalUrl={productCanonical}
+        ogImage={primaryImgUrl}
+        ogType="product"
+        robots={product.isIndexable !== false && product.is_indexable !== false ? "index, follow" : "noindex, follow"}
+        jsonLd={jsonLd}
+        productData={{
+          price: product.price,
+          currency: "INR",
+          availability: inStock ? "InStock" : "OutOfStock",
+          brand: product.brand,
+          sku: product.sku,
+        }}
+      />
+
+      {/* Semantic Breadcrumbs */}
+      <Breadcrumbs
+        items={[
+          { label: "Shop", href: "/shop" },
+          { label: product.subcategory || product.category, href: `/shop?category=${encodeURIComponent(product.categorySlug || product.category)}` },
+          { label: product.name },
+        ]}
+        className="mb-6"
+      />
 
       <div className="grid lg:grid-cols-2 gap-8">
         {/* Image */}
@@ -130,7 +199,11 @@ export default function ProductDetail() {
                 image: product.images?.[selectedImageIndex] || product.image,
                 category: product.category,
               })}
-              alt={`${product.name} - ${product.brand}`}
+              alt={`${product.brand ? `${product.brand} ` : ''}${product.name} - Vee Power Electricals`}
+              loading="eager"
+              fetchPriority="high"
+              width={400}
+              height={384}
               className="max-h-80 sm:max-h-96 w-full object-contain"
               onError={(e) => handleProductImageError(e, product.category)}
             />

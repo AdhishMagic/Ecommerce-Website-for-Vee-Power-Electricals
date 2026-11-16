@@ -1,5 +1,6 @@
 export interface Product {
   id: string;
+  slug?: string;
   name: string;
   brand: string;
   brandId?: number | string;
@@ -23,6 +24,14 @@ export interface Product {
   tags: string[];
   featured: boolean;
   active: boolean;
+  meta_title?: string;
+  metaTitle?: string;
+  meta_description?: string;
+  metaDescription?: string;
+  canonical_url?: string;
+  canonicalUrl?: string;
+  is_indexable?: boolean;
+  isIndexable?: boolean;
 }
 
 export interface Category {

@@ -3,6 +3,8 @@ import { useSearchParams, Link } from "react-router-dom";
 import { productService } from "../../services/productService";
 import { Product, Category } from "../../types/product";
 import ProductCard from "../../components/common/ProductCard";
+import Breadcrumbs from "../../components/common/Breadcrumbs";
+import SEOHead from "../../components/common/SEOHead";
 import CategoriesPage from "./CategoriesPage";
 import BrandsPage from "./BrandsPage";
 
@@ -229,14 +231,52 @@ export default function Shop() {
     </div>
   );
 
+  const activeCategoryName = activeCategoryObj ? activeCategoryObj.name : localCategory ? localCategory : '';
+  const activeBrandName = localBrands.length === 1 ? findBrandLabel(localBrands[0]) : '';
+
+  let shopTitle = "Shop All Electrical Supplies & Equipment";
+  let shopDescription = "Browse hundreds of genuine electrical products from authorized distributors: MCBs, switchgear, wires, switches, fans, and LED lighting at best prices.";
+  let shopCanonical = "https://veepowerelectricals.com/shop";
+
+  if (activeCategoryName) {
+    shopTitle = `${activeCategoryName} - Buy Genuine Online`;
+    shopDescription = `Shop genuine ${activeCategoryName} from authorized brands at competitive prices in India with fast shipping from Vee Power Electricals.`;
+    shopCanonical = `https://veepowerelectricals.com/shop?category=${encodeURIComponent(localCategory)}`;
+  } else if (activeBrandName) {
+    shopTitle = `${activeBrandName} Products - Authorized Distributor`;
+    shopDescription = `Buy genuine ${activeBrandName} electrical equipment and switchgear online at best prices from Vee Power Electricals.`;
+    shopCanonical = `https://veepowerelectricals.com/shop?brand=${encodeURIComponent(localBrands[0])}`;
+  }
+
+  // Internal search results should have noindex per search engine best practices
+  const shopRobots = searchQuery ? "noindex, follow" : "index, follow";
+
+  const breadcrumbItems = [{ label: "Shop", href: activeCategoryName || activeBrandName ? "/shop" : undefined }];
+  if (activeCategoryName) {
+    breadcrumbItems.push({ label: activeCategoryName });
+  } else if (activeBrandName) {
+    breadcrumbItems.push({ label: activeBrandName });
+  }
+
+  const shopJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "name": shopTitle,
+    "description": shopDescription,
+    "url": shopCanonical,
+  };
+
   return (
     <div className="site-container py-6">
-      {/* Breadcrumb */}
-      <nav className="text-xs text-[#667085] mb-4 flex items-center gap-1.5">
-        <Link to="/" className="hover:text-[#1769AA]">Home</Link>
-        <span>/</span>
-        <span className="text-[#17212B]">{activeCategoryObj ? activeCategoryObj.name : "All Products"}</span>
-      </nav>
+      <SEOHead
+        title={shopTitle}
+        description={shopDescription}
+        canonicalUrl={shopCanonical}
+        robots={shopRobots}
+        jsonLd={shopJsonLd}
+      />
+
+      <Breadcrumbs items={breadcrumbItems} className="mb-4" />
 
       <div className="flex gap-6">
         {/* Desktop Sidebar */}

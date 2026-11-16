@@ -6,6 +6,8 @@ import { Product } from "../../types/product";
 import BrandCard, { BrandItem } from "../../components/brand/BrandCard";
 import BrandSearch, { BrandSortOption } from "../../components/brand/BrandSearch";
 import BrandGridSkeleton from "../../components/brand/BrandGridSkeleton";
+import Breadcrumbs from "../../components/common/Breadcrumbs";
+import SEOHead from "../../components/common/SEOHead";
 
 const DEFAULT_BRANDS: string[] = [
   "Anchor",
@@ -148,18 +150,19 @@ export default function BrandsPage() {
 
   return (
     <div className="site-container py-8 sm:py-10">
-      {/* Breadcrumb */}
-      <nav className="text-xs text-slate-500 mb-6 flex items-center gap-2 font-medium" aria-label="Breadcrumb">
-        <Link to="/" className="hover:text-[#1769AA] transition-colors">
-          Home
-        </Link>
-        <span>/</span>
-        <Link to="/shop" className="hover:text-[#1769AA] transition-colors">
-          Shop
-        </Link>
-        <span>/</span>
-        <span className="text-[#0B3A63] font-semibold">Shop by Brand</span>
-      </nav>
+      <SEOHead
+        title="Authorized Electrical Brands | Vee Power Electricals"
+        description="Discover certified electrical manufacturers: Havells, Polycab, Finolex, Philips, Legrand, and Schneider Electric at Vee Power Electricals."
+        canonicalUrl="https://veepowerelectricals.com/brands"
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "CollectionPage",
+          "name": "Authorized Electrical Brands | Vee Power Electricals",
+          "description": "Discover certified electrical manufacturers: Havells, Polycab, Finolex, Philips, Legrand, and Schneider Electric at Vee Power Electricals.",
+          "url": "https://veepowerelectricals.com/brands",
+        }}
+      />
+      <Breadcrumbs items={[{ label: "Shop", href: "/shop" }, { label: "Brands" }]} className="mb-6" />
 
       {/* Page Header */}
       <div className="mb-8 animate-fadeIn">

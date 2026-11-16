@@ -65,6 +65,7 @@ export default function ProductForm() {
 
   const [formData, setFormData] = useState({
     name: "",
+    slug: "",
     brand: "",
     category: "",
     sku: "",
@@ -74,6 +75,10 @@ export default function ProductForm() {
     lowStockThreshold: "10",
     active: true,
     image: "",
+    meta_title: "",
+    meta_description: "",
+    canonical_url: "",
+    is_indexable: true,
   });
 
   const [specs, setSpecs] = useState([{ key: "", value: "" }]);
@@ -103,7 +108,7 @@ export default function ProductForm() {
 
   useEffect(() => {
     if (id) {
-      const existing = products.find(p => p.id === id);
+      const existing = products.find(p => String(p.id) === String(id));
       if (existing) {
         const rawImg = existing.image || existing.primary_image || (existing.images && existing.images[0]) || "";
         const hasCustom = Boolean(
@@ -115,6 +120,7 @@ export default function ProductForm() {
 
         setFormData({
           name: existing.name,
+          slug: existing.slug || "",
           brand: existing.brand,
           category: existing.category,
           sku: existing.sku,
@@ -124,6 +130,10 @@ export default function ProductForm() {
           lowStockThreshold: existing.lowStockThreshold?.toString() || "10",
           active: existing.active,
           image: rawImg,
+          meta_title: existing.meta_title || (existing as any).metaTitle || "",
+          meta_description: existing.meta_description || (existing as any).metaDescription || "",
+          canonical_url: existing.canonical_url || (existing as any).canonicalUrl || "",
+          is_indexable: existing.is_indexable !== undefined ? existing.is_indexable : ((existing as any).isIndexable !== undefined ? (existing as any).isIndexable : true),
         });
 
         setIsCustomImage(hasCustom);
@@ -153,6 +163,7 @@ export default function ProductForm() {
     { id: "inventory", label: "Inventory" },
     { id: "images", label: "Product Image" },
     { id: "specs", label: "Specifications" },
+    { id: "seo", label: "SEO & Search" },
   ];
 
   const validateCurrentSection = () => {
@@ -322,6 +333,11 @@ export default function ProductForm() {
       stock: parseInt(formData.stock),
       lowStockThreshold: parseInt(formData.lowStockThreshold) || 10,
       specs: validSpecs,
+      slug: formData.slug.trim(),
+      meta_title: formData.meta_title.trim(),
+      meta_description: formData.meta_description.trim(),
+      canonical_url: formData.canonical_url.trim(),
+      is_indexable: formData.is_indexable,
     };
 
     setIsSaving(true);
@@ -721,6 +737,123 @@ export default function ProductForm() {
                   <button type="button" onClick={() => setSpecs(s => [...s, { key: "", value: "" }])} className="text-sm text-[#1769AA] hover:text-[#0B3A63] flex items-center gap-1">
                     + Add Specification
                   </button>
+                </div>
+              </div>
+            )}
+
+            {/* Section 5: SEO & Search Engine Optimization */}
+            {activeSectionIndex === 5 && (
+              <div className="bg-white border border-[#D9E1E8] rounded-xl p-6 space-y-6">
+                <div>
+                  <h2 className="font-bold text-[#0B3A63] text-lg mb-1">Search Engine Optimization (SEO)</h2>
+                  <p className="text-xs text-slate-500">
+                    Fine-tune how this electrical product appears on Google, Bing, Yahoo, and social shares. If left blank, metadata is automatically synthesized.
+                  </p>
+                </div>
+
+                {/* Live Google Search Result Preview */}
+                <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/50">
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">
+                    Google Search Result Preview
+                  </span>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-xs text-slate-600">
+                      <span className="w-4 h-4 rounded-full bg-blue-100 text-[#0B3A63] inline-flex items-center justify-center text-[10px] font-bold">V</span>
+                      <span className="truncate">https://veepowerelectricals.com › product › {formData.slug || "product-url-slug"}</span>
+                    </div>
+                    <div className="text-base text-[#1a0dab] font-medium hover:underline cursor-pointer truncate">
+                      {formData.meta_title || `${formData.name || "Product Name"} | ${formData.brand || "Brand"} | Vee Power Electricals`}
+                    </div>
+                    <p className="text-xs text-[#4d5156] line-clamp-2 leading-relaxed">
+                      {formData.meta_description || `Buy genuine ${formData.brand || "brand"} ${formData.name || "electrical equipment"} online at ₹${formData.price || "0.00"} INR from Vee Power Electricals. High quality supplies with fast shipping across India.`}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Field: SEO Title */}
+                <div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="text-xs font-semibold text-slate-700">SEO Meta Title</label>
+                    <span className={`text-[11px] ${formData.meta_title.length > 60 ? "text-amber-600 font-semibold" : "text-slate-400"}`}>
+                      {formData.meta_title.length}/60 recommended (max 200)
+                    </span>
+                  </div>
+                  <input
+                    value={formData.meta_title}
+                    onChange={e => setFormData({ ...formData, meta_title: e.target.value })}
+                    className="w-full border border-[#D9E1E8] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1769AA]"
+                    placeholder={`${formData.name || "Product Name"} | ${formData.brand || "Brand"} | Vee Power Electricals`}
+                    maxLength={200}
+                  />
+                </div>
+
+                {/* Field: Meta Description */}
+                <div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="text-xs font-semibold text-slate-700">SEO Meta Description</label>
+                    <span className={`text-[11px] ${formData.meta_description.length > 160 ? "text-amber-600 font-semibold" : "text-slate-400"}`}>
+                      {formData.meta_description.length}/160 recommended (max 320)
+                    </span>
+                  </div>
+                  <textarea
+                    rows={3}
+                    value={formData.meta_description}
+                    onChange={e => setFormData({ ...formData, meta_description: e.target.value })}
+                    className="w-full border border-[#D9E1E8] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1769AA]"
+                    placeholder="Short summary highlighting brand, key specifications, price in INR, and quick delivery across India."
+                    maxLength={320}
+                  />
+                </div>
+
+                {/* Field: URL Slug */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">URL Slug</label>
+                  <div className="flex items-center rounded-lg border border-[#D9E1E8] overflow-hidden focus-within:border-[#1769AA]">
+                    <span className="bg-slate-100 text-slate-500 text-xs px-3 py-2 border-r border-[#D9E1E8] shrink-0 font-mono">
+                      /product/
+                    </span>
+                    <input
+                      value={formData.slug}
+                      onChange={e => setFormData({ ...formData, slug: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '-') })}
+                      className="flex-1 px-3 py-2 text-sm outline-none font-mono"
+                      placeholder="e.g. havells-stealth-1200mm-fan"
+                    />
+                  </div>
+                  <span className="text-[11px] text-slate-400 mt-1 block">
+                    Use lowercase letters, numbers, and dashes. Auto-generated from name if left empty.
+                  </span>
+                </div>
+
+                {/* Field: Canonical URL Override */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Canonical URL Override (Optional)</label>
+                  <input
+                    value={formData.canonical_url}
+                    onChange={e => setFormData({ ...formData, canonical_url: e.target.value.trim() })}
+                    className="w-full border border-[#D9E1E8] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1769AA] font-mono text-xs"
+                    placeholder="https://veepowerelectricals.com/product/..."
+                  />
+                  <span className="text-[11px] text-slate-400 mt-1 block">
+                    Leave blank to default to standard canonical URL.
+                  </span>
+                </div>
+
+                {/* Checkbox: Indexable */}
+                <div className="pt-2 border-t border-slate-200">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_indexable}
+                      onChange={e => setFormData({ ...formData, is_indexable: e.target.checked })}
+                      className="mt-1 w-4 h-4 rounded text-[#1769AA] border-slate-300 focus:ring-[#1769AA]"
+                    />
+                    <div>
+                      <span className="text-sm font-semibold text-slate-800 block">Allow Search Engine Indexing</span>
+                      <span className="text-xs text-slate-500 block">
+                        When enabled, Googlebot and Bingbot will index this product and include it in the XML sitemap. Uncheck if discontinued or private.
+                      </span>
+                    </div>
+                  </label>
                 </div>
               </div>
             )}

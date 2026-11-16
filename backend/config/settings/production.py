@@ -11,14 +11,20 @@ if not SECRET_KEY or 'change-in-prod' in SECRET_KEY or 'insecure' in SECRET_KEY:
     if os.getenv('STRICT_PROD_SECRET', 'False').lower() in ('true', '1'):
         raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set to a secure, unique value in production.")
 
-# 3. Explicit Allowed Hosts
-raw_allowed_hosts = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,backend')
-ALLOWED_HOSTS = [h.strip() for h in raw_allowed_hosts.split(',') if h.strip()]
+# 3. Explicit Allowed Hosts (Preserving existing configuration + adding production domains)
+raw_allowed_hosts = os.getenv('ALLOWED_HOSTS', 'veepowerelectricals.com,www.veepowerelectricals.com,localhost,127.0.0.1,backend')
+hosts = [h.strip() for h in raw_allowed_hosts.split(',') if h.strip()]
+for required_host in ['veepowerelectricals.com', 'www.veepowerelectricals.com']:
+    if required_host not in hosts:
+        hosts.append(required_host)
+ALLOWED_HOSTS = hosts
 
 # 4. Explicit CORS and CSRF Configuration (No open wildcards)
 CORS_ALLOW_ALL_ORIGINS = False
 raw_cors = os.getenv('CORS_ALLOWED_ORIGINS', '')
-CORS_ALLOWED_ORIGINS = [c.strip() for c in raw_cors.split(',') if c.strip()] if raw_cors else [
+cors_origins = [c.strip() for c in raw_cors.split(',') if c.strip()] if raw_cors else [
+    'https://veepowerelectricals.com',
+    'https://www.veepowerelectricals.com',
     'http://localhost',
     'http://localhost:80',
     'http://localhost:5173',
@@ -26,9 +32,15 @@ CORS_ALLOWED_ORIGINS = [c.strip() for c in raw_cors.split(',') if c.strip()] if 
     'http://127.0.0.1:80',
     'http://127.0.0.1:5173',
 ]
+for origin in ['https://veepowerelectricals.com', 'https://www.veepowerelectricals.com']:
+    if origin not in cors_origins:
+        cors_origins.append(origin)
+CORS_ALLOWED_ORIGINS = cors_origins
 
 raw_csrf = os.getenv('CSRF_TRUSTED_ORIGINS', '')
-CSRF_TRUSTED_ORIGINS = [c.strip() for c in raw_csrf.split(',') if c.strip()] if raw_csrf else [
+csrf_origins = [c.strip() for c in raw_csrf.split(',') if c.strip()] if raw_csrf else [
+    'https://veepowerelectricals.com',
+    'https://www.veepowerelectricals.com',
     'http://localhost',
     'http://localhost:80',
     'http://localhost:5173',
@@ -36,6 +48,10 @@ CSRF_TRUSTED_ORIGINS = [c.strip() for c in raw_csrf.split(',') if c.strip()] if 
     'http://127.0.0.1:80',
     'http://127.0.0.1:5173',
 ]
+for origin in ['https://veepowerelectricals.com', 'https://www.veepowerelectricals.com']:
+    if origin not in csrf_origins:
+        csrf_origins.append(origin)
+CSRF_TRUSTED_ORIGINS = csrf_origins
 
 # 5. HTTPS and Security Cookies (Environment-configurable for reverse proxy setups)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

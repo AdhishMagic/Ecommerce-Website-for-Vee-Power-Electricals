@@ -2,6 +2,8 @@ import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { productService } from "../../services/productService";
 import { Category, Product } from "../../types/product";
+import Breadcrumbs from "../../components/common/Breadcrumbs";
+import SEOHead from "../../components/common/SEOHead";
 import {
   getCategoryDefaultImage,
   handleProductImageError,
@@ -88,20 +90,33 @@ export default function CategoriesPage() {
     });
   }, [categories, searchQuery]);
 
+  const getCategoryHref = (cat: Category) => {
+    const s = (cat.slug || cat.name || "").toLowerCase().trim();
+    if (s.includes("fan")) return "/categories/fans";
+    if (s.includes("wire") || s.includes("cable")) return "/categories/wires-cables";
+    if (s.includes("switch")) return "/categories/switches";
+    if (s.includes("light") || s.includes("led")) return "/categories/led-lighting";
+    if (s.includes("mcb") || s.includes("protect") || s.includes("distribut")) return "/categories/mcb-protection";
+    if (s.includes("accessor")) return "/categories/electrical-accessories";
+    return `/shop?category=${encodeURIComponent(cat.slug || String(cat.id))}`;
+  };
+
   return (
     <div className="w-full bg-[#F6F8FA] min-h-[calc(100vh-140px)] py-6 sm:py-8 lg:py-10">
+      <SEOHead
+        title="Electrical Product Categories | Vee Power Electricals"
+        description="Explore all electrical categories: Wires & Cables, MCBs & Distribution, Modular Switches, Ceiling Fans, LED Lighting, and Power Tools."
+        canonicalUrl="https://veepowerelectricals.com/categories"
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "CollectionPage",
+          "name": "Electrical Product Categories | Vee Power Electricals",
+          "description": "Explore all electrical categories: Wires & Cables, MCBs & Distribution, Modular Switches, Ceiling Fans, LED Lighting, and Power Tools.",
+          "url": "https://veepowerelectricals.com/categories",
+        }}
+      />
       <div className="site-container mx-auto">
-        {/* Breadcrumb */}
-        <nav
-          className="flex items-center gap-2 text-xs font-medium text-[#667085] mb-5 sm:mb-6 flex-wrap"
-          aria-label="Breadcrumb"
-        >
-          <Link to="/" className="hover:text-[#1769AA] transition-colors">
-            Home
-          </Link>
-          <span>/</span>
-          <span className="text-[#17212B]">Categories</span>
-        </nav>
+        <Breadcrumbs items={[{ label: "Categories" }]} className="mb-5 sm:mb-6" />
 
         {/* Page Header Block */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 sm:pb-8 border-b border-[#D9E1E8] mb-6 sm:mb-8">
@@ -277,7 +292,7 @@ export default function CategoriesPage() {
                   style={{ animationDelay: `${idx * 50}ms` }}
                 >
                   <Link
-                    to={`/shop?category=${encodeURIComponent(cat.slug || String(cat.id))}`}
+                    to={getCategoryHref(cat)}
                     className="block relative bg-[#F8FAFC] border-b border-[#F1F5F9] overflow-hidden group/img focus-visible:outline-none"
                     tabIndex={-1}
                   >
@@ -299,7 +314,7 @@ export default function CategoriesPage() {
                   <div className="p-4 sm:p-5 flex flex-col flex-1 justify-between gap-4">
                     <div>
                       <Link
-                        to={`/shop?category=${encodeURIComponent(cat.slug || String(cat.id))}`}
+                        to={getCategoryHref(cat)}
                         className="block text-base sm:text-lg font-bold text-[#0B3A63] hover:text-[#1769AA] transition-colors leading-snug"
                         style={{ fontFamily: "Outfit, sans-serif" }}
                       >
@@ -312,7 +327,7 @@ export default function CategoriesPage() {
 
                     <div className="pt-3 border-t border-[#F1F5F9] flex items-center justify-between">
                       <Link
-                        to={`/shop?category=${encodeURIComponent(cat.slug || String(cat.id))}`}
+                        to={getCategoryHref(cat)}
                         className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1769AA] group-hover:text-[#0B3A63] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#1769AA] rounded"
                       >
                         <span>Explore Category</span>

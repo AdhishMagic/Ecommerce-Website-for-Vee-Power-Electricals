@@ -6,6 +6,7 @@ import ProductCard from "../../components/common/ProductCard";
 import HeroSection from "../../components/common/HeroSection";
 import BenefitCard, { BenefitItem } from "../../components/common/BenefitCard";
 import FadeInSection from "../../components/common/FadeInSection";
+import SEOHead from "../../components/common/SEOHead";
 
 const whyChoose: BenefitItem[] = [
   { icon: "✅", title: "Genuine Products", desc: "100% authentic products from authorized brand distributors. No counterfeits." },
@@ -74,8 +75,80 @@ export default function Home() {
 
   const shouldPauseCarousel = isPaused || isInteracting || isPageHidden;
 
+  const homeJsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Vee Power Electricals",
+      "url": "https://veepowerelectricals.com",
+      "logo": "https://veepowerelectricals.com/logo.png",
+      "contactPoint": [{
+        "@type": "ContactPoint",
+        "telephone": "+91-94432-23456",
+        "contactType": "customer service",
+        "areaServed": "IN",
+        "availableLanguage": ["English", "Tamil"]
+      }],
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "Cross Cut Road, Gandhipuram",
+        "addressLocality": "Coimbatore",
+        "addressRegion": "Tamil Nadu",
+        "postalCode": "641012",
+        "addressCountry": "IN"
+      }
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "ElectricalSupplyStore",
+      "name": "Vee Power Electricals",
+      "image": "https://veepowerelectricals.com/favicon.png",
+      "url": "https://veepowerelectricals.com",
+      "telephone": "+91-94432-23456",
+      "priceRange": "₹₹",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "Cross Cut Road, Gandhipuram",
+        "addressLocality": "Coimbatore",
+        "addressRegion": "Tamil Nadu",
+        "postalCode": "641012",
+        "addressCountry": "IN"
+      },
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": 11.0168,
+        "longitude": 76.9558
+      },
+      "openingHoursSpecification": [
+        {
+          "@type": "OpeningHoursSpecification",
+          "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+          "opens": "09:00",
+          "closes": "20:30"
+        }
+      ]
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Vee Power Electricals",
+      "url": "https://veepowerelectricals.com",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://veepowerelectricals.com/shop?q={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    }
+  ];
+
   return (
     <div className="w-full">
+      <SEOHead
+        title="Genuine Electrical Supplies & Equipment in Coimbatore"
+        description="Shop certified electrical goods in Coimbatore and across India. Authorized dealer for Havells, Polycab, Finolex, Philips, Legrand & Schneider Electric."
+        canonicalUrl="https://veepowerelectricals.com/"
+        jsonLd={homeJsonLd}
+      />
       {/* Hero Section */}
       <HeroSection />
 

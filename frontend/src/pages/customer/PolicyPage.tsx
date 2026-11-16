@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { POLICIES } from "../../data/policyData";
 import PolicyPageLayout from "../../components/policies/PolicyPageLayout";
 import { COMPANY_NAME } from "../../constants/companyInfo";
+import SEOHead from "../../components/common/SEOHead";
 
 const ALIAS_MAP: Record<string, string> = {
   // Privacy
@@ -52,6 +53,11 @@ export default function PolicyPage() {
   if (!policy) {
     return (
       <div className="bg-[#F6F8FA] min-h-[70vh] flex items-center justify-center py-16 px-4">
+        <SEOHead
+          title="Policy Not Found"
+          description="The requested policy document is not available."
+          robots="noindex, follow"
+        />
         <div className="bg-white border border-[#D9E1E8] rounded-2xl p-8 sm:p-12 max-w-lg w-full text-center shadow-xs">
           <div className="w-14 h-14 bg-amber-50 text-[#F2A900] border border-amber-200 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl font-bold">
             📄
@@ -102,5 +108,14 @@ export default function PolicyPage() {
     );
   }
 
-  return <PolicyPageLayout policy={policy} />;
+  return (
+    <>
+      <SEOHead
+        title={policy.title}
+        description={`Official ${policy.title} for Vee Power Electricals customers and wholesale partners.`}
+        canonicalUrl={`https://veepowerelectricals.com/${pathSegment}`}
+      />
+      <PolicyPageLayout policy={policy} />
+    </>
+  );
 }

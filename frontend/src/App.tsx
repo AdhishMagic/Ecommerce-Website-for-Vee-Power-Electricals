@@ -22,8 +22,14 @@ const Account = lazy(() => import("./pages/customer/Account"));
 const About = lazy(() => import("./pages/customer/About"));
 const Contact = lazy(() => import("./pages/customer/Contact"));
 const CategoriesPage = lazy(() => import("./pages/customer/CategoriesPage"));
+const CategoryDetailPage = lazy(() => import("./pages/customer/CategoryDetailPage"));
 const BrandsPage = lazy(() => import("./pages/customer/BrandsPage"));
+const BrandDetailPage = lazy(() => import("./pages/customer/BrandDetailPage"));
+const TamilNaduHubPage = lazy(() => import("./pages/customer/TamilNaduHubPage"));
+const DistrictLocationPage = lazy(() => import("./pages/customer/DistrictLocationPage"));
+const GuidesPage = lazy(() => import("./pages/customer/GuidesPage"));
 const PolicyPage = lazy(() => import("./pages/customer/PolicyPage"));
+const NotFound = lazy(() => import("./pages/common/NotFound"));
 
 // Lazy-loaded admin pages
 const Dashboard = lazy(() => import("./pages/admin/Dashboard"));
@@ -78,7 +84,13 @@ export default function App() {
                 <Route path="/" element={<CustomerLayout><Home /></CustomerLayout>} />
                 <Route path="/shop" element={<CustomerLayout><Shop /></CustomerLayout>} />
                 <Route path="/categories" element={<CustomerLayout><CategoriesPage /></CustomerLayout>} />
+                <Route path="/categories/:slug" element={<CustomerLayout><CategoryDetailPage /></CustomerLayout>} />
                 <Route path="/brands" element={<CustomerLayout><BrandsPage /></CustomerLayout>} />
+                <Route path="/brands/:slug" element={<CustomerLayout><BrandDetailPage /></CustomerLayout>} />
+                <Route path="/locations/tamil-nadu" element={<CustomerLayout><TamilNaduHubPage /></CustomerLayout>} />
+                <Route path="/locations/tamil-nadu/:district" element={<CustomerLayout><DistrictLocationPage /></CustomerLayout>} />
+                <Route path="/guides" element={<CustomerLayout><GuidesPage /></CustomerLayout>} />
+                <Route path="/guides/:slug" element={<CustomerLayout><GuidesPage /></CustomerLayout>} />
                 <Route path="/product/:id" element={<CustomerLayout><ProductDetail /></CustomerLayout>} />
                 <Route path="/cart" element={<CustomerLayout><Cart /></CustomerLayout>} />
                 <Route path="/about" element={<CustomerLayout><About /></CustomerLayout>} />
@@ -94,7 +106,6 @@ export default function App() {
                 <Route path="/returns" element={<CustomerLayout><PolicyPage /></CustomerLayout>} />
                 <Route path="/return-and-cancellation" element={<CustomerLayout><PolicyPage /></CustomerLayout>} />
                 <Route path="/return-policy" element={<CustomerLayout><PolicyPage /></CustomerLayout>} />
-                <Route path="/:type" element={<CustomerLayout><PolicyPage /></CustomerLayout>} />
 
                 {/* Protected Customer Routes */}
                 <Route path="/checkout" element={<ProtectedRoute allowedRoles={["customer", "admin"]}><CustomerLayout><Checkout /></CustomerLayout></ProtectedRoute>} />
@@ -136,7 +147,8 @@ export default function App() {
                   <Route path="settings" element={<AdminSettings />} />
                 </Route>
 
-                <Route path="*" element={<Navigate to="/" replace />} />
+                {/* Accessible 404 Route */}
+                <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>
           </CartProvider>

@@ -75,6 +75,7 @@ export const mapApiProductToProduct = (item: ProductSummary | ProductDetail | an
 
   return {
     id: String(item.id),
+    slug: item.slug || String(item.id),
     name: item.name,
     brand: brandName,
     brandId,
@@ -98,6 +99,14 @@ export const mapApiProductToProduct = (item: ProductSummary | ProductDetail | an
     tags: [],
     featured: Boolean(item.featured),
     active: Boolean(item.active),
+    meta_title: item.meta_title || '',
+    metaTitle: item.meta_title || '',
+    meta_description: item.meta_description || '',
+    metaDescription: item.meta_description || '',
+    canonical_url: item.canonical_url || '',
+    canonicalUrl: item.canonical_url || '',
+    is_indexable: item.is_indexable !== undefined ? Boolean(item.is_indexable) : true,
+    isIndexable: item.is_indexable !== undefined ? Boolean(item.is_indexable) : true,
   };
 };
 

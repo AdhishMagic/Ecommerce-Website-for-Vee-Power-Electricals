@@ -42,12 +42,14 @@ export default function Footer() {
             <ul className="space-y-2 text-sm text-white/70">
               {[
                 { label: "Shop All Products", to: "/shop" },
-                { label: "Fans", to: "/shop?category=fans" },
-                { label: "Wires & Cables", to: "/shop?category=wires" },
-                { label: "Switches", to: "/shop?category=switches" },
-                { label: "LED & Lighting", to: "/shop?category=lighting" },
-                { label: "MCB & Protection", to: "/shop?category=mcb" },
-                { label: "My Orders", to: "/account/orders" },
+                { label: "All Categories", to: "/categories" },
+                { label: "Fans & BLDC", to: "/categories/fans" },
+                { label: "Wires & Cables", to: "/categories/wires-cables" },
+                { label: "Modular Switches", to: "/categories/switches" },
+                { label: "LED & Lighting", to: "/categories/led-lighting" },
+                { label: "MCB & Protection", to: "/categories/mcb-protection" },
+                { label: "Tamil Nadu Delivery (38 Districts)", to: "/locations/tamil-nadu" },
+                { label: "Technical Buyer Guides", to: "/guides" },
               ].map(link => (
                 <li key={link.to}>
                   <Link to={link.to} className="hover:text-[#F2A900] transition-colors">{link.label}</Link>
@@ -85,16 +87,34 @@ export default function Footer() {
 
         {/* Brands bar */}
         <div className="mt-10 pt-8 border-t border-white/10">
-          <p className="text-white/50 text-xs mb-3 uppercase tracking-wider">Authorised Dealer For</p>
-          <div className="flex flex-wrap gap-3">
-            {["Havells", "Finolex", "Crompton", "Anchor", "Jaquar", "Khaitan", "Legrand", "Polycab", "Philips", "Gloster"].map(brand => (
-              <span key={brand} className="text-xs bg-white/10 text-white/70 px-3 py-1 rounded-full">{brand}</span>
+          <p className="text-white/50 text-xs mb-3 uppercase tracking-wider">Certified Electrical Manufacturers</p>
+          <div className="flex flex-wrap gap-2.5">
+            {[
+              { name: "Havells", slug: "havells" },
+              { name: "Polycab", slug: "polycab" },
+              { name: "Finolex", slug: "finolex" },
+              { name: "Legrand", slug: "legrand" },
+              { name: "Philips", slug: "philips" },
+              { name: "Crompton", slug: "crompton" },
+              { name: "Schneider", slug: "schneider" },
+              { name: "Anchor", slug: "anchor" },
+              { name: "Gloster", slug: "gloster" },
+              { name: "Jaquar", slug: "jaquar" },
+              { name: "Khaitan", slug: "khaitan" },
+            ].map(b => (
+              <Link
+                key={b.slug}
+                to={`/brands/${b.slug}`}
+                className="text-xs bg-white/10 hover:bg-[#F2A900] text-white hover:text-[#0B3A63] px-3 py-1 rounded-full transition-colors font-medium"
+              >
+                {b.name}
+              </Link>
             ))}
           </div>
         </div>
 
         <div className="mt-8 pt-6 border-t border-white/10 flex flex-col sm:flex-row justify-between items-center gap-3 text-white/50 text-xs">
-          <p>© 2024 {COMPANY_NAME}. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} {COMPANY_NAME}. All rights reserved.</p>
           <p>Delivering Genuine Electrical Products All Around India 🇮🇳</p>
         </div>
       </div>
