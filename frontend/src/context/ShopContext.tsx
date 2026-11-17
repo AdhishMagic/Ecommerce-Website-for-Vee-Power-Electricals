@@ -6,6 +6,7 @@ import { inventoryApi } from "../api/inventory";
 export interface Product {
   id: string;
   name: string;
+  slug?: string;
   price: number;
   stock: number;
   active: boolean;
@@ -18,6 +19,10 @@ export interface Product {
   images?: string[];
   description?: string;
   specs?: Array<{ key: string; value: string }>;
+  meta_title?: string;
+  meta_description?: string;
+  canonical_url?: string;
+  is_indexable?: boolean;
 }
 
 export const calculateStockStatus = (stock: number, threshold: number = 10) => {

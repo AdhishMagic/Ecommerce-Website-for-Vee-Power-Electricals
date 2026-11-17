@@ -251,7 +251,7 @@ export default function Shop() {
   // Internal search results should have noindex per search engine best practices
   const shopRobots = searchQuery ? "noindex, follow" : "index, follow";
 
-  const breadcrumbItems = [{ label: "Shop", href: activeCategoryName || activeBrandName ? "/shop" : undefined }];
+  const breadcrumbItems: { label: string; href?: string }[] = [{ label: "Shop", href: activeCategoryName || activeBrandName ? "/shop" : undefined }];
   if (activeCategoryName) {
     breadcrumbItems.push({ label: activeCategoryName });
   } else if (activeBrandName) {

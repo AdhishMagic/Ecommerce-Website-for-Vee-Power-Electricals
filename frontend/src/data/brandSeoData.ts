@@ -200,3 +200,10 @@ export const BRAND_SEO_DATA: Record<string, BrandSeoInfo> = {
     ]
   }
 };
+
+// Support both standard brand slugs
+BRAND_SEO_DATA["schneider-electric"] = {
+  ...BRAND_SEO_DATA["schneider"],
+  slug: "schneider-electric",
+  canonicalUrl: "https://veepowerelectricals.com/brands/schneider-electric",
+};

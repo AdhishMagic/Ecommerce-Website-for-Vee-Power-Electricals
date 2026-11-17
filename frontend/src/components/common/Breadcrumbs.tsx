@@ -4,6 +4,7 @@ import { ChevronRight, Home } from 'lucide-react';
 export interface BreadcrumbItem {
   label: string;
   href?: string;
+  path?: string;
 }
 
 interface BreadcrumbsProps {
@@ -22,13 +23,14 @@ export default function Breadcrumbs({ items, className = '' }: BreadcrumbsProps)
       <ol className="flex items-center space-x-1 sm:space-x-2">
         {allItems.map((item, index) => {
           const isLast = index === allItems.length - 1;
+          const targetUrl = item.href || item.path;
 
           return (
             <li key={index} className="inline-flex items-center">
               {index > 0 && (
                 <ChevronRight className="w-3.5 h-3.5 text-slate-400 mx-1 shrink-0" aria-hidden="true" />
               )}
-              {isLast || !item.href ? (
+              {isLast || !targetUrl ? (
                 <span
                   className="font-medium text-slate-800 truncate max-w-[200px] sm:max-w-[320px]"
                   aria-current="page"
@@ -37,7 +39,7 @@ export default function Breadcrumbs({ items, className = '' }: BreadcrumbsProps)
                 </span>
               ) : (
                 <Link
-                  to={item.href}
+                  to={targetUrl}
                   className="inline-flex items-center hover:text-[#1769AA] transition-colors"
                 >
                   {index === 0 && <Home className="w-3.5 h-3.5 mr-1" aria-hidden="true" />}
