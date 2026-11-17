@@ -24,7 +24,10 @@ export default function ProductCard({ product, compact }: Props) {
   const descriptiveAlt = `${product.brand ? `${product.brand} ` : ''}${product.name} - Genuine Electrical Goods at Vee Power Electricals`;
 
   return (
-    <div className={`bg-white rounded-xl border border-[#D9E1E8] hover:shadow-md hover:border-[#1769AA]/40 hover:-translate-y-0.5 transition-all duration-200 group flex flex-col overflow-hidden focus-within:ring-2 focus-within:ring-[#1769AA] ${compact ? "" : ""}`}>
+    <div
+      data-testid="product-card"
+      className={`bg-white rounded-xl border border-[#D9E1E8] hover:shadow-md hover:border-[#1769AA]/40 hover:-translate-y-0.5 transition-all duration-200 group flex flex-col overflow-hidden focus-within:ring-2 focus-within:ring-[#1769AA] ${compact ? "" : ""}`}
+    >
       {/* Image */}
       <Link to={productUrl} className="block relative overflow-hidden bg-[#F8FAFC]">
         <div className={`w-full flex items-center justify-center p-2.5 ${compact ? "h-36" : "h-48"}`}>

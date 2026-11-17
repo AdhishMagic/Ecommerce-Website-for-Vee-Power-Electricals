@@ -278,7 +278,7 @@ export default function CategoryDetailPage() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 mb-12">
+          <div data-testid="category-products-grid" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 mb-12">
             {displayedProducts.map((p) => (
               <ProductCard key={p.id} product={p} />
             ))}
