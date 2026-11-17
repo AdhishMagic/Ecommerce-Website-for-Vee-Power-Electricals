@@ -57,10 +57,16 @@ export default function SEOHead({
     // 1. Document Title
     document.title = fullTitle;
 
-    // Helper to set or create meta tags
+    // Helper to set or create meta tags while deduplicating
     const setMetaTag = (attribute: string, key: string, content: string | undefined) => {
       if (!content) return;
-      let el = document.querySelector(`meta[${attribute}="${key}"]`) as HTMLMetaElement | null;
+      const elements = Array.from(document.querySelectorAll(`meta[${attribute}="${key}"]`));
+      if (elements.length > 1) {
+        for (let i = 1; i < elements.length; i++) {
+          elements[i].remove();
+        }
+      }
+      let el = (elements[0] as HTMLMetaElement) || null;
       if (!el) {
         el = document.createElement('meta');
         el.setAttribute(attribute, key);
@@ -76,8 +82,14 @@ export default function SEOHead({
       setMetaTag('name', 'keywords', keywords);
     }
 
-    // 3. Canonical Link Tag
-    let canonicalLink = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+    // 3. Canonical Link Tag (deduplicated)
+    const canonicalLinks = Array.from(document.querySelectorAll('link[rel="canonical"]'));
+    if (canonicalLinks.length > 1) {
+      for (let i = 1; i < canonicalLinks.length; i++) {
+        canonicalLinks[i].remove();
+      }
+    }
+    let canonicalLink = (canonicalLinks[0] as HTMLLinkElement) || null;
     if (!canonicalLink) {
       canonicalLink = document.createElement('link');
       canonicalLink.setAttribute('rel', 'canonical');

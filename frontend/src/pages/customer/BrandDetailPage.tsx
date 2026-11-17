@@ -53,9 +53,11 @@ export default function BrandDetailPage() {
     });
   }, [products, brandInfo]);
 
-  // Strict inventory rule: Index only if we have active products
+  // Indexing policy: Brands with substantial content & certified status (brandInfo.isIndexable)
+  // or brands with active catalog inventory are indexed. Avoid noindex flash during initial async fetch.
   const hasInventory = matchingProducts.length > 0;
-  const robotsDirective = hasInventory ? "index, follow" : "noindex, follow";
+  const isIndexable = brandInfo ? brandInfo.isIndexable : hasInventory;
+  const robotsDirective = isIndexable ? "index, follow" : "noindex, follow";
 
   if (!brandInfo) {
     return (
@@ -219,7 +221,7 @@ export default function BrandDetailPage() {
               className="text-xl sm:text-2xl font-bold text-[#0B3A63]"
               style={{ fontFamily: "Outfit, sans-serif" }}
             >
-              {brandInfo.name} In-Stock Catalog ({matchingProducts.length})
+              {brandInfo.name} Product Catalog ({matchingProducts.length})
             </h2>
 
             {/* Categories Supplied by Brand */}

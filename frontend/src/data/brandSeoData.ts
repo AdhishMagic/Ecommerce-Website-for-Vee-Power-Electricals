@@ -11,6 +11,7 @@ export interface BrandSeoInfo {
   keyStrengths: string[];
   procurementNote: string;
   categoriesSupplied: { name: string; slug: string }[];
+  isIndexable: boolean;
 }
 
 export const BRAND_SEO_DATA: Record<string, BrandSeoInfo> = {
@@ -30,7 +31,8 @@ export const BRAND_SEO_DATA: Record<string, BrandSeoInfo> = {
       { name: "Ceiling & Exhaust Fans", slug: "fans" },
       { name: "Wires & Cables", slug: "wires-cables" },
       { name: "Modular Switches", slug: "switches" }
-    ]
+    ],
+    isIndexable: true
   },
   "polycab": {
     slug: "polycab",
@@ -48,7 +50,8 @@ export const BRAND_SEO_DATA: Record<string, BrandSeoInfo> = {
       { name: "Wires & Cables", slug: "wires-cables" },
       { name: "Fans", slug: "fans" },
       { name: "LED & Lighting", slug: "led-lighting" }
-    ]
+    ],
+    isIndexable: true
   },
   "finolex": {
     slug: "finolex",
@@ -64,7 +67,8 @@ export const BRAND_SEO_DATA: Record<string, BrandSeoInfo> = {
     procurementNote: "Genuine Finolex coils available for domestic wiring and commercial contractors across Tamil Nadu.",
     categoriesSupplied: [
       { name: "Wires & Cables", slug: "wires-cables" }
-    ]
+    ],
+    isIndexable: true
   },
   "legrand": {
     slug: "legrand",
@@ -81,7 +85,8 @@ export const BRAND_SEO_DATA: Record<string, BrandSeoInfo> = {
     categoriesSupplied: [
       { name: "Modular Switches", slug: "switches" },
       { name: "MCB & Protection", slug: "mcb-protection" }
-    ]
+    ],
+    isIndexable: true
   },
   "philips": {
     slug: "philips",
@@ -97,7 +102,8 @@ export const BRAND_SEO_DATA: Record<string, BrandSeoInfo> = {
     procurementNote: "All Philips LED lamps are covered by official replacement warranty across Tamil Nadu.",
     categoriesSupplied: [
       { name: "LED & Lighting", slug: "led-lighting" }
-    ]
+    ],
+    isIndexable: true
   },
   "crompton": {
     slug: "crompton",
@@ -114,7 +120,8 @@ export const BRAND_SEO_DATA: Record<string, BrandSeoInfo> = {
     categoriesSupplied: [
       { name: "Fans", slug: "fans" },
       { name: "LED & Lighting", slug: "led-lighting" }
-    ]
+    ],
+    isIndexable: true
   },
   "schneider": {
     slug: "schneider",
@@ -131,7 +138,8 @@ export const BRAND_SEO_DATA: Record<string, BrandSeoInfo> = {
     categoriesSupplied: [
       { name: "MCB & Protection", slug: "mcb-protection" },
       { name: "Modular Switches", slug: "switches" }
-    ]
+    ],
+    isIndexable: true
   },
   "anchor": {
     slug: "anchor",
@@ -149,7 +157,8 @@ export const BRAND_SEO_DATA: Record<string, BrandSeoInfo> = {
       { name: "Modular Switches", slug: "switches" },
       { name: "Wires & Cables", slug: "wires-cables" },
       { name: "Electrical Accessories", slug: "electrical-accessories" }
-    ]
+    ],
+    isIndexable: false
   },
   "gloster": {
     slug: "gloster",
@@ -165,7 +174,8 @@ export const BRAND_SEO_DATA: Record<string, BrandSeoInfo> = {
     procurementNote: "Gloster cables are procured on a project basis against specific Bill of Quantities (BOQ).",
     categoriesSupplied: [
       { name: "Wires & Cables", slug: "wires-cables" }
-    ]
+    ],
+    isIndexable: false
   },
   "jaquar": {
     slug: "jaquar",
@@ -181,7 +191,8 @@ export const BRAND_SEO_DATA: Record<string, BrandSeoInfo> = {
     procurementNote: "Architectural lighting catalogs and sample kits available for architects and interior designers.",
     categoriesSupplied: [
       { name: "LED & Lighting", slug: "led-lighting" }
-    ]
+    ],
+    isIndexable: false
   },
   "khaitan": {
     slug: "khaitan",
@@ -197,7 +208,8 @@ export const BRAND_SEO_DATA: Record<string, BrandSeoInfo> = {
     procurementNote: "Wholesale industrial ventilation inquiries handled by our engineering sales team.",
     categoriesSupplied: [
       { name: "Fans", slug: "fans" }
-    ]
+    ],
+    isIndexable: false
   }
 };
 
@@ -206,4 +218,5 @@ BRAND_SEO_DATA["schneider-electric"] = {
   ...BRAND_SEO_DATA["schneider"],
   slug: "schneider-electric",
   canonicalUrl: "https://veepowerelectricals.com/brands/schneider-electric",
+  isIndexable: true,
 };

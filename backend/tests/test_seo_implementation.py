@@ -293,3 +293,95 @@ class CompleteSEOTestCase(TestCase):
         self.assertIn('<g:availability>in_stock</g:availability>', content)
         self.assertIn(f'<g:brand>{self.brand.name}</g:brand>', content)
 
+    def test_polycab_brand_indexing_and_canonical(self):
+        """Phase 4 Fix: Polycab brand page must be indexable, have self-referencing canonical, and be in sitemap."""
+        # Ensure Polycab brand exists in DB with an active product
+        polycab_brand, _ = Brand.objects.get_or_create(
+            slug="polycab",
+            defaults={"name": "Polycab", "is_active": True}
+        )
+        Product.objects.get_or_create(
+            sku="POLY-TEST-001",
+            defaults={
+                "name": "Polycab Green FR-LSH Wire 2.5 sq mm",
+                "brand": polycab_brand,
+                "category": self.category,
+                "price": Decimal("2599.00"),
+                "mrp": Decimal("2999.00"),
+                "stock": 10,
+                "active": True,
+                "is_indexable": True,
+            }
+        )
+
+        response = self.client.get('/seo/render/?path=/brands/polycab')
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode('utf-8')
+
+        # 1. Exactly one robots tag with "index, follow"
+        self.assertEqual(content.count('<meta name="robots"'), 1)
+        self.assertIn('<meta name="robots" content="index, follow">', content)
+        self.assertNotIn('noindex', content)
+
+        # 2. Canonical URL must be self-referencing
+        self.assertIn('<link rel="canonical" href="https://veepowerelectricals.com/brands/polycab">', content)
+
+        # 3. Must contain Schema.org structured data
+        self.assertIn('"@type": "Brand"', content)
+        self.assertIn('Polycab', content)
+
+        # 4. No conflicting X-Robots-Tag header
+        self.assertNotIn('X-Robots-Tag', response.headers)
+
+        # 5. Must be present in sitemap.xml
+        sitemap_res = self.client.get('/sitemap.xml')
+        self.assertIn('https://veepowerelectricals.com/brands/polycab', sitemap_res.content.decode('utf-8'))
+
+    def test_brand_with_out_of_stock_products_remains_indexed(self):
+        """Temporarily out-of-stock products must NOT cause an established brand to become noindex."""
+        oos_brand, _ = Brand.objects.get_or_create(
+            slug="finolex",
+            defaults={"name": "Finolex", "is_active": True}
+        )
+        Product.objects.get_or_create(
+            sku="FINO-OOS-001",
+            defaults={
+                "name": "Finolex 1.5 sq mm Flame Retardant Wire",
+                "brand": oos_brand,
+                "category": self.category,
+                "price": Decimal("1850.00"),
+                "mrp": Decimal("2100.00"),
+                "stock": 0,  # Zero stock / out of stock
+                "active": True,
+                "is_indexable": True,
+            }
+        )
+
+        response = self.client.get('/seo/render/?path=/brands/finolex')
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode('utf-8')
+
+        # Must still be index, follow
+        self.assertIn('<meta name="robots" content="index, follow">', content)
+        self.assertNotIn('noindex', content)
+
+    def test_thin_brand_without_inventory_rendered_as_noindex(self):
+        """Genuinely empty or thin brand pages must remain noindex and excluded from sitemap."""
+        thin_brand, _ = Brand.objects.get_or_create(
+            slug="gloster",
+            defaults={"name": "Gloster", "is_active": True}
+        )
+        # Ensure no active products exist for Gloster
+        Product.objects.filter(brand=thin_brand).delete()
+
+        response = self.client.get('/seo/render/?path=/brands/gloster')
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode('utf-8')
+
+        # Thin brand must be marked noindex
+        self.assertIn('<meta name="robots" content="noindex, follow">', content)
+
+        # Thin brand must NOT be present in sitemap
+        sitemap_res = self.client.get('/sitemap.xml')
+        self.assertNotIn('https://veepowerelectricals.com/brands/gloster', sitemap_res.content.decode('utf-8'))
+

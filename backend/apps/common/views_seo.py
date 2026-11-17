@@ -72,6 +72,145 @@ CATEGORY_SLUGS = [
     ("electrical-accessories", "Electrical Conduits & Accessories"),
 ]
 
+BRAND_SEO_CONFIG = {
+    "havells": {
+        "slug": "havells",
+        "name": "Havells",
+        "meta_title": "Havells Electrical Products | Fans & Switchgear | Vee Power Electricals",
+        "meta_description": "Buy genuine Havells ceiling fans, BLDC motors, and electrical equipment at Vee Power Electricals. Fast delivery across Tamil Nadu with manufacturer warranty.",
+        "tagline": "India's Fast Moving Electrical Goods Pioneer",
+        "overview": "Havells India Limited is a leading Fast Moving Electrical Goods (FMEG) company with an extensive global footprint. Renowned for design excellence, energy efficiency, and durable engineering, Havells produces high-grade domestic and commercial fans, lighting, industrial switchgear, and cables. Vee Power Electricals supplies authentic Havells electrical products in Coimbatore and across Tamil Nadu.",
+        "origin": "India (Noida, Uttar Pradesh)",
+        "series": ["Stealth Air BLDC", "Efficiencia Neo", "Enticer Art", "Fabio Switches"],
+        "strengths": ["100% pure copper motor windings", "BEE 5-star energy saving ratings", "Corrosion-resistant dust-resistant coatings", "Pan-India authorized service network"],
+        "is_indexable": True,
+    },
+    "polycab": {
+        "slug": "polycab",
+        "name": "Polycab",
+        "meta_title": "Polycab Wires & Cables | FR & FR-LSH Copper Cables | Vee Power",
+        "meta_description": "Order certified Polycab single-core and multi-core copper building wires (0.75 sq mm to 6.0 sq mm) at Vee Power Electricals Coimbatore. 100% original factory coils.",
+        "tagline": "India's #1 Wires and Cables Manufacturer",
+        "overview": "Polycab India Limited is India's largest manufacturer of wires and cables, commanding premier market leadership across domestic and industrial electrification projects. Engineered from >99.97% pure electrolytic grade copper conductors and proprietary flame retardant (FR and FR-LSH) PVC compounds, Polycab cables guarantee low resistance, superior power savings, and high fire safety. Vee Power Electricals supplies genuine sealed 90m and 180m coils.",
+        "origin": "India (Mumbai, Maharashtra)",
+        "series": ["Polycab Optima FR", "Polycab Green Wire FR-LSH", "HFX Flexible Multicore", "Submersible Flat 3-Core"],
+        "strengths": [">99.97% electrolytic pure copper conductor", "Flame Retardant Low Smoke (FR-LSH) technology", "1100V grade IS 694 certification", "Tamper-evident holographic packaging"],
+        "is_indexable": True,
+    },
+    "finolex": {
+        "slug": "finolex",
+        "name": "Finolex",
+        "meta_title": "Finolex Cables & Wires | 100% Annealed Copper | Vee Power",
+        "meta_description": "Purchase authentic Finolex flame retardant (FR) electrical copper wires at Vee Power Electricals. High dielectric strength, lead-free PVC insulation.",
+        "tagline": "Total Cable Solutions & Unmatched Trust",
+        "overview": "Finolex Cables Limited is one of India's most trusted manufacturers of electrical and telecommunication cables. Finolex electrical wires are manufactured using high-purity electrolytic grade bright annealed bare copper conductors drawn in-house and formulated with lead-free, flame retardant (FR) PVC compounds to prevent fire propagation during severe electrical faults.",
+        "origin": "India (Pune, Maharashtra)",
+        "series": ["Finolex Flame Retardant (FR)", "Finolex FR-LSH", "3-Core Submersible Cables", "LAN & Coaxial Cables"],
+        "strengths": ["High-purity bare annealed copper", "High oxygen and temperature index PVC", "Smooth conduit glide formulation", "IS 694 / RoHS compliant"],
+        "is_indexable": True,
+    },
+    "legrand": {
+        "slug": "legrand",
+        "name": "Legrand",
+        "meta_title": "Legrand Modular Switches, Sockets & MCBs | Vee Power Electricals",
+        "meta_description": "Shop Legrand Mylinc, Arteor, and DX3 circuit protection devices. Premium French electrical engineering, spark-resistant contacts, and architectural finishes.",
+        "tagline": "Global Specialist in Electrical & Digital Building Infrastructures",
+        "overview": "Legrand is a world leader in electrical and digital building infrastructures, headquartered in France with state-of-the-art manufacturing facilities in India. Renowned for safety, tactile ergonomics, and architectural elegance, Legrand products range from modular switches and sockets (Mylinc, Britzy, Arteor) to high-breaking-capacity DIN-rail MCBs and distribution boards (DX3).",
+        "origin": "France (India operations: Mumbai)",
+        "series": ["Mylinc Modular", "Arteor Luxury Series", "DX3 10kA Circuit Breakers", "Practibox S Enclosures"],
+        "strengths": ["Virgin flame-retardant polycarbonate housing", "10,000A short circuit breaking capacity on MCBs", "Captive screw terminals with insulated safety barriers", "Tested for > 100,000 switching operations"],
+        "is_indexable": True,
+    },
+    "philips": {
+        "slug": "philips",
+        "name": "Philips",
+        "meta_title": "Philips LED Lighting & Battens | Vee Power Electricals Coimbatore",
+        "meta_description": "Explore Philips EyeComfort LED bulbs, T5 tubelights, and recessed downlights. Energy-efficient, flicker-free illumination with genuine manufacturer warranty.",
+        "tagline": "Signify - World Leader in Lighting",
+        "overview": "Philips Lighting (now Signify) is the undisputed global benchmark for energy-efficient lighting. Featuring proprietary EyeComfort design parameters, Philips LED lamps and surface battens eliminate invisible stroboscopic flicker, reduce harmful blue light, and maintain steady lumen output for up to 25,000 hours. Vee Power Electricals distributes genuine Philips LED solutions for homes, showrooms, and commercial facilities.",
+        "origin": "Netherlands (India operations: Gurugram)",
+        "series": ["Stellar Bright LED Bulbs", "T5 Batten Tubelights", "Star Surface Downlights", "Deco Ring Panels"],
+        "strengths": ["EyeComfort certified flicker-free technology", "High luminous efficacy (>100 lm/Watt)", "Integrated 2.5kV to 4kV surge suppression", "High Colour Rendering Index (CRI >80)"],
+        "is_indexable": True,
+    },
+    "crompton": {
+        "slug": "crompton",
+        "name": "Crompton",
+        "meta_title": "Crompton Fans & Home Electricals | Vee Power Electricals",
+        "meta_description": "Buy Crompton high-speed ceiling fans, BLDC motors, and exhaust fans at Vee Power Electricals. Reliable performance and durable copper motors.",
+        "tagline": "Let's Hangout Kool - 85+ Years of Engineering Heritage",
+        "overview": "Crompton Greaves Consumer Electricals Limited has over 85 years of brand legacy in Indian electrical appliances. Known for high air delivery, silent operation, and long motor lifespan, Crompton ceiling and exhaust fans feature double ball bearings and dynamically balanced blades to withstand Indian tropical operating conditions.",
+        "origin": "India (Mumbai, Maharashtra)",
+        "series": ["Sea Breeze High Speed", "Energion BLDC", "Aura Decorative", "Brisk Air Exhaust"],
+        "strengths": ["Double ball bearing motors for silent operation", "Dynamic balanced ribbed aluminum blades", "High air delivery up to 230 CMM", "Extensive national service center network"],
+        "is_indexable": True,
+    },
+    "schneider": {
+        "slug": "schneider",
+        "name": "Schneider Electric",
+        "meta_title": "Schneider Electric MCBs & Switchgear | Vee Power Electricals",
+        "meta_description": "Buy genuine Schneider Electric miniature circuit breakers (MCBs), isolators, and modular switches. High-performance industrial and domestic safety.",
+        "tagline": "Life Is On - Global Energy Management Specialist",
+        "overview": "Schneider Electric is a global leader in energy management and electrical automation. Known for its Acti9 and EasyPact circuit protection ranges and AvatarOn modular switches, Schneider devices provide superior short-circuit response, bimetallic overload precision, and elegant aesthetics.",
+        "origin": "France (India operations: Bengaluru)",
+        "series": ["Acti9 MCBs", "Easy9 Protection", "AvatarOn Switches", "Resi9 Distribution Boards"],
+        "strengths": ["VisiTrip technology for instant fault detection", "Bi-connect terminals for flexible wiring", "High breaking capacity up to 10kA", "EcoStruxure compatible components"],
+        "is_indexable": True,
+    },
+    "anchor": {
+        "slug": "anchor",
+        "name": "Anchor",
+        "meta_title": "Anchor by Panasonic Electricals | Vee Power Electricals",
+        "meta_description": "Information on Anchor by Panasonic modular switches, Roma series, and wires. Inquire for project procurement and supply availability at Vee Power Electricals.",
+        "tagline": "Anchor by Panasonic - Quality That Endures",
+        "overview": "Anchor Electricals, acquired by Panasonic in 2007, is a household name in Indian wiring accessories.",
+        "origin": "India (Panasonic Corporation, Japan)",
+        "series": ["Roma Classic", "Roma Plus", "Rider Modular", "Advance Wires"],
+        "strengths": ["Pioneer of modular switches in India", "Flame retardant polycarbonate construction"],
+        "is_indexable": False,
+    },
+    "gloster": {
+        "slug": "gloster",
+        "name": "Gloster",
+        "meta_title": "Gloster Cables | Industrial LT & HT Power Cables | Vee Power",
+        "meta_description": "Overview of Gloster LT, HT, and specialty industrial cables. Contact Vee Power Electricals for heavy infrastructure and industrial cable inquiries.",
+        "tagline": "Pioneers in Heavy Industrial & Underground Cables",
+        "overview": "Gloster Cables Limited is an established Indian manufacturer specializing in high-voltage and low-voltage armored power cables.",
+        "origin": "India (Kolkata, West Bengal)",
+        "series": ["XLPE Armoured LT Power Cables", "HT 11kV/33kV Cables", "FS Fire Survival Cables"],
+        "strengths": ["Heavy-duty steel wire/tape armoring", "CPRI and NABL certified test reports"],
+        "is_indexable": False,
+    },
+    "jaquar": {
+        "slug": "jaquar",
+        "name": "Jaquar",
+        "meta_title": "Jaquar Lighting | Architectural & Commercial LED | Vee Power",
+        "meta_description": "Jaquar Lighting premium decorative fixtures, chandeliers, and outdoor architectural LEDs. Inquire for luxury residential and hospitality lighting projects.",
+        "tagline": "Complete LED Lighting Solutions",
+        "overview": "Jaquar Lighting, an extension of the prestigious Jaquar Group, provides complete commercial, decorative, and architectural LED lighting solutions.",
+        "origin": "India (Manesar, Haryana)",
+        "series": ["Vivid Architectural LED", "Decorative Chandeliers"],
+        "strengths": ["High architectural aesthetics", "High CRI (>85) illumination"],
+        "is_indexable": False,
+    },
+    "khaitan": {
+        "slug": "khaitan",
+        "name": "Khaitan",
+        "meta_title": "Khaitan Fans & Home Appliances | Vee Power Electricals",
+        "meta_description": "Khaitan heritage fans, heavy-duty industrial air circulators, and ventilation fans. Project procurement and wholesale inquiries at Vee Power Electricals.",
+        "tagline": "The Name Is Enough - Heritage Fan Engineering",
+        "overview": "Khaitan is a historic Indian brand synonymous with ceiling and industrial ventilation fans.",
+        "origin": "India (Kolkata, West Bengal)",
+        "series": ["Khaitan Magna", "Heavy Duty Industrial Exhaust"],
+        "strengths": ["High air throw in tropical conditions", "Heavy-gauge motor stampings"],
+        "is_indexable": False,
+    },
+}
+BRAND_SEO_CONFIG["schneider-electric"] = {
+    **BRAND_SEO_CONFIG["schneider"],
+    "slug": "schneider-electric",
+}
+
 
 def sitemap_xml(request):
     """
@@ -89,10 +228,19 @@ def sitemap_xml(request):
         .order_by('-updated_at')
     )
 
-    # Only include brands that have at least 1 published product in inventory!
-    # (Complies with Phase 3 Rule: Do not index empty, low-value brand pages)
+    # Only include brands that meet the indexing policy:
+    # 1. Has active published products in inventory, OR
+    # 2. Established brand with verified, rich content (is_indexable=True in BRAND_SEO_CONFIG)
+    # Never include thin/empty brands with is_indexable=False
     active_brand_ids = set(products.values_list('brand_id', flat=True).distinct())
-    in_stock_brands = Brand.objects.filter(id__in=active_brand_ids, is_active=True).order_by('name')
+    eligible_brands = []
+    for brand in Brand.objects.filter(is_active=True).order_by('name'):
+        b_slug = (brand.slug or '').lower().strip()
+        cfg = BRAND_SEO_CONFIG.get(b_slug)
+        has_prods = brand.id in active_brand_ids
+        is_indexable = cfg.get("is_indexable", False) if cfg else has_prods
+        if is_indexable and (has_prods or (cfg and cfg.get("is_indexable"))):
+            eligible_brands.append(brand)
 
     xml_lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
@@ -143,8 +291,8 @@ def sitemap_xml(request):
             image_title=f"{cat_title} at Vee Power Electricals",
         )
 
-    # 5. In-Stock Brand Landing Pages (ONLY brands with >0 inventory)
-    for brand in in_stock_brands:
+    # 5. Eligible Brand Landing Pages
+    for brand in eligible_brands:
         brand_date = brand.updated_at.strftime('%Y-%m-%d') if brand.updated_at else None
         add_url(
             f"{site_url}/brands/{brand.slug}",
@@ -686,15 +834,123 @@ def _render_category_detail_seo_html(slug, site_url, site_domain):
 
 
 def _render_brand_detail_seo_html(slug, site_url, site_domain):
-    # Check if brand exists and has products
-    brand = Brand.objects.filter(slug=slug).first()
-    has_products = Product.objects.filter(brand__slug=slug, active=True, is_indexable=True).exists() if brand else False
+    clean_slug = slug.lower().strip()
+    brand_cfg = BRAND_SEO_CONFIG.get(clean_slug)
 
-    brand_name = brand.name if brand else slug.title()
-    title = f"{brand_name} Electrical Products | Vee Power Electricals"
-    description = f"Explore {brand_name} electrical equipment, switchgear, and accessories at Vee Power Electricals."
-    canonical = f"{site_url}/brands/{slug}"
-    robots = "index, follow" if has_products else "noindex, follow"
+    # Database brand record lookup
+    brand = Brand.objects.filter(slug=clean_slug).first()
+    if not brand and brand_cfg:
+        brand = Brand.objects.filter(name__iexact=brand_cfg["name"]).first()
+
+    # Query active, indexable products for this brand
+    products_qs = Product.objects.filter(active=True, is_indexable=True)
+    if brand:
+        brand_products = list(products_qs.filter(brand=brand).order_by('-updated_at')[:24])
+    elif brand_cfg:
+        brand_products = list(products_qs.filter(brand__name__iexact=brand_cfg["name"]).order_by('-updated_at')[:24])
+    else:
+        brand_products = []
+
+    has_products = len(brand_products) > 0
+
+    # If neither brand config nor database record exists, return 404
+    if not brand and not brand_cfg:
+        return _render_404_html(site_url, "Brand not found.")
+
+    brand_name = brand_cfg["name"] if brand_cfg else (brand.name if brand else clean_slug.title())
+    canonical = f"{site_url}/brands/{clean_slug}"
+    title = brand_cfg["meta_title"] if brand_cfg else f"{brand_name} Electrical Products | Vee Power Electricals"
+    description = brand_cfg["meta_description"] if brand_cfg else f"Explore {brand_name} electrical equipment, switchgear, and accessories at Vee Power Electricals."
+
+    # Indexing policy:
+    # Established brands with substantial, verified content (brand_cfg["is_indexable"])
+    # OR brands that possess active, indexable catalog products are indexed.
+    # Empty or thin brands without verified content or inventory remain noindex.
+    is_indexable = False
+    if brand_cfg:
+        is_indexable = brand_cfg.get("is_indexable", False) or has_products
+    else:
+        is_indexable = has_products
+
+    robots = "index, follow" if is_indexable else "noindex, follow"
+
+    # Schema.org JSON-LD structured data
+    schema_data = [
+        {
+            "@context": "https://schema.org",
+            "@type": "Brand",
+            "name": brand_name,
+            "description": brand_cfg.get("overview", description) if brand_cfg else description,
+            "url": canonical,
+        },
+        {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+                {"@type": "ListItem", "position": 1, "name": "Home", "item": site_url},
+                {"@type": "ListItem", "position": 2, "name": "Brands", "item": f"{site_url}/brands"},
+                {"@type": "ListItem", "position": 3, "name": brand_name, "item": canonical},
+            ]
+        }
+    ]
+
+    if has_products:
+        schema_data.append({
+            "@context": "https://schema.org",
+            "@type": "CollectionPage",
+            "name": title,
+            "description": description,
+            "url": canonical,
+            "mainEntity": {
+                "@type": "ItemList",
+                "itemListElement": [
+                    {
+                        "@type": "ListItem",
+                        "position": idx + 1,
+                        "name": p.name,
+                        "url": f"{site_url}/product/{p.slug or p.id}",
+                    }
+                    for idx, p in enumerate(brand_products)
+                ]
+            }
+        })
+
+    # Render catalog items if available
+    if brand_products:
+        prod_items = "".join([
+            f"<li style='margin-bottom:12px'>"
+            f"<a href='{site_url}/product/{p.slug or p.id}' style='font-weight:600;color:#0284c7;text-decoration:none'>{html_escape(p.name)}</a>"
+            f" &mdash; <strong>₹{p.price} INR</strong>"
+            f" ({'In Stock' if p.stock > 0 else 'Temporarily Out of Stock'})"
+            f"</li>"
+            for p in brand_products
+        ])
+        products_section = f"""
+        <section style="margin:30px 0">
+          <h2>{html_escape(brand_name)} Available Product Catalog ({len(brand_products)})</h2>
+          <ul style="padding-left:20px;line-height:1.8">{prod_items}</ul>
+        </section>
+        """
+    else:
+        products_section = f"""
+        <section style="margin:30px 0;padding:20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+          <h2>Direct Procurement &amp; Project Orders for {html_escape(brand_name)}</h2>
+          <p>Online retail inventory for {html_escape(brand_name)} is currently allocated to on-site contractor orders. However, Vee Power Electricals procures and supplies complete {html_escape(brand_name)} project batches against customer BOQs across Tamil Nadu.</p>
+          <p><a href="{site_url}/contact" style="display:inline-block;padding:10px 20px;background:#0284c7;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold">Request {html_escape(brand_name)} Quotation</a></p>
+        </section>
+        """
+
+    strengths_html = ""
+    if brand_cfg and brand_cfg.get("strengths"):
+        str_items = "".join([f"<li>{html_escape(s)}</li>" for s in brand_cfg["strengths"]])
+        strengths_html = f"<section style='margin:20px 0'><h3>Key Engineering Strengths</h3><ul>{str_items}</ul></section>"
+
+    series_html = ""
+    if brand_cfg and brand_cfg.get("series"):
+        ser_items = "".join([f"<span style='display:inline-block;background:#f1f5f9;padding:4px 10px;border-radius:4px;margin:4px;font-size:13px'>{html_escape(s)}</span>" for s in brand_cfg["series"]])
+        series_html = f"<section style='margin:20px 0'><h3>Popular Product Lines</h3><div>{ser_items}</div></section>"
+
+    overview_text = brand_cfg.get("overview", description) if brand_cfg else description
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -704,12 +960,30 @@ def _render_brand_detail_seo_html(slug, site_url, site_domain):
   <meta name="description" content="{html_escape(description)}">
   <link rel="canonical" href="{html_escape(canonical)}">
   <meta name="robots" content="{robots}">
+  <meta property="og:title" content="{html_escape(title)}">
+  <meta property="og:description" content="{html_escape(description)}">
+  <meta property="og:url" content="{html_escape(canonical)}">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{html_escape(title)}">
+  <meta name="twitter:description" content="{html_escape(description)}">
+  <script type="application/ld+json">{json.dumps(schema_data)}</script>
 </head>
-<body style="font-family:sans-serif;max-width:900px;margin:40px auto;padding:0 20px;line-height:1.6">
-  <nav><a href="{site_url}/">Home</a> &gt; <a href="{site_url}/brands">Brands</a> &gt; <span>{html_escape(brand_name)}</span></nav>
-  <h1>{html_escape(brand_name)} Electricals</h1>
-  <p>{html_escape(description)}</p>
-  <p><a href="{canonical}">View brand catalog</a></p>
+<body style="font-family:sans-serif;max-width:900px;margin:40px auto;padding:0 20px;line-height:1.6;color:#1e293b">
+  <nav style="font-size:14px;margin-bottom:20px;color:#64748b">
+    <a href="{site_url}/">Home</a> &gt; <a href="{site_url}/brands">Brands</a> &gt; <span>{html_escape(brand_name)}</span>
+  </nav>
+  <header>
+    <h1 style="font-size:28px;margin-bottom:8px">{html_escape(brand_name)} Electricals</h1>
+    <p style="font-size:16px;color:#0284c7;font-weight:600;margin-top:0">{html_escape(brand_cfg.get('tagline', 'Certified Manufacturer') if brand_cfg else 'Certified Manufacturer')}</p>
+    <p style="font-size:15px;line-height:1.7">{html_escape(overview_text)}</p>
+  </header>
+  {strengths_html}
+  {series_html}
+  {products_section}
+  <footer style="margin-top:40px;padding-top:20px;border-top:1px solid #e2e8f0;font-size:13px;color:#64748b">
+    <p>Vee Power Electricals &mdash; Authorized Electrical Distributor in Coimbatore, Tamil Nadu. Fast dispatch across all 38 districts.</p>
+  </footer>
 </body>
 </html>"""
     resp = HttpResponse(html, content_type='text/html; charset=utf-8')
