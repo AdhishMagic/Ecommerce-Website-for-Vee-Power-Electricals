@@ -1,5 +1,5 @@
 node_modules
-dist
+# dist (included for Dockerfile.prod nginx serving)
 .git
 .vscode
 test-results
