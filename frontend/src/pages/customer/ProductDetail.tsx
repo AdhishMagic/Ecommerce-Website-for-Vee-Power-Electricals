@@ -33,14 +33,77 @@ export default function ProductDetail() {
         if (!isMounted) return;
         setProduct(prod ?? null);
 
-        // Related products are supplementary. A failure here must never invalidate
-        // a product that loaded fine — doing so turned valid pages into
-        // "Product Not Found" whenever the secondary request hiccuped.
+        // Fetch and prioritize related products:
+        // 1. Same category
+        // 2. Same brand
+        // 3. Similar attributes / product type
+        // 4. Other relevant products as fallback
+        // Rules: Exclude current product, exclude inactive, prioritize in-stock, deduplicate, up to 8 products.
         if (prod) {
           try {
-            const allInCat = await productService.getProducts({ category: prod.category });
+            const allProducts = await productService.getProducts();
             if (isMounted) {
-              setRelated(allInCat.filter(p => String(p.id) !== String(prod.id)).slice(0, 4));
+              const currentId = String(prod.id);
+              const candidates = allProducts.filter(
+                (p) => String(p.id) !== currentId && p.active !== false
+              );
+
+              // 1. Same category
+              const sameCategory = candidates.filter((p) => {
+                const matchId = prod.categoryId !== undefined && p.categoryId !== undefined && String(p.categoryId) === String(prod.categoryId);
+                const matchSlug = prod.categorySlug && p.categorySlug && prod.categorySlug.toLowerCase() === p.categorySlug.toLowerCase();
+                const matchName = prod.category && p.category && prod.category.toLowerCase().trim() === p.category.toLowerCase().trim();
+                return matchId || matchSlug || matchName;
+              });
+
+              // 2. Same brand
+              const sameBrand = candidates.filter((p) => {
+                const matchId = prod.brandId !== undefined && p.brandId !== undefined && String(p.brandId) === String(prod.brandId);
+                const matchSlug = prod.brandSlug && p.brandSlug && prod.brandSlug.toLowerCase() === p.brandSlug.toLowerCase();
+                const matchName = prod.brand && p.brand && prod.brand.toLowerCase().trim() === p.brand.toLowerCase().trim();
+                return matchId || matchSlug || matchName;
+              });
+
+              // 3. Similar attributes or product type
+              const prodWords = (prod.name || "").toLowerCase().split(/\s+/).filter(w => w.length > 2);
+              const similarAttributes = candidates.filter((p) => {
+                const matchSubcat = prod.subcategory && p.subcategory && prod.subcategory.toLowerCase() === p.subcategory.toLowerCase();
+                const nameWords = (p.name || "").toLowerCase().split(/\s+/);
+                const sharedWords = prodWords.filter(w => nameWords.includes(w));
+                return matchSubcat || sharedWords.length >= 2;
+              });
+
+              // Build prioritized list without duplicates
+              const seen = new Set<string>();
+              const prioritized: Product[] = [];
+
+              const addGroup = (items: Product[]) => {
+                // In each group, prioritize in-stock products
+                const sorted = [...items].sort((a, b) => {
+                  const aInStock = (a.stock && a.stock > 0) ? 1 : 0;
+                  const bInStock = (b.stock && b.stock > 0) ? 1 : 0;
+                  return bInStock - aInStock;
+                });
+                for (const item of sorted) {
+                  const key = String(item.id);
+                  if (!seen.has(key)) {
+                    seen.add(key);
+                    prioritized.push(item);
+                  }
+                }
+              };
+
+              addGroup(sameCategory);
+              addGroup(sameBrand);
+              addGroup(similarAttributes);
+
+              // 4. Other relevant products as fallback if fewer than 4 found
+              if (prioritized.length < 4) {
+                addGroup(candidates);
+              }
+
+              // Show up to 8 relevant products
+              setRelated(prioritized.slice(0, 8));
             }
           } catch (relatedErr) {
             console.error("Failed to fetch related products:", relatedErr);
@@ -468,14 +531,37 @@ export default function ProductDetail() {
         </div>
       </div>
 
-      {/* Related Products */}
+      {/* Related Products Section */}
       {related.length > 0 && (
-        <div className="mt-10">
-          <h2 className="text-xl font-bold text-[#0B3A63] mb-5">Related Products</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {related.map(p => <ProductCard key={p.id} product={p} />)}
+        <section className="mt-12 sm:mt-16 pt-8 border-t border-[#D9E1E8]" aria-labelledby="related-products-heading">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
+            <div>
+              <h2
+                id="related-products-heading"
+                className="text-xl sm:text-2xl font-bold text-[#0B3A63] tracking-tight"
+                style={{ fontFamily: "Outfit, sans-serif" }}
+              >
+                Related Products
+              </h2>
+              <p className="text-xs sm:text-sm text-[#667085] mt-0.5">
+                Similar genuine electrical products you might be interested in
+              </p>
+            </div>
+            {product.category && (
+              <Link
+                to={`/shop?category=${encodeURIComponent(product.categorySlug || product.category)}`}
+                className="inline-flex items-center text-xs sm:text-sm font-semibold text-[#1769AA] hover:text-[#0B3A63] hover:underline transition-colors shrink-0"
+              >
+                View all {product.category} &rarr;
+              </Link>
+            )}
           </div>
-        </div>
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+            {related.map(p => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );

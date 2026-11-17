@@ -206,7 +206,7 @@ export default function Header() {
   const navLinks = [
     { label: "Shop", to: "/shop" },
     { label: "Categories", to: "/categories" },
-    { label: "Brands", to: "/shop?view=brands" },
+    { label: "Brands", to: "/brands" },
     { label: "About", to: "/about" },
     { label: "Contact", to: "/contact" },
   ];
@@ -216,8 +216,8 @@ export default function Header() {
     const searchParams = new URLSearchParams(location.search);
     const currentView = searchParams.get("view");
 
-    if (currentPath === "/categories") return 1;
-    if (currentPath === "/brands") return 2;
+    if (currentPath === "/categories" || currentPath.startsWith("/categories/")) return 1;
+    if (currentPath === "/brands" || currentPath.startsWith("/brands/")) return 2;
     if (currentPath === "/shop") {
       if (currentView === "categories") return 1;
       if (currentView === "brands") return 2;
@@ -341,9 +341,9 @@ export default function Header() {
                     onMouseEnter={() => setHoveredIndex(index)}
                     onFocus={() => setHoveredIndex(index)}
                     onBlur={() => setHoveredIndex(null)}
-                    className={`relative z-10 block px-2 py-1.5 lg:px-3.5 lg:py-2 text-xs lg:text-sm font-medium whitespace-nowrap flex-shrink-0 transition-colors duration-200 select-none ${
+                    className={`relative z-10 block px-2 py-1.5 lg:px-3.5 lg:py-2 text-xs lg:text-sm font-semibold whitespace-nowrap flex-shrink-0 transition-colors duration-150 select-none ${
                       isSelected
-                        ? "text-[#1769AA] font-semibold"
+                        ? "text-[#1769AA]"
                         : "text-[#0B3A63] hover:text-[#1769AA]"
                     }`}
                   >

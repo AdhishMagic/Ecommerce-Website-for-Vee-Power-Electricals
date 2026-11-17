@@ -335,11 +335,11 @@ class ProductViewSet(viewsets.ModelViewSet):
             if category.isdigit():
                 qs = qs.filter(category_id=int(category))
             else:
-                qs = qs.filter(category__slug=category)
+                qs = qs.filter(Q(category__slug__iexact=category) | Q(category__name__iexact=category))
 
         category_slug = self.request.query_params.get('category_slug')
         if category_slug:
-            qs = qs.filter(category__slug=category_slug)
+            qs = qs.filter(category__slug__iexact=category_slug)
 
         # Filtering: Subcategory
         subcategory = self.request.query_params.get('subcategory')
@@ -347,11 +347,11 @@ class ProductViewSet(viewsets.ModelViewSet):
             if subcategory.isdigit():
                 qs = qs.filter(subcategory_id=int(subcategory))
             else:
-                qs = qs.filter(subcategory__slug=subcategory)
+                qs = qs.filter(Q(subcategory__slug__iexact=subcategory) | Q(subcategory__name__iexact=subcategory))
 
         subcategory_slug = self.request.query_params.get('subcategory_slug')
         if subcategory_slug:
-            qs = qs.filter(subcategory__slug=subcategory_slug)
+            qs = qs.filter(subcategory__slug__iexact=subcategory_slug)
 
         # Filtering: Brand
         brand = self.request.query_params.get('brand')
@@ -359,11 +359,11 @@ class ProductViewSet(viewsets.ModelViewSet):
             if brand.isdigit():
                 qs = qs.filter(brand_id=int(brand))
             else:
-                qs = qs.filter(brand__slug=brand)
+                qs = qs.filter(Q(brand__slug__iexact=brand) | Q(brand__name__iexact=brand))
 
         brand_slug = self.request.query_params.get('brand_slug')
         if brand_slug:
-            qs = qs.filter(brand__slug=brand_slug)
+            qs = qs.filter(brand__slug__iexact=brand_slug)
 
         # Filtering: Price range
         min_price = self.request.query_params.get('min_price')
