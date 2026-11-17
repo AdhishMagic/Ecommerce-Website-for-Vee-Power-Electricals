@@ -16,12 +16,7 @@ services:
     command: ["nginx", "-g", "daemon off;"]
     build:
       context: ./frontend
-      dockerfile: Dockerfile
-      target: production
-      args:
-        VITE_API_URL: ${VITE_API_URL:-/api/v1}
-        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-${GOOGLE_CLIENT_ID:-}}
-        VITE_RAZORPAY_KEY_ID: ${VITE_RAZORPAY_KEY_ID:-${RAZORPAY_KEY_ID:-}}
+      dockerfile: Dockerfile.prod
     ports:
       - "${PROD_FRONTEND_PORT:-80}:80"
     depends_on:
