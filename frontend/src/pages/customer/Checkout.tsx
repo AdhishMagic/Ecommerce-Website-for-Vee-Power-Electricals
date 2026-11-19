@@ -10,6 +10,7 @@ import { CustomerAddress, DeliveryConfiguration, PaymentIntentResponse } from ".
 import { resolveProductImage, handleProductImageError } from "../../utils/productImageResolver";
 import { loadRazorpayScript, isRazorpayLoaded } from "../../utils/razorpay";
 import PaymentVerificationView from "../../components/customer/PaymentVerificationView";
+import { isValidIndianPhone, INDIAN_PHONE_ERROR_MESSAGE, sanitizePhoneInput } from "../../utils/phoneValidation";
 
 const steps = ["Address", "Review", "Payment", "Confirm"];
 
@@ -56,6 +57,7 @@ export default function Checkout() {
 
   // Address and Validation states
   const [validationError, setValidationError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
 
   const [newAddress, setNewAddress] = useState({
     name: "", phone: "", line1: "", line2: "", city: "Coimbatore", state: "Tamil Nadu", pincode: "",
@@ -236,10 +238,17 @@ export default function Checkout() {
 
   const handleContinueToReview = async () => {
     setValidationError("");
+    setPhoneError("");
 
     if (useNewAddress || savedAddresses.length === 0) {
       if (!newAddress.name || !newAddress.phone || !newAddress.line1 || !newAddress.city || !newAddress.pincode) {
         setValidationError("Please fill out all required delivery address fields.");
+        return;
+      }
+
+      if (!isValidIndianPhone(newAddress.phone)) {
+        setPhoneError(INDIAN_PHONE_ERROR_MESSAGE);
+        setValidationError(INDIAN_PHONE_ERROR_MESSAGE);
         return;
       }
 
@@ -272,6 +281,11 @@ export default function Checkout() {
     } else {
       if (!selectedAddressId) {
         setValidationError("Please select a delivery address.");
+        return;
+      }
+      const activeAddr = savedAddresses.find(a => a.id === selectedAddressId);
+      if (activeAddr && !isValidIndianPhone(activeAddr.phone)) {
+        setValidationError("The selected delivery address contains an invalid phone number. Please update this address with a valid 10-digit Indian mobile number.");
         return;
       }
       const addressExists = savedAddresses.some(a => a.id === selectedAddressId);
@@ -618,7 +632,22 @@ export default function Checkout() {
                           </div>
                           <div>
                             <label className="text-sm font-medium text-[#17212B] mb-1.5 block">Mobile *</label>
-                            <input value={newAddress.phone} onChange={e => setNewAddress(a => ({...a, phone: e.target.value}))} className="w-full border border-[#D9E1E8] rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#1769AA]" placeholder="+91 98765 43210" />
+                            <input
+                              type="tel"
+                              inputMode="numeric"
+                              maxLength={16}
+                              value={newAddress.phone}
+                              onChange={e => {
+                                const sanitized = sanitizePhoneInput(e.target.value);
+                                setNewAddress(a => ({...a, phone: sanitized}));
+                                if (phoneError) setPhoneError("");
+                              }}
+                              className={`w-full border rounded-lg px-3 py-2.5 text-sm outline-none transition-colors ${
+                                phoneError ? "border-red-500 focus:border-red-500 bg-red-50/20" : "border-[#D9E1E8] focus:border-[#1769AA]"
+                              }`}
+                              placeholder="+91 98765 43210"
+                            />
+                            {phoneError && <p className="text-xs text-red-600 mt-1">{phoneError}</p>}
                           </div>
                         </div>
                         <div>

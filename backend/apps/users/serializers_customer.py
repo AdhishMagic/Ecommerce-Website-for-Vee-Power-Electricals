@@ -10,6 +10,7 @@ from rest_framework import serializers
 from apps.users.models import UserRole, CustomerAddress, AddressType
 from apps.users.serializers_address import CustomerAddressSerializer
 from apps.orders.models import Order, OrderStatus, PaymentStatus
+from apps.common.validators import normalize_indian_phone
 
 User = get_user_model()
 
@@ -238,6 +239,11 @@ class CustomerCreateSerializer(serializers.Serializer):
                 raise serializers.ValidationError(list(err.messages))
         return value
 
+    def validate_phone(self, value):
+        if value:
+            return normalize_indian_phone(value, required=False)
+        return ''
+
     def create(self, validated_data):
         email = validated_data['email']
         first_name = validated_data['first_name'].strip()
@@ -274,10 +280,12 @@ class CustomerCreateSerializer(serializers.Serializer):
 
         # Attach initial address if supplied
         if address_line1 and city and state and pincode:
+            if not phone:
+                raise serializers.ValidationError({"phone": "Phone number is required when specifying delivery address."})
             CustomerAddress.objects.create(
                 user=user,
                 recipient_name=f"{first_name} {last_name}".strip(),
-                phone=phone or '+91 0000000000',
+                phone=phone,
                 address_line1=address_line1,
                 address_line2=address_line2,
                 landmark=landmark,
@@ -318,6 +326,11 @@ class CustomerUpdateSerializer(serializers.ModelSerializer):
         if User.objects.filter(email__iexact=normalized).exclude(pk=self.instance.pk).exists():
             raise serializers.ValidationError("Another user already exists with this email address.")
         return normalized
+
+    def validate_phone(self, value):
+        if value:
+            return normalize_indian_phone(value, required=False)
+        return ''
 
     def update(self, instance, validated_data):
         email_changed = False

@@ -9,6 +9,7 @@ from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
 
 from apps.users.models import UserRole
+from apps.common.validators import normalize_indian_phone
 
 User = get_user_model()
 
@@ -75,6 +76,11 @@ class UserRegistrationSerializer(serializers.Serializer):
         except DjangoValidationError as err:
             raise serializers.ValidationError(list(err.messages))
         return value
+
+    def validate_phone(self, value):
+        if value:
+            return normalize_indian_phone(value, required=False)
+        return ''
 
     def create(self, validated_data):
         # Explicitly enforce Customer role and security flags regardless of any input
@@ -153,6 +159,11 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
                 f"Modifying restricted security fields ({forbidden_list}) is not permitted."
             )
         return attrs
+
+    def validate_phone(self, value):
+        if value:
+            return normalize_indian_phone(value, required=False)
+        return ''
 
     def update(self, instance, validated_data):
         instance.first_name = validated_data.get('first_name', instance.first_name).strip()

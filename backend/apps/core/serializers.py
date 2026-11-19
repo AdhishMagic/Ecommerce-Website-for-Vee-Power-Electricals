@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from apps.common.validators import validate_indian_phone
 from .models import ContactInquiry, InquiryStatus
 
 
@@ -14,9 +15,7 @@ class ContactInquiryPublicSerializer(serializers.ModelSerializer):
         return value.strip()
 
     def validate_phone(self, value):
-        if not value.strip():
-            raise serializers.ValidationError("Phone number is required.")
-        return value.strip()
+        return validate_indian_phone(value)
 
     def validate_subject(self, value):
         if not value.strip():

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { inquiriesApi } from "../../api/inquiries";
+import { isValidIndianPhone, INDIAN_PHONE_ERROR_MESSAGE, sanitizePhoneInput } from "../../utils/phoneValidation";
 
 interface FormState {
   name: string;
@@ -39,8 +40,8 @@ export default function ContactForm() {
 
     if (!form.phone.trim()) {
       errs.phone = "Phone number is required.";
-    } else if (form.phone.trim().length < 8) {
-      errs.phone = "Please enter a valid phone number.";
+    } else if (!isValidIndianPhone(form.phone.trim())) {
+      errs.phone = INDIAN_PHONE_ERROR_MESSAGE;
     }
 
     if (form.email.trim()) {
@@ -165,9 +166,15 @@ export default function ContactForm() {
             <input
               id="contact-phone"
               type="tel"
+              inputMode="numeric"
+              maxLength={16}
               required
               value={form.phone}
-              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              onChange={(e) => {
+                const val = sanitizePhoneInput(e.target.value);
+                setForm((f) => ({ ...f, phone: val }));
+                if (errors.phone) setErrors((prev) => ({ ...prev, phone: undefined }));
+              }}
               placeholder="+91 98765 43210"
               aria-invalid={Boolean(errors.phone)}
               className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm text-[#17212B] placeholder-slate-400 outline-none focus:bg-white transition-all ${

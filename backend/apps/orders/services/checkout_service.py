@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 
 from apps.users.models import CustomerAddress
 from apps.products.models import Product
+from apps.common.validators import is_valid_indian_phone
 from apps.inventory.services import InventoryService
 from apps.commercial_config.services import BillingService, BillingPipelineResult
 from apps.orders.models import Order, OrderItem, OrderStatus, PaymentStatus, OrderStatusHistory
@@ -43,6 +44,9 @@ class CheckoutService:
         if not shipping_address_obj:
             raise ValidationError("Invalid shipping address. Address does not exist or does not belong to you.")
 
+        if not is_valid_indian_phone(shipping_address_obj.phone):
+            raise ValidationError("The selected shipping address has an invalid phone number. Please update it with a valid 10-digit Indian mobile number.")
+
         shipping_snapshot = {
             'id': shipping_address_obj.id,
             'recipient_name': shipping_address_obj.recipient_name,
@@ -63,6 +67,8 @@ class CheckoutService:
                 user=user,
             ).first()
             if billing_obj:
+                if not is_valid_indian_phone(billing_obj.phone):
+                    raise ValidationError("The selected billing address has an invalid phone number. Please update it with a valid 10-digit Indian mobile number.")
                 billing_snapshot = {
                     'id': billing_obj.id,
                     'recipient_name': billing_obj.recipient_name,

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
+import { isValidIndianPhone, INDIAN_PHONE_ERROR_MESSAGE, sanitizePhoneInput } from "../../utils/phoneValidation";
 
 export type Client = {
   id: string;
@@ -39,6 +40,7 @@ export default function ClientModal({ isOpen, onClose, onSubmit, initialData }: 
     address: "",
     reason: "",
   });
+  const [phoneError, setPhoneError] = useState("");
 
   useEffect(() => {
     if (isOpen) {
@@ -77,6 +79,11 @@ export default function ClientModal({ isOpen, onClose, onSubmit, initialData }: 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.phone.trim() && !isValidIndianPhone(formData.phone.trim())) {
+      setPhoneError(INDIAN_PHONE_ERROR_MESSAGE);
+      return;
+    }
+    setPhoneError("");
     onSubmit(formData);
   };
 
@@ -148,14 +155,23 @@ export default function ClientModal({ isOpen, onClose, onSubmit, initialData }: 
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">Phone Number</label>
               <input 
-                type="text" 
+                type="tel"
+                inputMode="numeric"
+                maxLength={16}
                 name="phone"
                 required
                 value={formData.phone} 
-                onChange={handleChange}
-                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-[#0A2540] text-sm"
+                onChange={(e) => {
+                  const val = sanitizePhoneInput(e.target.value);
+                  setFormData(prev => ({ ...prev, phone: val }));
+                  if (phoneError) setPhoneError("");
+                }}
+                className={`w-full px-4 py-2 bg-slate-50 border rounded-lg outline-none focus:border-[#0A2540] text-sm ${
+                  phoneError ? "border-rose-400 bg-rose-50/30" : "border-slate-200"
+                }`}
                 placeholder="+91 9876543210"
               />
+              {phoneError && <p className="text-xs text-rose-600 mt-1">{phoneError}</p>}
             </div>
 
             <div className="md:col-span-2">

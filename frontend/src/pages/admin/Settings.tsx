@@ -29,6 +29,7 @@ import type {
   SystemInformation,
   UserProfile,
 } from "../../types/api";
+import { isValidIndianPhone, INDIAN_PHONE_ERROR_MESSAGE, sanitizePhoneInput } from "../../utils/phoneValidation";
 
 /* ------------------------------------------------------------------ *
  * Section contract
@@ -574,8 +575,8 @@ export default function Settings() {
     const errors: Record<string, string> = {};
     if (!profileDraft.first_name.trim()) errors.first_name = "First name is required.";
     if (!profileDraft.last_name.trim()) errors.last_name = "Last name is required.";
-    if (profileDraft.phone.trim() && !PHONE_PATTERN.test(profileDraft.phone.trim())) {
-      errors.phone = "Enter a valid phone number (digits, spaces, +, - and parentheses).";
+    if (profileDraft.phone.trim() && !isValidIndianPhone(profileDraft.phone.trim())) {
+      errors.phone = INDIAN_PHONE_ERROR_MESSAGE;
     }
     setProfileFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
@@ -1208,13 +1209,18 @@ export default function Settings() {
                   >
                     <input
                       id="profile_phone"
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={16}
                       className={inputClass}
                       value={profileDraft.phone}
-                      onChange={(event) =>
-                        setProfileDraft((previous) => ({ ...previous, phone: event.target.value }))
-                      }
+                      onChange={(event) => {
+                        const val = sanitizePhoneInput(event.target.value);
+                        setProfileDraft((previous) => ({ ...previous, phone: val }));
+                      }}
                       disabled={profileSaving}
                       aria-invalid={Boolean(profileFieldErrors.phone)}
+                      placeholder="+91 98765 43210"
                     />
                   </Field>
                 </div>

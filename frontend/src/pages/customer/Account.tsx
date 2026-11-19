@@ -13,6 +13,7 @@ import CustomerSidebar, { CustomerTabId } from "../../components/customer/Custom
 import OrderCard from "../../components/customer/OrderCard";
 import OrderDetailView from "../../components/customer/OrderDetailView";
 import OrderCancellationModal from "../../components/customer/OrderCancellationModal";
+import { isValidIndianPhone, INDIAN_PHONE_ERROR_MESSAGE, sanitizePhoneInput } from "../../utils/phoneValidation";
 
 type OrderFilterType = "all" | "in_progress" | "delivered" | "cancelled_returns";
 
@@ -205,6 +206,11 @@ export default function Account() {
     e.preventDefault();
     setAddressError("");
 
+    if (!isValidIndianPhone(addressForm.phone)) {
+      setAddressError(INDIAN_PHONE_ERROR_MESSAGE);
+      return;
+    }
+
     const pinClean = addressForm.pincode.trim();
     if (!/^[1-9][0-9]{5}$/.test(pinClean)) {
       setAddressError("PIN code must be a valid 6-digit Indian postal code.");
@@ -360,6 +366,11 @@ export default function Account() {
     e.preventDefault();
     setProfileError("");
     setProfileSuccess(false);
+
+    if (profilePhone.trim() && !isValidIndianPhone(profilePhone.trim())) {
+      setProfileError(INDIAN_PHONE_ERROR_MESSAGE);
+      return;
+    }
 
     try {
       await authService.updateProfile({
@@ -732,11 +743,17 @@ export default function Account() {
                                 Phone Number *
                               </label>
                               <input
+                                type="tel"
+                                inputMode="numeric"
+                                maxLength={16}
                                 required
                                 value={addressForm.phone}
-                                onChange={(e) =>
-                                  setAddressForm({ ...addressForm, phone: e.target.value })
-                                }
+                                onChange={(e) => {
+                                  const sanitized = sanitizePhoneInput(e.target.value);
+                                  setAddressForm({ ...addressForm, phone: sanitized });
+                                  if (addressError) setAddressError("");
+                                }}
+                                placeholder="+91 98765 43210"
                                 className="w-full px-3.5 py-2.5 bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl text-xs sm:text-sm focus:bg-white focus:border-[#1769AA] outline-none"
                               />
                             </div>
@@ -1005,8 +1022,15 @@ export default function Account() {
                               Mobile Number
                             </label>
                             <input
+                              type="tel"
+                              inputMode="numeric"
+                              maxLength={16}
                               value={profilePhone}
-                              onChange={(e) => setProfilePhone(e.target.value)}
+                              onChange={(e) => {
+                                const sanitized = sanitizePhoneInput(e.target.value);
+                                setProfilePhone(sanitized);
+                                if (profileError) setProfileError("");
+                              }}
                               className="w-full bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl px-4 py-2.5 text-xs sm:text-sm outline-none focus:bg-white focus:border-[#1769AA] focus:ring-2 focus:ring-[#1769AA]/15 transition-all"
                               placeholder="+91 98765 43210"
                             />

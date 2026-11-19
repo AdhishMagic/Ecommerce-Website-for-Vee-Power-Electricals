@@ -1,5 +1,6 @@
 import re
 from rest_framework import serializers
+from apps.common.validators import validate_indian_phone
 from .models import CustomerAddress, AddressType
 
 
@@ -16,6 +17,9 @@ class CustomerAddressSerializer(serializers.ModelSerializer):
             'address_type', 'is_default', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def validate_phone(self, value):
+        return validate_indian_phone(value)
 
     def validate_pincode(self, value):
         cleaned = value.strip()

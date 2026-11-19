@@ -1,6 +1,7 @@
 import re
 from decimal import Decimal
 from rest_framework import serializers
+from apps.common.validators import validate_indian_phone
 from .models import (
     Client,
     Quotation,
@@ -65,6 +66,9 @@ class ClientSerializer(serializers.ModelSerializer):
         from django.db.models import Sum
         total = obj.invoices.exclude(status=InvoiceStatus.CANCELLED).aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
         return str(total.quantize(Decimal('0.01')))
+
+    def validate_phone(self, value):
+        return validate_indian_phone(value)
 
     def validate_credit_limit(self, value):
         if value < Decimal('0.00'):

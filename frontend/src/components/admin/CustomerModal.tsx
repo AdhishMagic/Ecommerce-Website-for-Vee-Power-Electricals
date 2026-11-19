@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { X, User, Mail, Phone, Lock, MapPin, AlertCircle, Loader2 } from "lucide-react";
 import { Customer, CustomerCreateInput, CustomerUpdateInput } from "../../types/api";
+import { isValidIndianPhone, INDIAN_PHONE_ERROR_MESSAGE, sanitizePhoneInput } from "../../utils/phoneValidation";
 
 interface CustomerModalProps {
   isOpen: boolean;
@@ -102,8 +103,8 @@ export default function CustomerModal({
       errors.email = "Please enter a valid email address.";
     }
 
-    if (formData.phone.trim() && !/^\+?[0-9\s\-()]{7,20}$/.test(formData.phone.trim())) {
-      errors.phone = "Please enter a valid phone number (min 7 digits).";
+    if (formData.phone.trim() && !isValidIndianPhone(formData.phone.trim())) {
+      errors.phone = INDIAN_PHONE_ERROR_MESSAGE;
     }
 
     if (!isEditing && formData.password.trim() && formData.password.trim().length < 8) {
@@ -275,9 +276,12 @@ export default function CustomerModal({
                   <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                   <input
                     type="tel"
+                    inputMode="numeric"
+                    maxLength={16}
                     value={formData.phone}
                     onChange={e => {
-                      setFormData(prev => ({ ...prev, phone: e.target.value }));
+                      const val = sanitizePhoneInput(e.target.value);
+                      setFormData(prev => ({ ...prev, phone: val }));
                       if (formErrors.phone) setFormErrors(prev => ({ ...prev, phone: "" }));
                     }}
                     placeholder="+91 9876543210"
