@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useCart } from "../../context/CartContext";
+import { useAuth } from "../../context/AuthContext";
 import { addressesApi } from "../../api/addresses";
 import { ordersApi } from "../../api/orders";
 import { paymentsApi } from "../../api/payments";
 import { configApi } from "../../api/config";
 import { CustomerAddress, DeliveryConfiguration, PaymentIntentResponse } from "../../types/api";
 import { resolveProductImage, handleProductImageError } from "../../utils/productImageResolver";
-import { loadRazorpayScript, isRazorpayLoaded, isMockRazorpayKey } from "../../utils/razorpay";
+import { loadRazorpayScript, isRazorpayLoaded } from "../../utils/razorpay";
 import PaymentVerificationView from "../../components/customer/PaymentVerificationView";
 
 const steps = ["Address", "Review", "Payment", "Confirm"];
@@ -16,6 +17,7 @@ type PaymentLifecycle = 'idle' | 'initiating' | 'gateway_open' | 'verifying' | '
 
 export default function Checkout() {
   const { items: cartItems, subtotal: cartSubtotal, clearCart, removeFromCart } = useCart();
+  const { user } = useAuth();
   const [step, setStep] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState("upi");
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
@@ -24,7 +26,6 @@ export default function Checkout() {
   const [createdOrder, setCreatedOrder] = useState<any | null>(null);
   const [verificationPayload, setVerificationPayload] = useState<any | null>(null);
   const [verifyingOrderId, setVerifyingOrderId] = useState<number | null>(null);
-  const [showMockSimulator, setShowMockSimulator] = useState(false);
   const [paymentLifecycle, setPaymentLifecycle] = useState<PaymentLifecycle>('idle');
   const [paymentErrorMessage, setPaymentErrorMessage] = useState<string>("");
   const [activePaymentIntent, setActivePaymentIntent] = useState<PaymentIntentResponse | null>(null);
@@ -45,12 +46,13 @@ export default function Checkout() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Saved addresses from backend
+  // Saved addresses and commercial configuration from database
   const [savedAddresses, setSavedAddresses] = useState<CustomerAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
   const [useNewAddress, setUseNewAddress] = useState(false);
   const [deliveryConfig, setDeliveryConfig] = useState<DeliveryConfiguration | null>(null);
   const [shippingRules, setShippingRules] = useState<any[]>([]);
+  const [isLoadingInitialData, setIsLoadingInitialData] = useState(true);
 
   // Address and Validation states
   const [validationError, setValidationError] = useState("");
@@ -58,6 +60,17 @@ export default function Checkout() {
   const [newAddress, setNewAddress] = useState({
     name: "", phone: "", line1: "", line2: "", city: "Coimbatore", state: "Tamil Nadu", pincode: "",
   });
+
+  // Pre-fill user details into new address if available
+  useEffect(() => {
+    if (user) {
+      setNewAddress(prev => ({
+        ...prev,
+        name: prev.name || user.name || '',
+        phone: prev.phone || user.phone || '',
+      }));
+    }
+  }, [user]);
 
   // Single Item Checkout Logic
   const singleItemState = location.state as { singleItem: string, quantity: number } | null;
@@ -77,16 +90,17 @@ export default function Checkout() {
     }
   }
 
-  // Load customer addresses and delivery configuration on mount
+  // Load customer addresses and delivery configuration directly from database on mount
   useEffect(() => {
     let isMounted = true;
     const loadInitial = async () => {
+      setIsLoadingInitialData(true);
       try {
         const [addrs, configs, payCfg, rules] = await Promise.all([
-          addressesApi.getAddresses(),
-          configApi.getDeliveryConfig(),
+          addressesApi.getAddresses().catch(() => []),
+          configApi.getDeliveryConfig({ forceRefresh: true }).catch(() => []),
           paymentsApi.getPaymentConfig().catch(() => null),
-          configApi.getShippingRules().catch(() => []),
+          configApi.getShippingRules({ forceRefresh: true }).catch(() => []),
         ]);
         if (isMounted) {
           if (payCfg) {
@@ -111,6 +125,10 @@ export default function Checkout() {
         }
       } catch (err) {
         console.error("Failed to load checkout settings:", err);
+      } finally {
+        if (isMounted) {
+          setIsLoadingInitialData(false);
+        }
       }
     };
 
@@ -157,9 +175,9 @@ export default function Checkout() {
   const activeAddr = savedAddresses.find(a => a.id === selectedAddressId) || (useNewAddress ? newAddress : null);
   const destState = (activeAddr?.state || "").trim().toLowerCase();
   const matchedRule = shippingRules.find(r => (r.state || "").trim().toLowerCase() === destState && r.is_active !== false);
-  const baseShippingFee = matchedRule ? Number(matchedRule.cost) : (deliveryConfig ? Number(deliveryConfig.base_delivery_charge) : 99);
-  const freeThreshold = deliveryConfig ? Number(deliveryConfig.free_delivery_threshold) : 999;
-  const isFreeDelivery = deliveryConfig?.free_delivery_enabled !== false && checkoutSubtotal >= freeThreshold;
+  const baseShippingFee = matchedRule ? Number(matchedRule.cost) : (deliveryConfig ? Number(deliveryConfig.base_delivery_charge) : 0);
+  const freeThreshold = deliveryConfig ? Number(deliveryConfig.free_delivery_threshold) : 0;
+  const isFreeDelivery = deliveryConfig ? (deliveryConfig.free_delivery_enabled !== false && checkoutSubtotal >= freeThreshold) : true;
   const previewShipping = isFreeDelivery ? 0 : baseShippingFee;
   const previewTotal = Math.round((checkoutSubtotal + previewShipping) * 100) / 100;
 
@@ -304,15 +322,6 @@ export default function Checkout() {
       setActivePaymentIntent(paymentIntent);
 
       const effectiveKeyId = paymentIntent.key_id || paymentConfig?.key_id || import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_live_U0UDkfEwDcShnF';
-
-      // If server is in mock/sandbox mode without real Razorpay keys, launch interactive simulator
-      if (isMockRazorpayKey(effectiveKeyId)) {
-        setPaymentLifecycle('gateway_open');
-        setIsSubmittingOrder(false);
-        setShowMockSimulator(true);
-        return;
-      }
-
       const rzpConstructor = (window as any).Razorpay;
 
       if (isLoaded && typeof rzpConstructor === 'function') {
@@ -359,14 +368,7 @@ export default function Checkout() {
         };
 
         const gOrderId = paymentIntent.gateway_order_id || paymentIntent.razorpay_order_id;
-        if (
-          gOrderId &&
-          gOrderId.startsWith('order_') &&
-          !gOrderId.startsWith('order_direct_') &&
-          !gOrderId.startsWith('order_rzp_mock_') &&
-          !gOrderId.startsWith('order_test_') &&
-          !gOrderId.startsWith('order_mock_')
-        ) {
+        if (gOrderId && gOrderId.startsWith('order_')) {
           options.order_id = gOrderId;
         }
 
@@ -510,111 +512,129 @@ export default function Checkout() {
                 <h2 className="font-bold text-[#0B3A63] text-lg">Delivery Information</h2>
               </div>
 
-              {/* Saved Addresses List */}
-              {savedAddresses.length > 0 && !useNewAddress && (
-                <div className="mb-6 space-y-3">
-                  <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-semibold text-sm text-[#17212B]">Select Delivery Address</h3>
-                    <button
-                      type="button"
-                      onClick={() => setUseNewAddress(true)}
-                      className="text-xs text-[#1769AA] hover:underline font-medium"
-                    >
-                      + Add New Address
-                    </button>
+              {isLoadingInitialData ? (
+                <div className="space-y-4 py-2 animate-pulse">
+                  <div className="h-4 bg-slate-200 rounded w-1/3 mb-4"></div>
+                  <div className="p-4 border-2 border-slate-200 rounded-xl space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="h-4 bg-slate-200 rounded w-1/4"></div>
+                      <div className="h-4 bg-slate-200 rounded w-16"></div>
+                    </div>
+                    <div className="h-3 bg-slate-200 rounded w-3/4"></div>
+                    <div className="h-3 bg-slate-200 rounded w-1/2"></div>
+                    <div className="h-3 bg-slate-200 rounded w-1/3"></div>
                   </div>
-                  <div className="grid gap-3">
-                    {savedAddresses.map(addr => (
-                      <label
-                        key={addr.id}
-                        className={`block p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedAddressId === addr.id ? 'border-[#1769AA] bg-[#EFF6FF]' : 'border-[#D9E1E8] hover:border-slate-300'}`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <input
-                            type="radio"
-                            name="saved_address"
-                            checked={selectedAddressId === addr.id}
-                            onChange={() => setSelectedAddressId(addr.id)}
-                            className="mt-1 accent-[#1769AA]"
-                          />
-                          <div className="text-sm">
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-[#17212B]">{addr.recipient_name}</span>
-                              <span className="text-xs bg-slate-100 px-2 py-0.5 rounded text-slate-600 uppercase font-medium">{addr.address_type}</span>
-                              {addr.is_default && <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-semibold">Default</span>}
+                  <div className="h-12 bg-slate-200 rounded-lg w-full mt-4"></div>
+                </div>
+              ) : (
+                <>
+                  {/* Saved Addresses List */}
+                  {savedAddresses.length > 0 && !useNewAddress && (
+                    <div className="mb-6 space-y-3">
+                      <div className="flex justify-between items-center mb-2">
+                        <h3 className="font-semibold text-sm text-[#17212B]">Select Delivery Address</h3>
+                        <button
+                          type="button"
+                          onClick={() => setUseNewAddress(true)}
+                          className="text-xs text-[#1769AA] hover:underline font-medium"
+                        >
+                          + Add New Address
+                        </button>
+                      </div>
+                      <div className="grid gap-3">
+                        {savedAddresses.map(addr => (
+                          <label
+                            key={addr.id}
+                            className={`block p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedAddressId === addr.id ? 'border-[#1769AA] bg-[#EFF6FF]' : 'border-[#D9E1E8] hover:border-slate-300'}`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <input
+                                type="radio"
+                                name="saved_address"
+                                checked={selectedAddressId === addr.id}
+                                onChange={() => setSelectedAddressId(addr.id)}
+                                className="mt-1 accent-[#1769AA]"
+                              />
+                              <div className="text-sm">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-[#17212B]">{addr.recipient_name}</span>
+                                  <span className="text-xs bg-slate-100 px-2 py-0.5 rounded text-slate-600 uppercase font-medium">{addr.address_type}</span>
+                                  {addr.is_default && <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-semibold">Default</span>}
+                                </div>
+                                <p className="text-slate-600 mt-1">{addr.address_line1}{addr.address_line2 ? `, ${addr.address_line2}` : ''}</p>
+                                <p className="text-slate-600">{addr.city}, {addr.state} - {addr.pincode}</p>
+                                <p className="text-slate-500 text-xs mt-1">Phone: {addr.phone}</p>
+                              </div>
                             </div>
-                            <p className="text-slate-600 mt-1">{addr.address_line1}{addr.address_line2 ? `, ${addr.address_line2}` : ''}</p>
-                            <p className="text-slate-600">{addr.city}, {addr.state} - {addr.pincode}</p>
-                            <p className="text-slate-500 text-xs mt-1">Phone: {addr.phone}</p>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Enter New Address Form */}
+                  {(useNewAddress || savedAddresses.length === 0) && (
+                    <div className="border border-[#D9E1E8] rounded-xl p-5 mb-6">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-bold text-[#0B3A63] flex items-center gap-2">
+                          <span>📍</span> Enter Delivery Address
+                        </h3>
+                        {savedAddresses.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setUseNewAddress(false)}
+                            className="text-xs text-[#1769AA] hover:underline font-medium"
+                          >
+                            Select from saved
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid gap-4">
+                        <div className="grid sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-sm font-medium text-[#17212B] mb-1.5 block">Full Name *</label>
+                            <input value={newAddress.name} onChange={e => setNewAddress(a => ({...a, name: e.target.value}))} className="w-full border border-[#D9E1E8] rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#1769AA]" placeholder="Rajesh Kumar" />
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-[#17212B] mb-1.5 block">Mobile *</label>
+                            <input value={newAddress.phone} onChange={e => setNewAddress(a => ({...a, phone: e.target.value}))} className="w-full border border-[#D9E1E8] rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#1769AA]" placeholder="+91 98765 43210" />
                           </div>
                         </div>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
+                        <div>
+                          <label className="text-sm font-medium text-[#17212B] mb-1.5 block">Address Line 1 *</label>
+                          <input value={newAddress.line1} onChange={e => setNewAddress(a => ({...a, line1: e.target.value}))} className="w-full border border-[#D9E1E8] rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#1769AA]" placeholder="House/Flat No., Street Name" />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-[#17212B] mb-1.5 block">Address Line 2</label>
+                          <input value={newAddress.line2} onChange={e => setNewAddress(a => ({...a, line2: e.target.value}))} className="w-full border border-[#D9E1E8] rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#1769AA]" placeholder="Landmark, Area" />
+                        </div>
+                        <div className="grid sm:grid-cols-3 gap-4">
+                          <div>
+                            <label className="text-sm font-medium text-[#17212B] mb-1.5 block">City *</label>
+                            <input value={newAddress.city} onChange={e => setNewAddress(a => ({...a, city: e.target.value}))} className="w-full border border-[#D9E1E8] rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#1769AA]" />
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-[#17212B] mb-1.5 block">State *</label>
+                            <input value={newAddress.state} onChange={e => setNewAddress(a => ({...a, state: e.target.value}))} className="w-full border border-[#D9E1E8] rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#1769AA]" />
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-[#17212B] mb-1.5 block">Pincode *</label>
+                            <input value={newAddress.pincode} onChange={e => setNewAddress(a => ({...a, pincode: e.target.value}))} className="w-full border border-[#D9E1E8] rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#1769AA]" placeholder="641001" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
-              {/* Enter New Address Form */}
-              {(useNewAddress || savedAddresses.length === 0) && (
-                <div className="border border-[#D9E1E8] rounded-xl p-5 mb-6">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-[#0B3A63] flex items-center gap-2">
-                      <span>📍</span> Enter Delivery Address
-                    </h3>
-                    {savedAddresses.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setUseNewAddress(false)}
-                        className="text-xs text-[#1769AA] hover:underline font-medium"
-                      >
-                        Select from saved
-                      </button>
-                    )}
-                  </div>
-                  <div className="grid gap-4">
-                    <div className="grid sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm font-medium text-[#17212B] mb-1.5 block">Full Name *</label>
-                        <input value={newAddress.name} onChange={e => setNewAddress(a => ({...a, name: e.target.value}))} className="w-full border border-[#D9E1E8] rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#1769AA]" placeholder="Rajesh Kumar" />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-[#17212B] mb-1.5 block">Mobile *</label>
-                        <input value={newAddress.phone} onChange={e => setNewAddress(a => ({...a, phone: e.target.value}))} className="w-full border border-[#D9E1E8] rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#1769AA]" placeholder="+91 98765 43210" />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-[#17212B] mb-1.5 block">Address Line 1 *</label>
-                      <input value={newAddress.line1} onChange={e => setNewAddress(a => ({...a, line1: e.target.value}))} className="w-full border border-[#D9E1E8] rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#1769AA]" placeholder="House/Flat No., Street Name" />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-[#17212B] mb-1.5 block">Address Line 2</label>
-                      <input value={newAddress.line2} onChange={e => setNewAddress(a => ({...a, line2: e.target.value}))} className="w-full border border-[#D9E1E8] rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#1769AA]" placeholder="Landmark, Area" />
-                    </div>
-                    <div className="grid sm:grid-cols-3 gap-4">
-                      <div>
-                        <label className="text-sm font-medium text-[#17212B] mb-1.5 block">City *</label>
-                        <input value={newAddress.city} onChange={e => setNewAddress(a => ({...a, city: e.target.value}))} className="w-full border border-[#D9E1E8] rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#1769AA]" />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-[#17212B] mb-1.5 block">State *</label>
-                        <input value={newAddress.state} onChange={e => setNewAddress(a => ({...a, state: e.target.value}))} className="w-full border border-[#D9E1E8] rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#1769AA]" />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-[#17212B] mb-1.5 block">Pincode *</label>
-                        <input value={newAddress.pincode} onChange={e => setNewAddress(a => ({...a, pincode: e.target.value}))} className="w-full border border-[#D9E1E8] rounded-lg px-3 py-2.5 text-sm outline-none focus:border-[#1769AA]" placeholder="641001" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                  <button
+                    onClick={handleContinueToReview}
+                    className="w-full mt-4 bg-[#0B3A63] hover:bg-[#1769AA] text-white font-semibold px-8 py-3.5 rounded-lg transition-colors flex justify-center items-center gap-2"
+                  >
+                    Continue to Review
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                  </button>
+                </>
               )}
-
-              <button
-                onClick={handleContinueToReview}
-                className="w-full mt-4 bg-[#0B3A63] hover:bg-[#1769AA] text-white font-semibold px-8 py-3.5 rounded-lg transition-colors flex justify-center items-center gap-2"
-              >
-                Continue to Review
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-              </button>
             </div>
           )}
 
@@ -849,98 +869,8 @@ export default function Checkout() {
             </div>
           )}
 
-          {/* Mock/Sandbox Payment Simulator Modal */}
-          {showMockSimulator && activePaymentIntent && createdOrder && (
-            <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200">
-              <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">
-                      🧪 Sandbox Mode
-                    </span>
-                    <h3 className="font-bold text-[#0B3A63] text-base">Payment Simulator</h3>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowMockSimulator(false);
-                      setPaymentLifecycle('cancelled');
-                      setPaymentErrorMessage("Payment simulation was cancelled. Your order is safely preserved.");
-                    }}
-                    className="text-slate-400 hover:text-slate-600 text-sm font-bold p-1 cursor-pointer"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                <p className="text-xs text-slate-500 mb-4">
-                  The server is running in development sandbox mode. Use the options below to test your checkout order confirmation lifecycle.
-                </p>
-
-                <div className="bg-slate-50 rounded-xl p-4 mb-5 border border-slate-200 space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Order Number:</span>
-                    <span className="font-semibold text-slate-800">#{createdOrder?.order_number}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Payment Option:</span>
-                    <span className="font-semibold text-slate-800 uppercase">{isCOD ? '50% COD Advance' : paymentMethod}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-slate-200 pt-2 text-sm font-bold text-[#0B3A63]">
-                    <span>Payable Amount:</span>
-                    <span className="text-[#1769AA]">₹{(Number(activePaymentIntent.amount) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  </div>
-                </div>
-
-                <div className="space-y-2.5">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      setShowMockSimulator(false);
-                      await handleVerifyPayment({
-                        order_id: Number(createdOrder.id),
-                        razorpay_order_id: activePaymentIntent.gateway_order_id,
-                        razorpay_payment_id: `pay_mock_${Date.now()}`,
-                        razorpay_signature: 'mock_signature_ok',
-                        payment_method: isCOD ? 'COD' : paymentMethod.toUpperCase(),
-                      });
-                    }}
-                    className="w-full py-3 px-4 rounded-xl bg-[#12773D] hover:bg-[#0E5C2F] text-white text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <span>✅</span> Complete Payment (Simulate Success)
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowMockSimulator(false);
-                      setPaymentLifecycle('failed');
-                      setIsSubmittingOrder(false);
-                      setPaymentErrorMessage("Simulated payment was declined.");
-                    }}
-                    className="w-full py-2.5 px-4 rounded-xl border border-red-300 text-red-700 bg-red-50 hover:bg-red-100 text-xs font-semibold transition-all cursor-pointer"
-                  >
-                    <span>❌</span> Simulate Payment Failure
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowMockSimulator(false);
-                      setPaymentLifecycle('cancelled');
-                      setPaymentErrorMessage("Payment simulation was cancelled.");
-                    }}
-                    className="w-full py-2 text-slate-500 hover:text-slate-700 text-xs font-medium cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Floating indicator while standard real Razorpay checkout is open */}
-          {paymentLifecycle === 'gateway_open' && activePaymentIntent && !showMockSimulator && (
+          {paymentLifecycle === 'gateway_open' && activePaymentIntent && (
             <div className="fixed bottom-6 right-6 z-40 bg-[#0B3A63] text-white px-5 py-4 rounded-2xl shadow-2xl border border-blue-400/30 max-w-sm flex items-center gap-3">
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin flex-shrink-0"></div>
               <div className="text-xs">
@@ -954,32 +884,52 @@ export default function Checkout() {
         {/* Order summary sidebar */}
         <div className="bg-white border border-[#D9E1E8] rounded-xl p-5 h-fit sticky top-24 shadow-sm min-w-0">
           <h3 className="font-bold text-[#0B3A63] mb-4">Estimated Order Summary</h3>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between text-[#667085]">
-              <span>Items ({checkoutItems.length})</span>
-              <span>₹{displaySubtotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          {isLoadingInitialData ? (
+            <div className="space-y-3 py-2 animate-pulse">
+              <div className="flex justify-between">
+                <div className="h-4 bg-slate-200 rounded w-20"></div>
+                <div className="h-4 bg-slate-200 rounded w-16"></div>
+              </div>
+              <div className="flex justify-between">
+                <div className="h-4 bg-slate-200 rounded w-28"></div>
+                <div className="h-4 bg-slate-200 rounded w-14"></div>
+              </div>
+              <div className="border-t border-[#D9E1E8] pt-3 flex justify-between">
+                <div className="h-5 bg-slate-200 rounded w-24"></div>
+                <div className="h-6 bg-slate-200 rounded w-20"></div>
+              </div>
+              <div className="h-8 bg-slate-100 rounded-lg w-full mt-2"></div>
             </div>
-            <div className="flex justify-between text-[#667085]">
-              <span>Delivery Charge</span>
-              <span className={displayShipping === 0 ? "text-[#12773D] font-bold" : "font-medium"}>
-                {displayShipping === 0 ? "FREE" : `₹${displayShipping.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-              </span>
-            </div>
-            <div className="border-t border-[#D9E1E8] pt-3 mt-1 flex justify-between font-bold text-[#0B3A63] text-base">
-              <span>Order Total</span>
-              <span className="text-[#1769AA] text-xl">
-                ₹{displayTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
-            </div>
-          </div>
-          {displayShipping === 0 ? (
-            <p className="mt-4 text-xs font-medium text-[#12773D] bg-[#ECFDF5] border border-[#D1FAE5] px-3 py-2.5 rounded-lg flex gap-1.5">
-              <span>✓</span> You qualify for free shipping! {freeThreshold > 0 && `(Threshold: ₹${freeThreshold.toLocaleString("en-IN")})`}
-            </p>
           ) : (
-            <p className="mt-4 text-xs font-medium text-[#B45309] bg-[#FFFBEB] border border-[#FEF3C7] px-3 py-2.5 rounded-lg">
-              Add ₹{(freeThreshold - displaySubtotal).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} more to qualify for free delivery.
-            </p>
+            <>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between text-[#667085]">
+                  <span>Items ({checkoutItems.length})</span>
+                  <span>₹{displaySubtotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between text-[#667085]">
+                  <span>Delivery Charge</span>
+                  <span className={displayShipping === 0 ? "text-[#12773D] font-bold" : "font-medium"}>
+                    {displayShipping === 0 ? "FREE" : `₹${displayShipping.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  </span>
+                </div>
+                <div className="border-t border-[#D9E1E8] pt-3 mt-1 flex justify-between font-bold text-[#0B3A63] text-base">
+                  <span>Order Total</span>
+                  <span className="text-[#1769AA] text-xl">
+                    ₹{displayTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+              {displayShipping === 0 ? (
+                <p className="mt-4 text-xs font-medium text-[#12773D] bg-[#ECFDF5] border border-[#D1FAE5] px-3 py-2.5 rounded-lg flex gap-1.5 items-center">
+                  <span>✓</span> You qualify for free shipping! {freeThreshold > 0 ? `(Threshold: ₹${freeThreshold.toLocaleString("en-IN")})` : ''}
+                </p>
+              ) : (
+                <p className="mt-4 text-xs font-medium text-[#B45309] bg-[#FFFBEB] border border-[#FEF3C7] px-3 py-2.5 rounded-lg">
+                  Add ₹{(freeThreshold - displaySubtotal).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} more to qualify for free delivery.
+                </p>
+              )}
+            </>
           )}
         </div>
       </div>

@@ -10,9 +10,8 @@ export function isRazorpayLoaded(): boolean {
   return typeof (window as any).Razorpay === 'function';
 }
 
-export function isMockRazorpayKey(keyId?: string): boolean {
-  if (!keyId) return true;
-  return keyId.startsWith('rzp_test_mock') || keyId === 'rzp_test_mock_veepower_key' || keyId.startsWith('mock_');
+export function isMockRazorpayKey(_keyId?: string): boolean {
+  return false;
 }
 
 export function loadRazorpayScript(): Promise<boolean> {

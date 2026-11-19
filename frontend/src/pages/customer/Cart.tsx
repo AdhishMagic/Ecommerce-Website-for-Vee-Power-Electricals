@@ -12,16 +12,16 @@ export default function Cart() {
   const [deliveryConfig, setDeliveryConfig] = useState<DeliveryConfiguration | null>(null);
 
   useEffect(() => {
-    configApi.getDeliveryConfig().then(configs => {
+    configApi.getDeliveryConfig({ forceRefresh: true }).then(configs => {
       if (Array.isArray(configs) && configs.length > 0) {
         setDeliveryConfig(configs[0]);
       }
     }).catch(() => null);
   }, []);
 
-  const freeThreshold = deliveryConfig ? Number(deliveryConfig.free_delivery_threshold) : 999;
-  const baseShippingFee = deliveryConfig ? Number(deliveryConfig.base_delivery_charge) : 99;
-  const isFreeShipping = deliveryConfig?.free_delivery_enabled !== false && subtotal >= freeThreshold;
+  const freeThreshold = deliveryConfig ? Number(deliveryConfig.free_delivery_threshold) : 0;
+  const baseShippingFee = deliveryConfig ? Number(deliveryConfig.base_delivery_charge) : 0;
+  const isFreeShipping = deliveryConfig ? (deliveryConfig.free_delivery_enabled !== false && subtotal >= freeThreshold) : true;
   const shipping = isFreeShipping ? 0 : baseShippingFee;
   const total = Math.round((subtotal + shipping) * 100) / 100;
 
