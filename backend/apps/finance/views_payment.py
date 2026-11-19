@@ -188,7 +188,7 @@ class PaymentOrderStatusView(APIView):
         elif txn.status == PaymentTxStatus.FAILED:
             data['status'] = 'FAILED'
             data['definitive_status'] = 'FAILED'
-            data['is_final'] = False
+            data['is_final'] = True
         else:
             data['status'] = 'PENDING'
             data['definitive_status'] = 'PENDING'

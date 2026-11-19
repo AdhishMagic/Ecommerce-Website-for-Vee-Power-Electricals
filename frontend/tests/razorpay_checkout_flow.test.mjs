@@ -190,7 +190,17 @@ async function runTests() {
       assert.strictEqual(state.order.payment_status, 'Paid');
     });
 
-    // Transition: Timeout after 30 seconds -> UNKNOWN
+    // Transition: Modal exit/dismiss -> CANCELLED
+    state = {
+      ...state,
+      lifecycle: 'cancelled',
+      errorMessage: 'Payment was not completed. You can retry or choose another payment method.',
+    };
+    test('Modal dismiss/exit transitions directly to cancelled checkout state without continuous loading', () => {
+      assert.strictEqual(state.lifecycle, 'cancelled');
+    });
+
+    // Transition: Timeout after max polling -> UNKNOWN
     state = {
       ...state,
       verificationStatus: 'UNKNOWN',

@@ -358,11 +358,27 @@ export default function Checkout() {
             });
           },
           modal: {
-            ondismiss: () => {
-              // Customer dismissed modal or switched to UPI app.
-              // Verify backend status before concluding rather than assuming instant cancellation
-              setVerifyingOrderId(Number(targetOrder.id));
-              setPaymentLifecycle('verifying');
+            ondismiss: async () => {
+              // Customer dismissed or exited Razorpay modal.
+              // Perform a rapid non-blocking status check in case payment was confirmed via webhook:
+              try {
+                const checkRes = await paymentsApi.getOrderPaymentStatus(Number(targetOrder.id));
+                const st = (checkRes?.status || '').toUpperCase();
+                const defSt = (checkRes?.definitive_status || '').toUpperCase();
+                const paySt = (checkRes?.order_payment_status || checkRes?.payment_status || '').toUpperCase();
+                if (st === 'SUCCESS' || defSt === 'SUCCESS' || paySt === 'PAID') {
+                  setVerifyingOrderId(Number(targetOrder.id));
+                  setPaymentLifecycle('verifying');
+                  return;
+                }
+              } catch {
+                // Ignore network error on quick check
+              }
+              // Payment was not completed — customer cleanly exited Razorpay.
+              // Return directly to checkout so user can retry or change payment method!
+              setIsSubmittingOrder(false);
+              setPaymentLifecycle('cancelled');
+              setPaymentErrorMessage('Payment was not completed. You can retry or choose another payment method.');
             },
           },
         };
@@ -374,11 +390,11 @@ export default function Checkout() {
 
         const rzp = new rzpConstructor(options);
         rzp.on('payment.failed', (failRes: any) => {
-          // Never display payment failed immediately upon GPay/UPI app switch!
-          // Poll backend to confirm definitive status
-          console.warn("Razorpay payment.failed event received. Checking authoritative backend status...", failRes);
-          setVerifyingOrderId(Number(targetOrder.id));
-          setPaymentLifecycle('verifying');
+          const reason = failRes?.error?.description || failRes?.error?.reason || "Payment was declined by your bank or gateway.";
+          console.warn("Razorpay payment.failed event received:", reason);
+          setIsSubmittingOrder(false);
+          setPaymentErrorMessage(reason);
+          setPaymentLifecycle('failed');
         });
         rzp.open();
       } else {
@@ -461,6 +477,11 @@ export default function Checkout() {
           }}
           onReturnToOrders={() => {
             navigate('/account/orders');
+          }}
+          onCancel={() => {
+            setPaymentLifecycle('cancelled');
+            setVerificationPayload(null);
+            setPaymentErrorMessage("Payment was not completed. You can choose a method below or retry.");
           }}
         />
       </div>

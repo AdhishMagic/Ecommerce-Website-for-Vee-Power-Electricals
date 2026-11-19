@@ -16,10 +16,11 @@ export interface PaymentVerificationViewProps {
   onSuccess?: (confirmedOrder: any) => void;
   onRetryPayment?: () => void;
   onReturnToOrders?: () => void;
+  onCancel?: () => void;
 }
 
-const MAX_POLLING_ATTEMPTS = 15; // 15 attempts * 2 seconds = 30 seconds
-const POLLING_INTERVAL_MS = 2000;
+const MAX_POLLING_ATTEMPTS = 8; // 8 attempts * 1 second = 8 seconds max
+const POLLING_INTERVAL_MS = 1000;
 
 export const PaymentVerificationView: React.FC<PaymentVerificationViewProps> = ({
   orderId,
@@ -31,6 +32,7 @@ export const PaymentVerificationView: React.FC<PaymentVerificationViewProps> = (
   onSuccess,
   onRetryPayment,
   onReturnToOrders,
+  onCancel,
 }) => {
   const [status, setStatus] = useState<PaymentVerificationStatus>(initialStatus);
   const [statusMessage, setStatusMessage] = useState<string>('Verifying your payment...');
@@ -111,6 +113,13 @@ export const PaymentVerificationView: React.FC<PaymentVerificationViewProps> = (
         return true;
       }
 
+      if (res?.definitive_status === 'CANCELLED' || res?.status === 'CANCELLED') {
+        hasFinishedRef.current = true;
+        stopPolling();
+        onCancel?.();
+        return true;
+      }
+
       if (isDefinitiveFailure(res)) {
         hasFinishedRef.current = true;
         stopPolling();
@@ -134,7 +143,7 @@ export const PaymentVerificationView: React.FC<PaymentVerificationViewProps> = (
     } finally {
       isPollingBusyRef.current = false;
     }
-  }, [orderId, isDefinitiveSuccess, isDefinitiveFailure, stopPolling, onSuccess]);
+  }, [orderId, isDefinitiveSuccess, isDefinitiveFailure, stopPolling, onSuccess, onCancel]);
 
   // Main verification lifecycle
   const runVerificationFlow = useCallback(async () => {
@@ -244,7 +253,7 @@ export const PaymentVerificationView: React.FC<PaymentVerificationViewProps> = (
 
             <p className="text-xs text-[#667085] mb-6">
               {statusMessage}
-              {pollCount > 0 && ` (Checking: ${pollCount * 2}s / 30s)`}
+              {pollCount > 0 && ` (Checking: ${pollCount}s / 8s)`}
             </p>
 
             {/* Order Details Preview Box */}
@@ -269,6 +278,21 @@ export const PaymentVerificationView: React.FC<PaymentVerificationViewProps> = (
               <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
               <span>Encrypted Razorpay Gateway Verification in Progress</span>
             </div>
+
+            {onCancel && (
+              <div className="mt-6 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    stopPolling();
+                    onCancel();
+                  }}
+                  className="text-xs font-semibold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  ← Exit / Return to Checkout
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -451,6 +475,15 @@ export const PaymentVerificationView: React.FC<PaymentVerificationViewProps> = (
               >
                 <span>🔄</span> Retry Verification
               </button>
+              {onCancel && (
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-[#17212B] font-semibold py-3.5 px-6 rounded-xl transition-all text-center text-sm cursor-pointer"
+                >
+                  Return to Checkout
+                </button>
+              )}
               <Link
                 to="/account/orders"
                 onClick={onReturnToOrders}
