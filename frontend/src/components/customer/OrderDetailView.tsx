@@ -6,7 +6,7 @@ import OrderStatusBadge from "./OrderStatusBadge";
 interface OrderDetailViewProps {
   order: OrderDetailData;
   onBack: () => void;
-  onCancelOrder: (orderId: number) => void;
+  onCancelOrder: (order: OrderDetailData) => void;
   onRequestReturn: (orderId: number) => void;
   actionLoading: boolean;
   actionError: string;
@@ -253,6 +253,8 @@ export default function OrderDetailView({
                     ? "text-emerald-700 bg-emerald-50 border-emerald-200/60"
                     : order.payment_status === "Partially Paid"
                     ? "text-blue-700 bg-blue-50 border-blue-200/60"
+                    : order.payment_status === "Refunded"
+                    ? "text-purple-700 bg-purple-50 border-purple-200/60"
                     : "text-amber-700 bg-amber-50 border-amber-200/60"
                 }`}
               >
@@ -272,12 +274,172 @@ export default function OrderDetailView({
           </div>
         )}
 
+        {/* Dedicated Cancellation & Refund Status Card */}
+        {normStatus === "CANCELLED" && (() => {
+          const cancelHistoryItem = (order.status_history || [])
+            .slice()
+            .reverse()
+            .find((h) => (h.new_status || "").toUpperCase() === "CANCELLED");
+
+          const cancellationDateText =
+            order.cancelled_at
+              ? new Date(order.cancelled_at).toLocaleString("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : cancelHistoryItem?.created_at
+              ? new Date(cancelHistoryItem.created_at).toLocaleString("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : new Date(order.updated_at || order.created_at).toLocaleString("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                });
+
+          const cancellationReasonText =
+            order.cancellation_reason ||
+            cancelHistoryItem?.reason ||
+            (order.notes && order.notes.match(/\[Cancellation Reason: (.*?)\]/)?.[1]) ||
+            "Order cancelled by customer";
+
+          const isOnlinePaid =
+            order.payment_status === "Paid" ||
+            (!order.is_cod && Number(order.amount_paid || 0) > 0);
+
+          const isRefunded =
+            order.payment_status === "Refunded" ||
+            order.refund_status === "REFUNDED" ||
+            order.payment_verification_status === "REFUNDED";
+
+          const isAdvanceCod =
+            order.is_cod && Number(order.cod_advance_amount || order.amount_paid || 0) > 0;
+
+          const refundAmount =
+            Number(order.refund_amount || order.amount_paid || order.total_amount || 0).toLocaleString("en-IN", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            });
+
+          return (
+            <div className="mt-6 p-5 sm:p-6 bg-red-50/70 border border-red-200/90 rounded-2xl animate-dashboard-card shadow-xs">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 text-red-600 border border-red-200 flex items-center justify-center shrink-0 shadow-2xs">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <h3
+                      className="text-base sm:text-lg font-bold text-red-900 tracking-tight"
+                      style={{ fontFamily: "Outfit, sans-serif" }}
+                    >
+                      Order Cancelled Successfully
+                    </h3>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-300 self-start sm:self-auto">
+                      Cancelled
+                    </span>
+                  </div>
+
+                  <p className="text-xs sm:text-sm text-red-700 mt-1">
+                    This order has been cancelled and will not be dispatched or billed.
+                  </p>
+
+                  {/* Cancellation Meta Grid */}
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-red-200/70 text-xs">
+                    <div className="bg-white/90 p-3 rounded-xl border border-red-100/90 shadow-2xs">
+                      <span className="text-[10px] font-bold text-[#667085] uppercase tracking-wider block">
+                        Order ID
+                      </span>
+                      <span
+                        className="font-mono font-bold text-[#0B3A63] text-sm block mt-0.5 select-all"
+                        style={{ fontFamily: "JetBrains Mono, monospace" }}
+                      >
+                        #{order.order_number}
+                      </span>
+                    </div>
+
+                    <div className="bg-white/90 p-3 rounded-xl border border-red-100/90 shadow-2xs">
+                      <span className="text-[10px] font-bold text-[#667085] uppercase tracking-wider block">
+                        Cancellation Date
+                      </span>
+                      <span className="font-semibold text-[#17212B] text-xs block mt-0.5">
+                        {cancellationDateText}
+                      </span>
+                    </div>
+
+                    <div className="bg-white/90 p-3 rounded-xl border border-red-100/90 shadow-2xs">
+                      <span className="text-[10px] font-bold text-[#667085] uppercase tracking-wider block">
+                        Cancellation Reason
+                      </span>
+                      <span className="font-semibold text-[#17212B] text-xs block mt-0.5 truncate" title={cancellationReasonText}>
+                        {cancellationReasonText}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Refund Information Card */}
+                  <div className="mt-3.5 p-3.5 bg-white rounded-xl border border-red-200/80 shadow-2xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-[#0B3A63]">Refund Status:</span>
+                        {isRefunded ? (
+                          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            Refund Processed
+                          </span>
+                        ) : isOnlinePaid || isAdvanceCod ? (
+                          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                            Refund Pending
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-300">
+                            Not Applicable (COD)
+                          </span>
+                        )}
+                      </div>
+
+                      {(isOnlinePaid || isAdvanceCod) && (
+                        <span className="text-xs font-semibold text-[#0B3A63]">
+                          Refund Amount: <strong className="text-emerald-700 font-mono">₹{refundAmount}</strong>
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-[#667085] mt-1.5 leading-relaxed">
+                      {isRefunded
+                        ? `A full refund of ₹${refundAmount} has been processed via Razorpay to your original payment method.`
+                        : isOnlinePaid || isAdvanceCod
+                        ? `A refund of ₹${refundAmount} has been queued for your original payment method. Banking and Razorpay settlement takes 5–7 business days. We will never mark funds as refunded until verified by the bank.`
+                        : "No advance payment was collected for this Cash on Delivery order. No refund is required."}
+                    </p>
+                  </div>
+
+                  {/* Stock Restored Confirmation */}
+                  <div className="mt-3 flex items-center gap-2 text-xs text-slate-600">
+                    <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Inventory for all items in this order has been verified and restocked in the warehouse.</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Action Buttons & Order Status Notices */}
         <div className="mt-6 pt-5 border-t border-[#F1F5F9] flex flex-col sm:flex-row sm:items-center justify-between gap-4 min-w-0">
           <div className="text-xs min-w-0">
-            {normStatus === "CANCELLED" && (
-              <p className="text-red-600 font-medium">This order was cancelled. Stock has been returned to inventory.</p>
-            )}
             {normStatus === "RETURN_REQUESTED" && (
               <p className="text-orange-600 font-medium">Return request submitted and pending warehouse review.</p>
             )}
@@ -296,7 +458,7 @@ export default function OrderDetailView({
             {canCancel && (
               <button
                 type="button"
-                onClick={() => onCancelOrder(order.id)}
+                onClick={() => onCancelOrder(order)}
                 disabled={actionLoading}
                 className="px-4 py-2 text-xs font-semibold text-red-600 border border-red-200 rounded-xl hover:bg-red-50 disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-red-500 cursor-pointer outline-none shadow-2xs"
               >

@@ -196,6 +196,9 @@ export interface OrderSummary {
   razorpay_order_id?: string | null;
   razorpay_payment_id?: string | null;
   payment_verification_status?: string | null;
+  cancellation_reason?: string | null;
+  cancelled_at?: string | null;
+  refund_status?: 'NOT_APPLICABLE' | 'REFUND_PENDING' | 'REFUNDED' | string | null;
   items_count: number;
   created_at: string;
 }
@@ -237,6 +240,10 @@ export interface OrderDetailData {
   razorpay_order_id?: string | null;
   razorpay_payment_id?: string | null;
   payment_verification_status?: string | null;
+  cancellation_reason?: string | null;
+  cancelled_at?: string | null;
+  refund_status?: 'NOT_APPLICABLE' | 'REFUND_PENDING' | 'REFUNDED' | string | null;
+  refund_amount?: string | number | null;
   notes?: string;
   items: OrderItem[];
   status_history: OrderStatusHistoryItem[];

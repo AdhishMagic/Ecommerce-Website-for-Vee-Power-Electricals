@@ -58,11 +58,13 @@ export const ordersApi = {
 
   async cancelOrder(
     id: number | string,
-    reason: string = ''
+    reason: string = '',
+    payload?: { reason?: string; reason_code?: string; reason_notes?: string }
   ): Promise<OrderDetailData> {
+    const body = payload || { reason };
     return apiClient<OrderDetailData>(`/orders/${id}/cancel/`, {
       method: 'POST',
-      body: { reason },
+      body,
     });
   },
 

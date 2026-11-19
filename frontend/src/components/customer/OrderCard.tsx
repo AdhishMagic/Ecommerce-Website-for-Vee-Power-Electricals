@@ -5,6 +5,7 @@ import OrderStatusBadge from "./OrderStatusBadge";
 interface OrderCardProps {
   order: OrderSummary;
   onViewDetails: (orderId: number) => void;
+  onCancel?: (order: OrderSummary) => void;
   isLoadingDetails?: boolean;
   style?: React.CSSProperties;
 }
@@ -12,6 +13,7 @@ interface OrderCardProps {
 export default function OrderCard({
   order,
   onViewDetails,
+  onCancel,
   isLoadingDetails = false,
   style,
 }: OrderCardProps) {
@@ -128,13 +130,23 @@ export default function OrderCard({
           </div>
         </div>
 
-        {/* View Details Action Button */}
-        <div className="self-stretch sm:self-auto shrink-0">
+        {/* View Details & Cancel Action Buttons */}
+        <div className="self-stretch sm:self-auto shrink-0 flex items-center gap-2">
+          {["PENDING", "CONFIRMED", "PACKED"].includes((order.status || "").toUpperCase()) && onCancel && (
+            <button
+              type="button"
+              onClick={() => onCancel(order)}
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center px-3.5 py-2 bg-white hover:bg-red-50 text-red-600 hover:text-red-700 border border-red-200 hover:border-red-300 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 shadow-2xs outline-none focus-visible:ring-2 focus-visible:ring-red-500 cursor-pointer"
+            >
+              Cancel
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => onViewDetails(order.id)}
             disabled={isLoadingDetails}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#F6F8FA] hover:bg-[#1769AA] text-[#0B3A63] hover:text-white border border-[#D9E1E8] hover:border-[#1769AA] rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 focus-visible:ring-2 focus-visible:ring-[#1769AA] focus-visible:outline-none disabled:opacity-60 cursor-pointer shadow-2xs group-hover:border-[#1769AA]/50"
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#F6F8FA] hover:bg-[#1769AA] text-[#0B3A63] hover:text-white border border-[#D9E1E8] hover:border-[#1769AA] rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 focus-visible:ring-2 focus-visible:ring-[#1769AA] focus-visible:outline-none disabled:opacity-60 cursor-pointer shadow-2xs group-hover:border-[#1769AA]/50"
             aria-label={`View details for order ${order.order_number}`}
           >
             <span>{isLoadingDetails ? "Loading..." : "View Details"}</span>

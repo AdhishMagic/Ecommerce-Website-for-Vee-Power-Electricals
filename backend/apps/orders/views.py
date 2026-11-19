@@ -218,7 +218,22 @@ class OrderCancelView(APIView):
 
         serializer = OrderCancelInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        reason = serializer.validated_data.get('reason', '') or f"Order cancelled by {user.email}"
+        reason = serializer.validated_data.get('final_reason') or serializer.validated_data.get('reason', '') or f"Order cancelled by {user.email}"
+
+        # Synchronize online payment if captured prior to cancel request
+        latest_txn = order.latest_payment_transaction
+        if latest_txn and getattr(latest_txn, 'status', None) == 'SUCCESS' and order.payment_status != PaymentStatus.PAID:
+            order.payment_status = PaymentStatus.PAID
+            order.amount_paid = latest_txn.amount
+            order.save(update_fields=['payment_status', 'amount_paid', 'updated_at'])
+
+        # Online paid orders refund queuing note
+        is_paid = order.payment_status in [PaymentStatus.PAID, 'Paid'] or (order.amount_paid and order.amount_paid > 0)
+        if is_paid and not order.is_cod:
+            refund_note = f"[Refund Pending: ₹{order.amount_paid or order.total_amount} via {order.payment_method}]"
+            if refund_note not in (order.notes or ''):
+                order.notes = f"{order.notes}\n{refund_note}".strip() if order.notes else refund_note
+                order.save(update_fields=['notes', 'updated_at'])
 
         try:
             updated_order = OrderWorkflowService.cancel_order(

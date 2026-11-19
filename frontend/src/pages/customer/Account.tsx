@@ -12,6 +12,7 @@ import {
 import CustomerSidebar, { CustomerTabId } from "../../components/customer/CustomerSidebar";
 import OrderCard from "../../components/customer/OrderCard";
 import OrderDetailView from "../../components/customer/OrderDetailView";
+import OrderCancellationModal from "../../components/customer/OrderCancellationModal";
 
 type OrderFilterType = "all" | "in_progress" | "delivered" | "cancelled_returns";
 
@@ -64,6 +65,9 @@ export default function Account() {
   const [profileError, setProfileError] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [orderToCancel, setOrderToCancel] = useState<OrderDetailData | OrderSummary | null>(null);
+  const [cancellationError, setCancellationError] = useState("");
+  const [cancellationSuccessToast, setCancellationSuccessToast] = useState("");
 
   // Sync profile data when user changes
   useEffect(() => {
@@ -252,16 +256,81 @@ export default function Account() {
     }
   };
 
-  const handleCancelOrder = async (orderId: number) => {
-    const reason = window.prompt("Please enter a reason for cancelling this order:") || "Cancelled by customer";
+  const handleInitiateCancel = (orderOrId: OrderDetailData | OrderSummary | number) => {
     setActionError("");
+    setCancellationError("");
+    if (typeof orderOrId === "number") {
+      const found =
+        (selectedOrder && selectedOrder.id === orderOrId ? selectedOrder : null) ||
+        orders.find((o) => o.id === orderOrId);
+      setOrderToCancel(
+        found ||
+          ({
+            id: orderOrId,
+            order_number: `ORD-${orderOrId}`,
+            total_amount: 0,
+            items_count: 1,
+            status: "PENDING",
+            payment_status: "Pending",
+          } as any)
+      );
+    } else {
+      setOrderToCancel(orderOrId);
+    }
+  };
+
+  const handleConfirmCancellation = async (
+    reason: string,
+    reasonCode: string,
+    reasonNotes?: string
+  ) => {
+    if (!orderToCancel) return;
     setActionLoading(true);
+    setActionError("");
+    setCancellationError("");
     try {
-      const updated = await ordersApi.cancelOrder(orderId, reason);
-      setSelectedOrder(updated);
+      const updated = await ordersApi.cancelOrder(orderToCancel.id, reason, {
+        reason,
+        reason_code: reasonCode,
+        reason_notes: reasonNotes,
+      });
+
+      // Update selectedOrder if open
+      if (selectedOrder && selectedOrder.id === orderToCancel.id) {
+        setSelectedOrder(updated);
+      }
+
+      // Update orders list immediately in place
+      setOrders((prevOrders) =>
+        prevOrders.map((o) =>
+          o.id === orderToCancel.id
+            ? {
+                ...o,
+                status: updated.status,
+                cancellation_reason: updated.cancellation_reason || reason,
+                cancelled_at: updated.cancelled_at || new Date().toISOString(),
+                refund_status: updated.refund_status,
+              }
+            : o
+        )
+      );
+
+      // Close modal
+      setOrderToCancel(null);
+
+      // Show success toast banner
+      setCancellationSuccessToast(
+        `Order #${orderToCancel.order_number} has been cancelled successfully.`
+      );
+      setTimeout(() => setCancellationSuccessToast(""), 6000);
+
+      // Background re-fetch to sync pagination and counter
       fetchOrders(currentPage);
     } catch (err: any) {
-      setActionError(err?.message || "Failed to cancel order.");
+      const errMsg = err?.message || "Failed to cancel order. Please try again.";
+      setActionError(errMsg);
+      setCancellationError(errMsg);
+      throw err;
     } finally {
       setActionLoading(false);
     }
@@ -347,12 +416,33 @@ export default function Account() {
 
           {/* Right Column: Main Content Area */}
           <main className="w-full min-w-0 lg:col-span-8 xl:col-span-9 animate-dashboard-card">
+            {/* Success Toast Banner */}
+            {cancellationSuccessToast && (
+              <div className="mb-5 p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl flex items-center justify-between gap-3 shadow-xs animate-fade-in">
+                <div className="flex items-center gap-2.5">
+                  <svg className="w-5 h-5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="text-xs sm:text-sm font-semibold">{cancellationSuccessToast}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCancellationSuccessToast("")}
+                  className="text-emerald-700 hover:text-emerald-900 p-1 rounded-lg hover:bg-emerald-100 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            )}
+
             {/* View Details View */}
             {selectedOrder ? (
               <OrderDetailView
                 order={selectedOrder}
                 onBack={() => setSelectedOrder(null)}
-                onCancelOrder={handleCancelOrder}
+                onCancelOrder={handleInitiateCancel}
                 onRequestReturn={handleRequestReturn}
                 actionLoading={actionLoading}
                 actionError={actionError}
@@ -542,6 +632,7 @@ export default function Account() {
                             key={order.id}
                             order={order}
                             onViewDetails={handleViewOrder}
+                            onCancel={handleInitiateCancel}
                             isLoadingDetails={selectedOrderLoading}
                             style={{ animationDelay: `${idx * 60}ms` }}
                           />
@@ -938,6 +1029,21 @@ export default function Account() {
           </main>
         </div>
       </div>
+
+      {/* Confirmation Modal for Order Cancellation */}
+      <OrderCancellationModal
+        isOpen={orderToCancel !== null}
+        order={orderToCancel}
+        onClose={() => {
+          if (!actionLoading) {
+            setOrderToCancel(null);
+            setCancellationError("");
+          }
+        }}
+        onConfirm={handleConfirmCancellation}
+        isSubmitting={actionLoading}
+        error={cancellationError}
+      />
     </div>
   );
 }
