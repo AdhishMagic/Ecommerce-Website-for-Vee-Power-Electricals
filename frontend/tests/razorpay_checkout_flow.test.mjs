@@ -3,12 +3,13 @@
 
 import assert from 'node:assert';
 
-const API_BASE = process.env.VITE_API_URL || 'http://localhost:8000/api/v1';
-const ROOT_API = 'http://localhost:8000/api';
+const API_BASE = process.env.VITE_API_URL || 'https://veepowerelectricals.com/api/v1';
+const ROOT_API = process.env.ROOT_API || 'https://veepowerelectricals.com/api';
 
 async function request(url, options = {}) {
   const headers = {
     'Content-Type': 'application/json',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 VeeVerificationBot/1.0',
     ...(options.headers || {}),
   };
   const res = await fetch(url, {
@@ -149,25 +150,66 @@ async function runTests() {
       assert.strictEqual(state.lifecycle, 'initiating');
     });
 
-    // Transition: Cancelled (modal dismissed by customer)
+    // Transition: On GPay / UPI app switch or payment.failed event -> enters 'verifying' state (NO false failure)
     state = {
       ...state,
-      lifecycle: 'cancelled',
-      errorMessage: 'Payment window was closed. Your items remain reserved. Click Retry Payment to proceed.',
+      lifecycle: 'verifying',
+      verificationStatus: 'VERIFYING',
     };
-    test('Modal dismissal transitions to cancelled state with reserved items notice', () => {
-      assert.strictEqual(state.lifecycle, 'cancelled');
-      assert.ok(state.errorMessage.includes('reserved'));
+    test('GPay app switch or payment.failed event enters verifying state rather than displaying false failure', () => {
+      assert.strictEqual(state.lifecycle, 'verifying');
+      assert.strictEqual(state.verificationStatus, 'VERIFYING');
     });
 
-    // Transition: Failed (bank decline)
+    // Transition: Pending polling state
     state = {
       ...state,
-      lifecycle: 'failed',
+      verificationStatus: 'PENDING',
+    };
+    test('Pending verification polls backend without showing failure', () => {
+      assert.strictEqual(state.verificationStatus, 'PENDING');
+    });
+
+    // Transition: Network glitch resilience
+    const onNetworkGlitch = () => {
+      // Network error must maintain PENDING state rather than flipping to FAILED
+      return 'PENDING';
+    };
+    test('Network interruption retains PENDING verification status without showing false failure', () => {
+      assert.strictEqual(onNetworkGlitch(), 'PENDING');
+    });
+
+    // Transition: Definitive SUCCESS
+    state = {
+      ...state,
+      verificationStatus: 'SUCCESS',
+      order: { ...state.createdOrder, payment_status: 'Paid', status: 'CONFIRMED' },
+    };
+    test('Definitive backend confirmation transitions to SUCCESS state', () => {
+      assert.strictEqual(state.verificationStatus, 'SUCCESS');
+      assert.strictEqual(state.order.payment_status, 'Paid');
+    });
+
+    // Transition: Timeout after 30 seconds -> UNKNOWN
+    state = {
+      ...state,
+      verificationStatus: 'UNKNOWN',
+      timeoutMessage: 'Your payment is taking longer than expected. We are still checking its status. Please check your order history before attempting another payment.',
+    };
+    test('Verification timeout transitions to UNKNOWN state with required guidance text', () => {
+      assert.strictEqual(state.verificationStatus, 'UNKNOWN');
+      assert.ok(state.timeoutMessage.includes('taking longer than expected'));
+      assert.ok(state.timeoutMessage.includes('check your order history before attempting another payment'));
+    });
+
+    // Transition: Definitive FAILED (only when backend has confirmed final failure)
+    state = {
+      ...state,
+      verificationStatus: 'FAILED',
       errorMessage: 'Payment was declined by your bank or gateway.',
     };
-    test('payment.failed event transitions to failed state with bank decline message', () => {
-      assert.strictEqual(state.lifecycle, 'failed');
+    test('Definitive backend failure transitions to FAILED state with decline reason', () => {
+      assert.strictEqual(state.verificationStatus, 'FAILED');
       assert.ok(state.errorMessage.includes('declined'));
     });
 

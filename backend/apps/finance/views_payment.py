@@ -131,19 +131,69 @@ class PaymentOrderStatusView(APIView):
         if order.user_id != request.user.id and not (request.user.is_staff or getattr(request.user, 'role', '') == 'admin'):
             return Response({"detail": "You do not have permission to view payment status for this order."}, status=status.HTTP_403_FORBIDDEN)
 
+        # Authoritative check for confirmed payment
+        is_paid = (
+            order.payment_status == PaymentStatus.PAID
+            or (order.is_cod and order.payment_status == PaymentStatus.PARTIALLY_PAID)
+            or order.status in [OrderStatus.CONFIRMED, OrderStatus.PACKED, OrderStatus.SHIPPED, OrderStatus.DELIVERED]
+        )
+
         txn = PaymentTransaction.objects.filter(order=order).order_by('-created_at').first()
+
+        # If transaction was marked SUCCESS but order fields were pending, reconcile immediately
+        if not is_paid and txn and txn.status == PaymentTxStatus.SUCCESS:
+            is_paid = True
+            with transaction.atomic():
+                order = Order.objects.select_for_update().get(pk=order.id)
+                order.payment_status = PaymentStatus.PARTIALLY_PAID if order.is_cod else PaymentStatus.PAID
+                if order.status == OrderStatus.PENDING:
+                    order.status = OrderStatus.CONFIRMED
+                order.save(update_fields=['payment_status', 'status', 'updated_at'])
+
         if not txn:
+            definitive_status = 'SUCCESS' if is_paid else ('CANCELLED' if order.status == OrderStatus.CANCELLED else 'PENDING')
             return Response({
                 "order_id": order.id,
                 "order_number": order.order_number,
                 "order_status": order.status,
                 "order_payment_status": order.payment_status,
+                "status": "SUCCESS" if is_paid else definitive_status,
+                "definitive_status": definitive_status,
+                "is_final": is_paid or order.status == OrderStatus.CANCELLED,
+                "amount": str(order.total_amount),
+                "payment_method": order.payment_method,
                 "detail": "No payment transactions found for this order.",
             }, status=status.HTTP_200_OK)
 
         data = PaymentTransactionSerializer(txn).data
+        data['order_id'] = order.id
+        data['order_number'] = order.order_number
         data['order_status'] = order.status
         data['order_payment_status'] = order.payment_status
+        data['amount'] = str(order.total_amount)
+        data['payment_method'] = txn.payment_method or order.payment_method
+
+        if is_paid:
+            data['status'] = 'SUCCESS'
+            data['definitive_status'] = 'SUCCESS'
+            data['is_final'] = True
+        elif order.status == OrderStatus.CANCELLED:
+            data['status'] = 'CANCELLED'
+            data['definitive_status'] = 'CANCELLED'
+            data['is_final'] = True
+        elif order.payment_status == PaymentStatus.FAILED:
+            data['status'] = 'FAILED'
+            data['definitive_status'] = 'FAILED'
+            data['is_final'] = True
+        elif txn.status == PaymentTxStatus.FAILED:
+            data['status'] = 'FAILED'
+            data['definitive_status'] = 'FAILED'
+            data['is_final'] = False
+        else:
+            data['status'] = 'PENDING'
+            data['definitive_status'] = 'PENDING'
+            data['is_final'] = False
+
         return Response(data, status=status.HTTP_200_OK)
 
 

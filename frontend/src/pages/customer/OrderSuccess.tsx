@@ -1,17 +1,46 @@
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { COMPANY_NAME } from "../../constants/companyInfo";
+import { ordersApi } from "../../api/orders";
 
 export default function OrderSuccess() {
   const location = useLocation();
-  const order = location.state?.order;
+  const initialOrder = location.state?.order;
+  const [order, setOrder] = useState<any>(initialOrder || null);
 
-  const orderNumber = order?.order_number || order?.orderNumber || "Order Confirmed";
+  useEffect(() => {
+    if (initialOrder) {
+      try {
+        sessionStorage.setItem('last_confirmed_order', JSON.stringify(initialOrder));
+      } catch {}
+    } else {
+      const params = new URLSearchParams(location.search);
+      const orderIdParam = params.get('order_id');
+      if (orderIdParam) {
+        ordersApi.getOrderDetail(Number(orderIdParam))
+          .then(res => setOrder(res))
+          .catch(() => {});
+      } else {
+        try {
+          const cached = sessionStorage.getItem('last_confirmed_order');
+          if (cached) {
+            setOrder(JSON.parse(cached));
+          }
+        } catch {}
+      }
+    }
+  }, [initialOrder, location.search]);
+
+  const orderNumber = order?.order_number || order?.orderNumber || (order?.id ? `#${order.id}` : "Order Confirmed");
+  const orderId = order?.id || '';
+  const paymentMethod = order?.payment_method || 'UPI / Online';
+  const isPaid = order?.payment_status === 'COMPLETED' || order?.payment_status === 'PAID' || order?.payment_status === 'Paid';
   const orderDate = order?.created_at
     ? new Date(order.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })
     : new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" });
 
   const totalAmount = order?.total_amount !== undefined
-    ? Number(order.total_amount).toLocaleString("en-IN")
+    ? Number(order.total_amount).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     : null;
 
   return (
@@ -22,7 +51,10 @@ export default function OrderSuccess() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h1 className="text-3xl font-bold text-[#0B3A63] mb-2" style={{ fontFamily: "Outfit" }}>Order Placed!</h1>
+        <h1 className="text-3xl font-bold text-[#0B3A63] mb-2" style={{ fontFamily: "Outfit" }}>
+          {isPaid ? "Payment Successful" : "Order Placed!"}
+        </h1>
+        <p className="text-lg font-semibold text-[#12773D] mb-1">Your order has been placed successfully.</p>
         <p className="text-[#667085] mb-2">Thank you for shopping with {COMPANY_NAME}.</p>
         <p className="text-sm text-[#667085] mb-6">Your order confirmation has been recorded successfully.</p>
 
@@ -31,18 +63,28 @@ export default function OrderSuccess() {
             <span className="text-sm font-semibold text-[#17212B]">Order Number</span>
             <span className="text-sm font-bold text-[#1769AA] font-mono">{orderNumber}</span>
           </div>
+          {orderId && (
+            <div className="flex justify-between items-center mb-3 border-t border-slate-200/60 pt-2">
+              <span className="text-sm font-semibold text-[#17212B]">Order ID</span>
+              <span className="text-sm font-medium text-slate-700 font-mono">#{orderId}</span>
+            </div>
+          )}
+          {paymentMethod && (
+            <div className="flex justify-between items-center mb-3 border-t border-slate-200/60 pt-2">
+              <span className="text-sm font-semibold text-[#17212B]">Payment Method</span>
+              <span className="text-sm font-medium text-slate-700 uppercase bg-slate-100 px-2 py-0.5 rounded">{paymentMethod}</span>
+            </div>
+          )}
           {totalAmount && (
-            <div className="flex justify-between items-center mb-3">
+            <div className="flex justify-between items-center mb-3 border-t border-slate-200/60 pt-2">
               <span className="text-sm font-semibold text-[#17212B]">
-                {order?.payment_status === 'COMPLETED' || order?.payment_status === 'PAID' ? 'Total Paid' : 'Total Payable'}
+                {isPaid ? 'Total Paid' : 'Total Payable'}
               </span>
               <div className="text-right">
                 <span className="text-sm font-bold text-[#0B3A63]">₹{totalAmount}</span>
                 {order?.payment_status && (
                   <span className={`ml-2 text-xs px-2 py-0.5 rounded font-semibold ${
-                    order.payment_status === 'COMPLETED' || order.payment_status === 'PAID'
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : 'bg-amber-100 text-amber-800'
+                    isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                   }`}>
                     {order.payment_status}
                   </span>
@@ -136,7 +178,7 @@ export default function OrderSuccess() {
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Link to="/account/orders" className="bg-[#0B3A63] hover:bg-[#1769AA] text-white font-semibold px-6 py-3 rounded-lg transition-colors">
-            View My Orders
+            View Order
           </Link>
           <Link to="/shop" className="bg-white border border-[#D9E1E8] hover:border-[#1769AA] text-[#17212B] font-semibold px-6 py-3 rounded-lg transition-colors">
             Continue Shopping

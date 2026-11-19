@@ -8,6 +8,7 @@ import { configApi } from "../../api/config";
 import { CustomerAddress, DeliveryConfiguration, PaymentIntentResponse } from "../../types/api";
 import { resolveProductImage, handleProductImageError } from "../../utils/productImageResolver";
 import { loadRazorpayScript, isRazorpayLoaded, isMockRazorpayKey } from "../../utils/razorpay";
+import PaymentVerificationView from "../../components/customer/PaymentVerificationView";
 
 const steps = ["Address", "Review", "Payment", "Confirm"];
 
@@ -21,6 +22,8 @@ export default function Checkout() {
 
   // Hardened Payment State & Order Persistence
   const [createdOrder, setCreatedOrder] = useState<any | null>(null);
+  const [verificationPayload, setVerificationPayload] = useState<any | null>(null);
+  const [verifyingOrderId, setVerifyingOrderId] = useState<number | null>(null);
   const [showMockSimulator, setShowMockSimulator] = useState(false);
   const [paymentLifecycle, setPaymentLifecycle] = useState<PaymentLifecycle>('idle');
   const [paymentErrorMessage, setPaymentErrorMessage] = useState<string>("");
@@ -123,6 +126,32 @@ export default function Checkout() {
       console.warn("Background preloading of Razorpay script failed:", err);
     });
   }, []);
+
+  // Check for Razorpay redirect callback parameters in URL (e.g. mobile GPay/UPI redirect return)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const rzpPayId = params.get('razorpay_payment_id');
+    const rzpOrdId = params.get('razorpay_order_id');
+    const rzpSig = params.get('razorpay_signature');
+    const ordId = params.get('order_id');
+
+    if (rzpPayId || ordId) {
+      const targetId = Number(ordId);
+      if (targetId) {
+        if (rzpPayId && rzpSig) {
+          setVerificationPayload({
+            order_id: targetId,
+            razorpay_order_id: rzpOrdId || '',
+            razorpay_payment_id: rzpPayId,
+            razorpay_signature: rzpSig,
+            payment_method: 'UPI',
+          });
+        }
+        setVerifyingOrderId(targetId);
+        setPaymentLifecycle('verifying');
+      }
+    }
+  }, [location.search]);
 
   // Compute display preview estimates (backend will calculate authoritative total on checkout)
   const activeAddr = savedAddresses.find(a => a.id === selectedAddressId) || (useNewAddress ? newAddress : null);
@@ -243,58 +272,17 @@ export default function Checkout() {
     setStep(1);
   };
 
-  // Authoritative background payment status query (never assume timeout means failure)
-  const pollOrderPaymentStatus = async (orderId: number, maxAttempts: number = 4): Promise<boolean> => {
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      await new Promise((r) => setTimeout(r, 2000));
-      try {
-        const txn = await paymentsApi.getOrderPaymentStatus(orderId);
-        if (txn.status === 'SUCCESS' || txn.order_status === 'CONFIRMED' || txn.order_payment_status === 'Paid') {
-          return true;
-        }
-      } catch {
-        // Safe retry on temporary network glitch
-      }
-    }
-    return false;
-  };
-
-  const handleVerifyPayment = async (verifyPayload: {
+  const handleVerifyPayment = (verifyPayload: {
     order_id: number;
     razorpay_order_id: string;
     razorpay_payment_id: string;
     razorpay_signature: string;
     payment_method: string;
   }) => {
-    setIsSubmittingOrder(true);
+    setIsSubmittingOrder(false);
+    setVerificationPayload(verifyPayload);
+    setVerifyingOrderId(verifyPayload.order_id);
     setPaymentLifecycle('verifying');
-    try {
-      await paymentsApi.verifyPayment(verifyPayload);
-
-      const freshOrder = await ordersApi.getOrderDetail(verifyPayload.order_id);
-      if (isSingleItem && singleItemState?.singleItem) {
-        removeFromCart(singleItemState.singleItem);
-      } else {
-        clearCart();
-      }
-      navigate("/order-success", { state: { order: freshOrder } });
-    } catch (verifyErr: any) {
-      console.warn("Direct verify call delayed or network error. Polling authoritative order status...", verifyErr);
-      const isConfirmed = await pollOrderPaymentStatus(verifyPayload.order_id);
-      if (isConfirmed) {
-        const freshOrder = await ordersApi.getOrderDetail(verifyPayload.order_id);
-        if (isSingleItem && singleItemState?.singleItem) {
-          removeFromCart(singleItemState.singleItem);
-        } else {
-          clearCart();
-        }
-        navigate("/order-success", { state: { order: freshOrder } });
-      } else {
-        setPaymentLifecycle('timeout_pending');
-        setIsSubmittingOrder(false);
-        setPaymentErrorMessage("Payment verification is pending confirmation from your bank. Please do not submit duplicate payments.");
-      }
-    }
   };
 
   const launchRazorpayCheckout = async (targetOrder: any) => {
@@ -351,8 +339,8 @@ export default function Checkout() {
           theme: {
             color: "#0B3A63",
           },
-          handler: async (response: any) => {
-            await handleVerifyPayment({
+          handler: (response: any) => {
+            handleVerifyPayment({
               order_id: Number(targetOrder.id),
               razorpay_order_id: response.razorpay_order_id || paymentIntent.gateway_order_id || '',
               razorpay_payment_id: response.razorpay_payment_id,
@@ -362,9 +350,10 @@ export default function Checkout() {
           },
           modal: {
             ondismiss: () => {
-              setPaymentLifecycle('cancelled');
-              setIsSubmittingOrder(false);
-              setPaymentErrorMessage("");
+              // Customer dismissed modal or switched to UPI app.
+              // Verify backend status before concluding rather than assuming instant cancellation
+              setVerifyingOrderId(Number(targetOrder.id));
+              setPaymentLifecycle('verifying');
             },
           },
         };
@@ -383,9 +372,11 @@ export default function Checkout() {
 
         const rzp = new rzpConstructor(options);
         rzp.on('payment.failed', (failRes: any) => {
-          setPaymentLifecycle('failed');
-          setIsSubmittingOrder(false);
-          setPaymentErrorMessage(failRes?.error?.description || "Payment was declined by your bank or gateway.");
+          // Never display payment failed immediately upon GPay/UPI app switch!
+          // Poll backend to confirm definitive status
+          console.warn("Razorpay payment.failed event received. Checking authoritative backend status...", failRes);
+          setVerifyingOrderId(Number(targetOrder.id));
+          setPaymentLifecycle('verifying');
         });
         rzp.open();
       } else {
@@ -442,7 +433,39 @@ export default function Checkout() {
     }
   };
 
-  if (checkoutItems.length === 0) {
+  if (paymentLifecycle === 'verifying' && (createdOrder || verifyingOrderId)) {
+    const activeId = Number(createdOrder?.id || verifyingOrderId);
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <PaymentVerificationView
+          orderId={activeId}
+          orderNumber={createdOrder?.order_number}
+          amount={createdOrder?.total_amount || payableAmount}
+          paymentMethod={paymentMethod.toUpperCase()}
+          verifyPayload={verificationPayload}
+          onSuccess={() => {
+            if (isSingleItem && singleItemState?.singleItem) {
+              removeFromCart(singleItemState.singleItem);
+            } else {
+              clearCart();
+            }
+          }}
+          onRetryPayment={() => {
+            setPaymentLifecycle('idle');
+            setVerificationPayload(null);
+            if (createdOrder) {
+              launchRazorpayCheckout(createdOrder);
+            }
+          }}
+          onReturnToOrders={() => {
+            navigate('/account/orders');
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (checkoutItems.length === 0 && !createdOrder && !verifyingOrderId) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-20 text-center">
         <h2 className="text-2xl font-bold text-[#0B3A63] mb-4">Your checkout is empty</h2>
@@ -923,20 +946,6 @@ export default function Checkout() {
               <div className="text-xs">
                 <p className="font-bold">Razorpay Checkout Active</p>
                 <p className="text-blue-100 mt-0.5">Please complete payment in the Razorpay window.</p>
-              </div>
-            </div>
-          )}
-
-          {/* Verification in-flight loader */}
-          {paymentLifecycle === 'verifying' && (
-            <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs">
-              <div className="bg-white rounded-2xl max-w-sm w-full p-8 text-center shadow-2xl border border-slate-200">
-                <div className="w-16 h-16 border-4 border-[#1769AA] border-t-transparent rounded-full animate-spin mx-auto mb-5"></div>
-                <h3 className="text-lg font-bold text-[#0B3A63] font-['Outfit']">Verifying Payment</h3>
-                <p className="text-xs text-slate-600 mt-2">
-                  Verifying cryptographic transaction signature and confirming your order...
-                </p>
-                <p className="text-[11px] text-slate-400 mt-4">Please do not refresh or close this tab.</p>
               </div>
             </div>
           )}

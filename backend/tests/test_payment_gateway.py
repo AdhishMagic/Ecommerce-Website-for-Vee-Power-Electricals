@@ -616,3 +616,79 @@ class PaymentGatewayTests(TestCase):
             errors = check_razorpay_configuration(None)
             self.assertTrue(any(e.id == 'finance.E001' for e in errors))
 
+    def test_webhook_arrives_before_frontend_callback(self):
+        """When webhook confirms order first, subsequent frontend verify callback succeeds idempotently."""
+        init_data = PaymentGatewayService.initiate_order_payment(self.order1.id, self.customer1)
+        gw_order_id = init_data['gateway_order_id']
+        pay_id = f"pay_webhook_first_{self.order1.id}"
+        expected_paise = int(self.order1.total_amount * 100)
+
+        # 1. Webhook arrives first
+        webhook_body = json.dumps({
+            "event": "payment.captured",
+            "payload": {
+                "payment": {
+                    "entity": {
+                        "id": pay_id,
+                        "order_id": gw_order_id,
+                        "amount": expected_paise,
+                        "currency": "INR",
+                        "method": "upi",
+                    }
+                }
+            }
+        }).encode('utf-8')
+        wh_sig = hmac.new(PaymentGatewayService.get_webhook_secret().encode('utf-8'), webhook_body, hashlib.sha256).hexdigest()
+        wh_res = self.client.post('/api/v1/payments/webhook/', data=webhook_body, content_type='application/json', HTTP_X_RAZORPAY_SIGNATURE=wh_sig)
+        self.assertEqual(wh_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(wh_res.data['status'], 'success')
+
+        self.order1.refresh_from_db()
+        self.assertEqual(self.order1.payment_status, PaymentStatus.PAID)
+        self.assertEqual(self.order1.status, OrderStatus.CONFIRMED)
+
+        # 2. Frontend callback arrives afterwards
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token_c1}')
+        sig = PaymentGatewayService.generate_signature(gw_order_id, pay_id)
+        callback_res = self.client.post('/api/v1/payments/verify/', data={
+            "order_id": self.order1.id,
+            "razorpay_order_id": gw_order_id,
+            "razorpay_payment_id": pay_id,
+            "razorpay_signature": sig,
+            "payment_method": "UPI",
+        }, format='json')
+        self.assertEqual(callback_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(callback_res.data['status'], 'SUCCESS')
+
+    def test_payment_status_api_authoritative_resolution(self):
+        """Status API returns definitive_status, is_final, and amount."""
+        PaymentGatewayService.initiate_order_payment(self.order1.id, self.customer1)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token_c1}')
+
+        # Initially PENDING
+        res = self.client.get(f'/api/v1/payments/order/{self.order1.id}/')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['definitive_status'], 'PENDING')
+        self.assertFalse(res.data['is_final'])
+        self.assertEqual(res.data['order_number'], self.order1.order_number)
+
+        # Confirm payment
+        gw_order_id = self.order1.payments.first().gateway_order_id
+        pay_id = f"pay_poll_{self.order1.id}"
+        sig = PaymentGatewayService.generate_signature(gw_order_id, pay_id)
+        PaymentGatewayService.confirm_payment(
+            order_id=self.order1.id,
+            user=self.customer1,
+            razorpay_order_id=gw_order_id,
+            razorpay_payment_id=pay_id,
+            razorpay_signature=sig,
+        )
+
+        # Now definitively SUCCESS and is_final: True
+        res_after = self.client.get(f'/api/v1/payments/order/{self.order1.id}/')
+        self.assertEqual(res_after.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_after.data['status'], 'SUCCESS')
+        self.assertEqual(res_after.data['definitive_status'], 'SUCCESS')
+        self.assertTrue(res_after.data['is_final'])
+
+

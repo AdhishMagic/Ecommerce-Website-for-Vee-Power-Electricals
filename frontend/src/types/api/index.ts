@@ -515,6 +515,10 @@ export interface PaymentTransaction {
   amount: number | string;
   currency: string;
   status: string;
+  definitive_status?: string;
+  is_final?: boolean;
+  error_code?: string;
+  error_message?: string;
   order_status?: string;
   order_payment_status?: string;
   payment_method: string;

@@ -287,6 +287,15 @@ class PaymentGatewayService:
         if order.status == OrderStatus.CANCELLED:
             raise ValidationError("Cannot confirm payment for a cancelled order.")
 
+        # Early idempotency check: If order is already paid, return existing success transaction
+        if order.payment_status == PaymentStatus.PAID or (order.is_cod and order.payment_status == PaymentStatus.PARTIALLY_PAID):
+            existing_success = PaymentTransaction.objects.filter(
+                order=order,
+                status=PaymentTxStatus.SUCCESS
+            ).first()
+            if existing_success:
+                return existing_success
+
         # Integrity check: Ensure gateway_order_id is not linked to a different order
         if razorpay_order_id:
             foreign_order_txn = PaymentTransaction.objects.filter(
@@ -306,6 +315,13 @@ class PaymentGatewayService:
         # Validate signature
         is_valid = cls.verify_payment_signature(razorpay_order_id, razorpay_payment_id, razorpay_signature)
         if not is_valid:
+            # Re-check if concurrent webhook already confirmed the order before declaring failure
+            order.refresh_from_db()
+            if order.payment_status == PaymentStatus.PAID or (order.is_cod and order.payment_status == PaymentStatus.PARTIALLY_PAID):
+                existing_success = PaymentTransaction.objects.filter(order=order, status=PaymentTxStatus.SUCCESS).first()
+                if existing_success:
+                    return existing_success
+
             if razorpay_order_id:
                 PaymentTransaction.objects.filter(
                     order=order,
@@ -468,16 +484,21 @@ class PaymentGatewayService:
             if currency and currency.upper() != 'INR':
                 raise ValidationError(f"Webhook currency mismatch: expected INR, received {currency}.")
 
-            txn = PaymentTransaction.objects.filter(
+            txn_peek = PaymentTransaction.objects.filter(
                 gateway_order_id=razorpay_order_id
+            ).first()
+
+            if not txn_peek or not txn_peek.order_id:
+                return {"status": "ignored", "reason": "Transaction not found"}
+
+            # Consistent lock order: Always lock Order first, then PaymentTransaction
+            order = Order.objects.select_for_update().get(pk=txn_peek.order_id)
+            txn = PaymentTransaction.objects.filter(
+                pk=txn_peek.id
             ).select_for_update().first()
 
             if not txn:
                 return {"status": "ignored", "reason": "Transaction not found"}
-
-            order = Order.objects.select_for_update().get(pk=txn.order_id)
-            if not order:
-                return {"status": "ignored", "reason": "Order not associated"}
 
             # Verify amount consistency against authoritative expected amount (advance for COD, total otherwise)
             expected_amount = order.cod_advance_amount if (order.is_cod and order.cod_advance_amount > 0) else order.total_amount
@@ -578,10 +599,14 @@ class PaymentGatewayService:
                     gateway_order_id=razorpay_order_id
                 ).first()
                 if txn:
-                    # Out-of-order safety: Never overwrite confirmed payment if order is already PAID
-                    if txn.status == PaymentTxStatus.SUCCESS or (txn.order and txn.order.payment_status == PaymentStatus.PAID):
+                    # Out-of-order safety: Never overwrite confirmed payment if order is already PAID or CONFIRMED
+                    if (
+                        txn.status == PaymentTxStatus.SUCCESS
+                        or (txn.order and txn.order.payment_status in (PaymentStatus.PAID, PaymentStatus.PARTIALLY_PAID))
+                        or (txn.order and txn.order.status in (OrderStatus.CONFIRMED, OrderStatus.PACKED, OrderStatus.SHIPPED, OrderStatus.DELIVERED))
+                    ):
                         logger.warning(
-                            "Ignored delayed failed webhook for already-paid order %s",
+                            "Ignored delayed failed webhook for already-paid/confirmed order %s",
                             txn.order.order_number if txn.order else razorpay_order_id
                         )
                         return {
