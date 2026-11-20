@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { ordersApi } from "../../api/orders";
 import { addressesApi } from "../../api/addresses";
@@ -19,6 +19,11 @@ type OrderFilterType = "all" | "in_progress" | "delivered" | "cancelled_returns"
 
 export default function Account() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { orderId } = useParams<{ orderId?: string }>();
+  const [searchParams] = useSearchParams();
+  const activeOrderId = orderId || searchParams.get("order_id") || searchParams.get("order") || undefined;
+
   const [tab, setTab] = useState<CustomerTabId>(() => {
     if (location.pathname.includes("/orders")) return "orders";
     return "orders";
@@ -84,6 +89,39 @@ export default function Account() {
       setProfilePhone(user.phone || "");
     }
   }, [user]);
+
+  // Sync tab with route path
+  useEffect(() => {
+    if (location.pathname.startsWith("/account/orders")) {
+      setTab("orders");
+    }
+  }, [location.pathname]);
+
+  // Sync activeOrderId from route params / query params with selectedOrder
+  useEffect(() => {
+    if (activeOrderId) {
+      setTab("orders");
+      const numId = Number(activeOrderId);
+      if (!selectedOrder || (selectedOrder.id !== numId && selectedOrder.order_number !== activeOrderId)) {
+        setSelectedOrderLoading(true);
+        setActionError("");
+        ordersApi
+          .getOrderDetail(activeOrderId)
+          .then((detail) => {
+            setSelectedOrder(detail);
+          })
+          .catch((err: any) => {
+            console.error("Failed to load order details from URL:", err);
+            navigate("/account/orders", { replace: true });
+          })
+          .finally(() => {
+            setSelectedOrderLoading(false);
+          });
+      }
+    } else if (selectedOrder) {
+      setSelectedOrder(null);
+    }
+  }, [activeOrderId]);
 
   // Fetch orders with pagination
   const fetchOrders = useCallback(async (page = 1) => {
@@ -254,6 +292,7 @@ export default function Account() {
     try {
       const detail = await ordersApi.getOrderDetail(id);
       setSelectedOrder(detail);
+      navigate(`/account/orders/${id}`);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err: any) {
       alert(err?.message || "Failed to load order details.");
@@ -398,14 +437,38 @@ export default function Account() {
             Home
           </Link>
           <span>/</span>
-          <span className="text-[#17212B]">
-            {tab === "orders" ? "My Orders" : tab === "addresses" ? "Saved Addresses" : "Profile Settings"}
-          </span>
-          {selectedOrder && (
+          {selectedOrder ? (
             <>
+              <Link
+                to="/account/orders"
+                onClick={() => setSelectedOrder(null)}
+                className="hover:text-[#1769AA] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#1769AA] rounded cursor-pointer"
+              >
+                My Orders
+              </Link>
               <span>/</span>
-              <span className="text-[#1769AA] font-mono font-semibold">#{selectedOrder.order_number}</span>
+              <span className="text-[#1769AA] font-mono font-semibold" aria-current="page">
+                #{selectedOrder.order_number}
+              </span>
             </>
+          ) : activeOrderId ? (
+            <>
+              <Link
+                to="/account/orders"
+                onClick={() => setSelectedOrder(null)}
+                className="hover:text-[#1769AA] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#1769AA] rounded cursor-pointer"
+              >
+                My Orders
+              </Link>
+              <span>/</span>
+              <span className="text-[#1769AA] font-mono font-semibold" aria-current="page">
+                #{activeOrderId}
+              </span>
+            </>
+          ) : (
+            <span className="text-[#17212B]" aria-current="page">
+              {tab === "orders" ? "My Orders" : tab === "addresses" ? "Saved Addresses" : "Profile Settings"}
+            </span>
           )}
         </nav>
 
@@ -419,6 +482,11 @@ export default function Account() {
               onSelectTab={(newTab) => {
                 setTab(newTab);
                 setSelectedOrder(null);
+                if (newTab === "orders") {
+                  navigate("/account/orders");
+                } else {
+                  navigate("/account");
+                }
               }}
               onLogout={logout}
               ordersCount={totalOrdersCount}
@@ -448,16 +516,25 @@ export default function Account() {
               </div>
             )}
 
-            {/* View Details View */}
+            {/* View Details View or Loading */}
             {selectedOrder ? (
               <OrderDetailView
                 order={selectedOrder}
-                onBack={() => setSelectedOrder(null)}
+                onBack={() => {
+                  setSelectedOrder(null);
+                  navigate("/account/orders");
+                }}
                 onCancelOrder={handleInitiateCancel}
                 onRequestReturn={handleRequestReturn}
                 actionLoading={actionLoading}
                 actionError={actionError}
               />
+            ) : activeOrderId && selectedOrderLoading ? (
+              <div className="bg-white border border-[#D9E1E8] rounded-2xl p-8 sm:p-12 text-center shadow-xs">
+                <div className="w-12 h-12 border-3 border-[#1769AA] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                <h3 className="text-base font-bold text-[#0B3A63] mb-1">Loading Order Details...</h3>
+                <p className="text-xs text-[#667085]">Fetching your order information.</p>
+              </div>
             ) : (
               <>
                 {/* TAB 1: MY ORDERS */}

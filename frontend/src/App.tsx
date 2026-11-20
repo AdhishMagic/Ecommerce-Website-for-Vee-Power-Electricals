@@ -112,6 +112,7 @@ export default function App() {
                 <Route path="/order-success" element={<ProtectedRoute allowedRoles={["customer", "admin"]}><CustomerLayout><OrderSuccess /></CustomerLayout></ProtectedRoute>} />
                 <Route path="/account" element={<ProtectedRoute allowedRoles={["customer", "admin"]}><CustomerLayout><Account /></CustomerLayout></ProtectedRoute>} />
                 <Route path="/account/orders" element={<ProtectedRoute allowedRoles={["customer", "admin"]}><CustomerLayout><Account /></CustomerLayout></ProtectedRoute>} />
+                <Route path="/account/orders/:orderId" element={<ProtectedRoute allowedRoles={["customer", "admin"]}><CustomerLayout><Account /></CustomerLayout></ProtectedRoute>} />
 
                 {/* Admin routes.
                     AdminLayout now internally wraps its children with ShopProvider
