@@ -21,6 +21,7 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const isSelectAccount = searchParams.get("select_account") === "1" || searchParams.get("switch_account") === "1";
 
   // Resolve where the user was before login
   const redirectParam = searchParams.get("redirect");
@@ -292,6 +293,7 @@ export default function Login() {
         <GoogleSignInButton
           onCredential={handleGoogleCredential}
           disabled={isLoading || authStatus !== "idle"}
+          selectAccount={isSelectAccount}
         />
 
         <div className="mt-4.5 text-center text-xs sm:text-sm text-muted">

@@ -159,10 +159,15 @@ class GoogleLoginView(APIView):
         else:
             message = 'Login successful.'
 
+        user_data = UserProfileSerializer(user).data
+        if claims.get('picture'):
+            user_data['avatar'] = claims['picture']
+            user_data['picture'] = claims['picture']
+
         return Response(
             {
                 'message': message,
-                'user': UserProfileSerializer(user).data,
+                'user': user_data,
                 'access': access_token,
                 'refresh': refresh_token,
                 'tokens': {
@@ -409,10 +414,16 @@ class GoogleOAuthCallbackView(APIView):
                 message = 'Existing account linked and signed in with Google.'
             else:
                 message = 'Login successful.'
+
+            user_data = UserProfileSerializer(user).data
+            if claims.get('picture'):
+                user_data['avatar'] = claims['picture']
+                user_data['picture'] = claims['picture']
+
             return Response(
                 {
                     'message': message,
-                    'user': UserProfileSerializer(user).data,
+                    'user': user_data,
                     'access': access_token,
                     'refresh': refresh_token,
                     'tokens': {

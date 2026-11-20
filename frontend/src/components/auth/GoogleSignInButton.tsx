@@ -26,6 +26,7 @@ declare global {
           initialize: (config: Record<string, unknown>) => void;
           renderButton: (parent: HTMLElement, options: Record<string, unknown>) => void;
           prompt?: (momentListener?: (notification: unknown) => void) => void;
+          disableAutoSelect?: () => void;
         };
       };
     };
@@ -48,30 +49,40 @@ function loadGoogleIdentityServices(): Promise<void> {
       return;
     }
 
+    let completed = false;
+    const timeoutTimer = setTimeout(() => {
+      if (completed) return;
+      completed = true;
+      gisLoader = null;
+      reject(new Error("gis_load_timeout"));
+    }, 5000);
+
+    const onDone = () => {
+      if (completed) return;
+      completed = true;
+      clearTimeout(timeoutTimer);
+      resolve();
+    };
+
+    const onError = () => {
+      if (completed) return;
+      completed = true;
+      clearTimeout(timeoutTimer);
+      gisLoader = null;
+      reject(new Error("gis_load_failed"));
+    };
+
     // Check if script is already present in DOM
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${GIS_SRC}"]`);
     if (existing) {
-      let completed = false;
-      const onLoad = () => {
-        if (completed) return;
-        completed = true;
-        resolve();
-      };
-      const onError = () => {
-        if (completed) return;
-        completed = true;
-        gisLoader = null;
-        reject(new Error("gis_load_failed"));
-      };
-
-      existing.addEventListener("load", onLoad, { once: true });
+      existing.addEventListener("load", onDone, { once: true });
       existing.addEventListener("error", onError, { once: true });
 
       // Poll as a safety net in case script already finished before listeners attached
       const interval = setInterval(() => {
         if (window.google?.accounts?.id) {
           clearInterval(interval);
-          onLoad();
+          onDone();
         }
       }, 50);
       setTimeout(() => clearInterval(interval), 4000);
@@ -82,11 +93,8 @@ function loadGoogleIdentityServices(): Promise<void> {
     script.src = GIS_SRC;
     script.async = true;
     script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = () => {
-      gisLoader = null;
-      reject(new Error("gis_load_failed"));
-    };
+    script.onload = () => onDone();
+    script.onerror = () => onError();
     document.head.appendChild(script);
   });
 
@@ -101,16 +109,17 @@ if (typeof window !== "undefined") {
 interface GoogleSignInButtonProps {
   onCredential: (credential: string) => void | Promise<void>;
   disabled?: boolean;
+  selectAccount?: boolean;
 }
 
-export default function GoogleSignInButton({ onCredential, disabled = false }: GoogleSignInButtonProps) {
+export default function GoogleSignInButton({
+  onCredential,
+  disabled = false,
+  selectAccount = false,
+}: GoogleSignInButtonProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const callbackRef = useRef(onCredential);
   callbackRef.current = onCredential;
-
-  const [gisError, setGisError] = useState(false);
-  const [gisLoading, setGisLoading] = useState(() => !Boolean(window.google?.accounts?.id));
-  const [gisRenderFallback, setGisRenderFallback] = useState(false);
 
   const isConfigured = Boolean(
     CLIENT_ID &&
@@ -122,14 +131,21 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
     typeof window !== "undefined" &&
     window.location.hostname === "localhost";
 
+  // Prevent initial flicker by matching expected fallback state synchronously
+  const [gisRenderFallback, setGisRenderFallback] = useState(() => isLocalhost);
+  const [gisError, setGisError] = useState(false);
+  const [gisLoading, setGisLoading] = useState(() => !isLocalhost && isConfigured && !Boolean(window.google?.accounts?.id));
+  const renderedRef = useRef(false);
+
   const getBackendOAuthUrl = useCallback(() => {
     if (typeof window === "undefined") return "/auth/google/login/";
     const frontendOrigin = window.location.origin;
-    if (window.location.hostname === "localhost") {
-      return `http://127.0.0.1:8000/auth/google/login/?frontend_url=${encodeURIComponent(frontendOrigin)}`;
-    }
-    return `/auth/google/login/?frontend_url=${encodeURIComponent(frontendOrigin)}`;
-  }, []);
+    const base =
+      window.location.hostname === "localhost"
+        ? `http://127.0.0.1:8000/auth/google/login/?frontend_url=${encodeURIComponent(frontendOrigin)}`
+        : `/auth/google/login/?frontend_url=${encodeURIComponent(frontendOrigin)}`;
+    return selectAccount ? `${base}&prompt=select_account` : base;
+  }, [selectAccount]);
 
   const handleOAuthRedirect = useCallback(() => {
     if (disabled) return;
@@ -159,10 +175,21 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
           return;
         }
 
+        // Avoid re-initializing and wiping out DOM if already successfully rendered
+        if (renderedRef.current && containerRef.current.querySelector("iframe")) {
+          setGisLoading(false);
+          return;
+        }
+
         try {
+          if (selectAccount && window.google.accounts.id.disableAutoSelect) {
+            window.google.accounts.id.disableAutoSelect();
+          }
+
           window.google.accounts.id.initialize({
             client_id: CLIENT_ID,
             ux_mode: "popup",
+            auto_select: !selectAccount,
             cancel_on_tap_outside: true,
             callback: (response: { credential?: string }) => {
               if (response?.credential) {
@@ -182,19 +209,28 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
             width: 320,
           });
 
-          if (isMounted) {
-            setGisLoading(false);
-          }
+          renderedRef.current = true;
 
-          // Verify whether GIS actually rendered an iframe
+          // Seamless transition: wait until the iframe is actually attached before hiding placeholder
+          const pollIframe = setInterval(() => {
+            if (containerRef.current?.querySelector("iframe")) {
+              clearInterval(pollIframe);
+              if (isMounted) {
+                setGisLoading(false);
+              }
+            }
+          }, 30);
+
           setTimeout(() => {
-            if (isMounted && containerRef.current) {
-              const hasIframe = Boolean(containerRef.current.querySelector("iframe"));
+            clearInterval(pollIframe);
+            if (isMounted) {
+              setGisLoading(false);
+              const hasIframe = Boolean(containerRef.current?.querySelector("iframe"));
               if (!hasIframe) {
                 setGisRenderFallback(true);
               }
             }
-          }, 800);
+          }, 1000);
         } catch (initErr) {
           console.error("GIS render error:", initErr);
           if (isMounted) {
@@ -204,9 +240,10 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
         }
       })
       .catch((err) => {
-        console.warn("Google Identity Services script failed to load (possibly blocked by ad-blocker):", err);
+        console.warn("Google Identity Services script failed to load (fallback to OAuth redirect):", err);
         if (isMounted) {
           setGisError(true);
+          setGisRenderFallback(true);
           setGisLoading(false);
         }
       });
@@ -214,7 +251,7 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
     return () => {
       isMounted = false;
     };
-  }, [isConfigured, isLocalhost]);
+  }, [isConfigured, isLocalhost, selectAccount]);
 
   // Case 1: Missing Client ID configuration error
   if (!isConfigured) {
@@ -255,35 +292,35 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
   // Case 2: Localhost origin or GIS script failure or iframe render failure fallback
   if (isLocalhost || gisError || gisRenderFallback) {
     return (
-      <div className={`w-full ${disabled ? "pointer-events-none opacity-50" : ""}`} data-testid="google-signin-fallback">
+      <div className={`w-full flex justify-center ${disabled ? "pointer-events-none opacity-50" : ""}`} data-testid="google-signin-fallback">
         <button
           type="button"
           onClick={handleOAuthRedirect}
           disabled={disabled}
           aria-disabled={disabled}
           data-testid="google-signin-button"
-          className="w-full inline-flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-sm font-medium text-charcoal shadow-xs transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer"
+          className="w-full max-w-[340px] h-[44px] inline-flex items-center justify-center gap-3 px-4 rounded-xl border border-[#D9E1E8] bg-white hover:bg-[#F6F8FA] text-sm font-medium text-[#17212B] shadow-2xs transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#1769AA] cursor-pointer"
         >
-          <svg className="w-4.5 h-4.5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+          <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" />
             <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z" />
             <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z" />
             <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z" />
           </svg>
-          Continue with Google
+          <span>Continue with Google</span>
         </button>
       </div>
     );
   }
 
-  // Case 3: Configured and rendering GIS iframe button
+  // Case 3: Configured and rendering GIS iframe button with stable dimensions
   return (
-    <div className={`w-full flex flex-col items-center justify-center relative min-h-[44px] ${disabled ? "pointer-events-none opacity-50 cursor-not-allowed" : ""}`}>
-      {/* Instant zero-delay Google Sign-In placeholder while iframe mounts */}
+    <div className={`w-full flex flex-col items-center justify-center relative min-h-[44px] h-[44px] ${disabled ? "pointer-events-none opacity-50 cursor-not-allowed" : ""}`}>
+      {/* Stable zero-delay Google Sign-In placeholder while iframe mounts */}
       {gisLoading && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-          <div className="w-[320px] h-[40px] rounded-md border border-[#DADCE0] bg-white flex items-center justify-center gap-3 shadow-xs">
-            <svg className="w-4.5 h-4.5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+          <div className="w-full max-w-[340px] h-[44px] rounded-xl border border-[#D9E1E8] bg-white flex items-center justify-center gap-3 shadow-2xs">
+            <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" />
               <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z" />
               <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z" />
@@ -295,11 +332,10 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
       )}
       <div
         ref={containerRef}
-        className="flex w-full justify-center min-h-[40px] items-center relative z-10"
+        className="flex w-full justify-center min-h-[44px] h-[44px] items-center relative z-10"
         data-testid="google-signin-button"
         aria-label="Continue with Google"
       />
     </div>
   );
 }
-

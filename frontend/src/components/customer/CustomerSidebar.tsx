@@ -32,6 +32,7 @@ export default function CustomerSidebar({
   displayName = displayName || user?.first_name || "Customer";
   const initial = displayName ? displayName.charAt(0).toUpperCase() : "C";
   const displayEmail = user?.email || "customer@veepower.in";
+  const avatarUrl = user?.avatar || user?.picture;
 
   const navItems = [
     {
@@ -72,9 +73,18 @@ export default function CustomerSidebar({
         {/* Profile Card Header */}
         <div className="bg-white border border-[#D9E1E8] rounded-xl p-4 shadow-xs flex items-center justify-between gap-3 min-w-0">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-full bg-[#0B3A63] text-[#F2A900] font-bold text-base flex items-center justify-center shrink-0 border-2 border-[#1769AA]/30 shadow-xs">
-              {initial}
-            </div>
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={displayName}
+                className="w-10 h-10 rounded-full object-cover shrink-0 border-2 border-[#1769AA]/30 shadow-xs"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-[#0B3A63] text-[#F2A900] font-bold text-base flex items-center justify-center shrink-0 border-2 border-[#1769AA]/30 shadow-xs">
+                {initial}
+              </div>
+            )}
             <div className="min-w-0">
               <p className="font-bold text-[#17212B] text-sm truncate" style={{ fontFamily: "Outfit, sans-serif" }}>
                 {displayName}
@@ -149,10 +159,19 @@ export default function CustomerSidebar({
         <div className="bg-[#0B3A63] px-5 py-6 text-center relative overflow-hidden">
           {/* Subtle decorative background accent */}
           <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-white/5 pointer-events-none" />
-          <div className="w-16 h-16 bg-[#F2A900] rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm border-2 border-white/20 relative z-10">
-            <span className="text-[#0B3A63] font-bold text-2xl tracking-tight" style={{ fontFamily: "Outfit, sans-serif" }}>
-              {initial}
-            </span>
+          <div className="w-16 h-16 bg-[#F2A900] rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm border-2 border-white/20 relative z-10 overflow-hidden">
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={displayName}
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <span className="text-[#0B3A63] font-bold text-2xl tracking-tight" style={{ fontFamily: "Outfit, sans-serif" }}>
+                {initial}
+              </span>
+            )}
           </div>
           <h3
             className="font-bold text-white text-base truncate relative z-10 px-2"

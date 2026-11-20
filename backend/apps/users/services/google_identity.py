@@ -222,6 +222,7 @@ def verify_google_id_token(id_token: str) -> dict:
         'given_name': (payload.get('given_name') or '').strip(),
         'family_name': (payload.get('family_name') or '').strip(),
         'name': (payload.get('name') or '').strip(),
+        'picture': (payload.get('picture') or '').strip(),
     }
 
 

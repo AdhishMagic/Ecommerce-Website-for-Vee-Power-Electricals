@@ -8,6 +8,8 @@ export interface User {
   first_name?: string;
   last_name?: string;
   username?: string;
+  avatar?: string;
+  picture?: string;
   address?: {
     street: string;
     city: string;

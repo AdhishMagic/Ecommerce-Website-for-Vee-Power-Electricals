@@ -13,6 +13,8 @@ export interface User {
   first_name?: string;
   last_name?: string;
   username?: string;
+  avatar?: string;
+  picture?: string;
 }
 
 interface AuthContextType {
@@ -54,6 +56,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     const wasAdminRoute = window.location.pathname.startsWith("/admin");
+    if (typeof window !== "undefined" && window.google?.accounts?.id?.disableAutoSelect) {
+      try {
+        window.google.accounts.id.disableAutoSelect();
+      } catch {}
+    }
     try {
       await authService.logout();
     } catch {

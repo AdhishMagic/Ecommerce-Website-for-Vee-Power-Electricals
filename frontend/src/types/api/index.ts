@@ -26,6 +26,8 @@ export interface UserProfile {
   is_active: boolean;
   is_staff: boolean;
   is_superuser: boolean;
+  avatar?: string;
+  picture?: string;
   created_at?: string;
   updated_at?: string;
 }

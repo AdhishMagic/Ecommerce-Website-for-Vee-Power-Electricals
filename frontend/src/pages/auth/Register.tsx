@@ -24,6 +24,7 @@ export default function Register() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const isSelectAccount = searchParams.get("select_account") === "1" || searchParams.get("switch_account") === "1";
 
   // Resolve where the user was before reaching registration
   const redirectParam = searchParams.get("redirect");
@@ -264,6 +265,7 @@ export default function Register() {
         <GoogleSignInButton
           onCredential={handleGoogleCredential}
           disabled={isLoading || authStatus !== "idle"}
+          selectAccount={isSelectAccount}
         />
 
         <p className="text-center text-xs sm:text-sm text-muted mt-4">

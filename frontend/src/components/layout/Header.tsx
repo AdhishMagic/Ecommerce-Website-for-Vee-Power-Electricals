@@ -83,7 +83,24 @@ export default function Header() {
   const handleLogout = async () => {
     setAccountMenuOpen(false);
     setMobileMenuOpen(false);
+    if (typeof window !== "undefined" && window.google?.accounts?.id?.disableAutoSelect) {
+      try {
+        window.google.accounts.id.disableAutoSelect();
+      } catch {}
+    }
     await logout();
+  };
+
+  const handleSwitchAccount = async () => {
+    setAccountMenuOpen(false);
+    setMobileMenuOpen(false);
+    if (typeof window !== "undefined" && window.google?.accounts?.id?.disableAutoSelect) {
+      try {
+        window.google.accounts.id.disableAutoSelect();
+      } catch {}
+    }
+    await logout();
+    navigate("/login?select_account=1");
   };
 
   const handleSearch = (e: React.FormEvent) => {
@@ -197,9 +214,39 @@ export default function Header() {
     setMobileMenuOpen(false);
   }, [location.pathname, location.search]);
 
+  const [dropdownAlign, setDropdownAlign] = useState<"right" | "left">("right");
+
+  useEffect(() => {
+    if (accountMenuOpen && accountMenuRef.current) {
+      const rect = accountMenuRef.current.getBoundingClientRect();
+      const menuWidth = 224; // w-56 (14rem)
+      if (rect.right - menuWidth < 12) {
+        setDropdownAlign("left");
+      } else {
+        setDropdownAlign("right");
+      }
+    }
+  }, [accountMenuOpen]);
+
   const handleAccountKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
+      e.preventDefault();
       setAccountMenuOpen(false);
+      accountMenuRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const menu = accountMenuRef.current?.querySelector('[role="menu"]');
+      if (!menu) return;
+      const items = Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+      if (!items.length) return;
+      const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+      let nextIndex = 0;
+      if (e.key === "ArrowDown") {
+        nextIndex = currentIndex >= 0 ? (currentIndex + 1) % items.length : 0;
+      } else {
+        nextIndex = currentIndex > 0 ? currentIndex - 1 : items.length - 1;
+      }
+      items[nextIndex]?.focus();
     }
   };
 
@@ -409,15 +456,24 @@ export default function Header() {
                   type="button"
                   onClick={toggleAccountMenu}
                   onKeyDown={handleAccountKeyDown}
-                  className="hidden sm:flex flex-col items-center text-[#667085] hover:text-[#1769AA] transition-colors group focus:outline-none cursor-pointer"
+                  className="flex flex-col items-center text-[#667085] hover:text-[#1769AA] transition-colors group focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1769AA] rounded-lg cursor-pointer"
                   aria-expanded={accountMenuOpen}
                   aria-haspopup="menu"
                   aria-label={`Account menu for ${displayName}`}
                 >
-                  <div className="p-2 bg-transparent rounded-full group-hover:bg-[#F6F8FA] transition-colors relative">
-                    <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
+                  <div className="p-1.5 sm:p-2 bg-transparent rounded-full group-hover:bg-[#F6F8FA] transition-colors relative">
+                    {user.avatar || user.picture ? (
+                      <img
+                        src={user.avatar || user.picture}
+                        alt={displayName}
+                        className="w-5 h-5 sm:w-6 sm:h-6 rounded-full object-cover border border-[#D9E1E8]"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    )}
                     {isAdmin && (
                       <span
                         className="absolute top-1 right-1 w-2.5 h-2.5 bg-[#1769AA] rounded-full border-2 border-white shadow-xs"
@@ -426,7 +482,7 @@ export default function Header() {
                     )}
                   </div>
                   <div className="flex items-center gap-0.5 -mt-1 text-[10px] sm:text-xs font-medium">
-                    <span className="max-w-[75px] md:max-w-[100px] truncate" title={displayName}>
+                    <span className="max-w-[55px] sm:max-w-[75px] md:max-w-[100px] truncate" title={displayName}>
                       {displayName}
                     </span>
                     <svg
@@ -444,22 +500,41 @@ export default function Header() {
 
                 {accountMenuOpen && (
                   <div
+                    id="account-menu-dropdown"
                     role="menu"
                     aria-label="Account options"
-                    className="absolute right-0 top-full mt-2 w-52 bg-white rounded-xl shadow-xl border border-[#D9E1E8] py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150"
+                    className={`absolute top-full mt-2 w-56 max-w-[calc(100vw-1.5rem)] bg-white rounded-xl shadow-xl border border-[#D9E1E8] py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150 ${
+                      dropdownAlign === "left" ? "left-0" : "right-0"
+                    }`}
                     onKeyDown={handleAccountKeyDown}
                   >
-                    {/* Identity header */}
-                    <div className="px-3.5 py-2 border-b border-[#D9E1E8] bg-[#F6F8FA]">
-                      <p className="text-xs font-semibold text-[#0B3A63] truncate" title={displayName}>
-                        {displayName}
-                      </p>
-                      {user.email && (
-                        <p className="text-[11px] text-[#667085] truncate" title={user.email}>
-                          {user.email}
-                        </p>
-                      )}
-                      <span className="inline-block mt-1 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded bg-[#1769AA]/10 text-[#1769AA]">
+                    {/* Identity header with avatar */}
+                    <div className="px-3.5 py-2.5 border-b border-[#D9E1E8] bg-[#F6F8FA]">
+                      <div className="flex items-center gap-2.5 mb-1.5">
+                        {user.avatar || user.picture ? (
+                          <img
+                            src={user.avatar || user.picture}
+                            alt={displayName}
+                            className="w-8 h-8 rounded-full object-cover border border-[#D9E1E8] shrink-0"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-[#EFF6FF] text-[#1769AA] font-bold text-xs flex items-center justify-center shrink-0 border border-[#BFDBFE]">
+                            {displayName.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold text-[#0B3A63] truncate" title={displayName}>
+                            {displayName}
+                          </p>
+                          {user.email && (
+                            <p className="text-[11px] text-[#667085] truncate" title={user.email}>
+                              {user.email}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <span className="inline-block px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded bg-[#1769AA]/10 text-[#1769AA]">
                         {isAdmin ? "Admin" : "Customer"}
                       </span>
                     </div>
@@ -518,6 +593,18 @@ export default function Header() {
                           </Link>
                         </>
                       )}
+
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={handleSwitchAccount}
+                        className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-[#0B3A63] hover:bg-[#F6F8FA] transition-colors text-left cursor-pointer"
+                      >
+                        <svg className="w-4 h-4 text-[#1769AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                        </svg>
+                        Switch Account
+                      </button>
 
                       <div className="my-1 border-t border-[#D9E1E8]" />
 
@@ -744,8 +831,18 @@ export default function Header() {
                   </>
                 )}
 
-                {/* Logout Button */}
-                <div className="pt-1 mt-0.5 border-t border-[#EEF2F6]">
+                {/* Switch Account & Logout Buttons */}
+                <div className="pt-1 mt-0.5 border-t border-[#EEF2F6] space-y-1">
+                  <button
+                    type="button"
+                    onClick={handleSwitchAccount}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-[#0B3A63] hover:bg-[#F6F8FA] rounded-md transition-colors text-left cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1769AA]"
+                  >
+                    <svg className="w-4 h-4 text-[#1769AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                    Switch Account
+                  </button>
                   <button
                     type="button"
                     onClick={handleLogout}

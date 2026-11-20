@@ -33,6 +33,8 @@ export const mapProfileToUser = (profile: UserProfile): User => {
     first_name: rawFirstName,
     last_name: cleanLastName,
     username: profile.username,
+    avatar: (profile as any).avatar || (profile as any).picture || undefined,
+    picture: (profile as any).picture || (profile as any).avatar || undefined,
   };
 };
 
@@ -40,7 +42,18 @@ export const authService = {
   async getCurrentUser(): Promise<User | null> {
     try {
       const profile = await authApi.getMe();
-      return mapProfileToUser(profile);
+      const mapped = mapProfileToUser(profile);
+      const cached = sessionStorage.getItem("vp_user") || localStorage.getItem("vp_user");
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (parsed && parsed.email === mapped.email && (parsed.avatar || parsed.picture)) {
+            mapped.avatar = parsed.avatar || parsed.picture;
+            mapped.picture = parsed.picture || parsed.avatar;
+          }
+        } catch {}
+      }
+      return mapped;
     } catch {
       // Any failure means the session could not be confirmed by the server. Never
       // fall back to a cached user, which would let a dead session look signed in
