@@ -554,9 +554,49 @@ export default function ProductForm() {
       </div>
 
       <form onSubmit={handleSave}>
+        {/* Mobile / Tablet Horizontal Stepper (< lg) */}
+        <div className="lg:hidden mb-4 bg-white border border-slate-200 rounded-2xl p-2.5 shadow-xs">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+            {sections.map((s, idx) => {
+              const isCurrent = activeSectionIndex === idx;
+              const isCompleted = isStepComplete(idx);
+              const navCheck = canNavigateToStep(idx);
+              const isLocked = !navCheck.allowed;
+
+              return (
+                <button
+                  type="button"
+                  key={s.id}
+                  onClick={() => handleStepClick(idx)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs whitespace-nowrap shrink-0 transition-all ${
+                    isCurrent
+                      ? "bg-[#0A2540] text-white font-bold shadow-xs"
+                      : isLocked
+                        ? "text-slate-400 bg-slate-50 opacity-60 cursor-not-allowed"
+                        : "text-slate-700 bg-slate-100 hover:bg-slate-200 font-medium cursor-pointer"
+                  }`}
+                >
+                  <span
+                    className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                      isCurrent
+                        ? "bg-[#F2A900] text-[#0A2540]"
+                        : isCompleted
+                          ? "bg-emerald-500 text-white"
+                          : "bg-slate-300 text-slate-700"
+                    }`}
+                  >
+                    {isCompleted ? "✓" : idx + 1}
+                  </span>
+                  <span>{s.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="grid lg:grid-cols-4 gap-6 items-start">
-          {/* 1. Left Sidebar Step Navigation */}
-          <div className="lg:col-span-1">
+          {/* 1. Left Sidebar Step Navigation (Desktop lg+) */}
+          <div className="hidden lg:block lg:col-span-1">
             <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-xs sticky top-4 space-y-1.5">
               <div className="px-3 py-2 border-b border-slate-100 mb-1">
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Product Wizard</span>
