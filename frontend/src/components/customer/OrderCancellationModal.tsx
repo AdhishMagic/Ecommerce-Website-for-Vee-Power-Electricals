@@ -33,16 +33,18 @@ export default function OrderCancellationModal({
   const [selectedReasonCode, setSelectedReasonCode] = useState<CancellationReasonCode>("ordered_by_mistake");
   const [reasonNotes, setReasonNotes] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
+  const keepOrderRef = React.useRef<HTMLButtonElement>(null);
 
   const titleId = useId();
   const descId = useId();
 
-  // Reset form when modal opens with a new order
+  // Reset form and focus safe default button when modal opens
   useEffect(() => {
     if (isOpen) {
       setSelectedReasonCode("ordered_by_mistake");
       setReasonNotes("");
       setLocalError(null);
+      setTimeout(() => keepOrderRef.current?.focus(), 50);
     }
   }, [isOpen, order?.id]);
 
@@ -131,6 +133,7 @@ export default function OrderCancellationModal({
       aria-modal="true"
       aria-labelledby={titleId}
       aria-describedby={descId}
+      aria-busy={isSubmitting}
       onClick={handleBackdropClick}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-200 overflow-y-auto"
     >
@@ -150,13 +153,13 @@ export default function OrderCancellationModal({
                 className="text-lg sm:text-xl font-bold text-[#0B3A63] tracking-tight"
                 style={{ fontFamily: "Outfit, sans-serif" }}
               >
-                Cancel Your Order?
+                Are you sure you want to cancel this order?
               </h2>
               <p
                 id={descId}
                 className="text-xs sm:text-sm text-[#667085] mt-1"
               >
-                Are you sure you want to cancel this order? This action may not be reversible.
+                This action cannot be undone. Restocked items will be returned to inventory.
               </p>
             </div>
           </div>
@@ -317,10 +320,11 @@ export default function OrderCancellationModal({
         {/* Modal Actions / Footer */}
         <div className="p-4 sm:p-5 border-t border-slate-100 bg-slate-50 flex flex-col-reverse sm:flex-row items-center justify-end gap-3 shrink-0">
           <button
+            ref={keepOrderRef}
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-white hover:border-slate-400 text-xs sm:text-sm font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-slate-400 shadow-2xs"
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-400 bg-white text-xs sm:text-sm font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-slate-400 shadow-2xs"
           >
             Keep Order
           </button>
@@ -334,10 +338,10 @@ export default function OrderCancellationModal({
             {isSubmitting ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                <span>Cancelling Order...</span>
+                <span>Cancelling...</span>
               </>
             ) : (
-              <span>Confirm Cancellation</span>
+              <span>Yes, Cancel Order</span>
             )}
           </button>
         </div>

@@ -13,5 +13,5 @@ Ticket Details:
 Our team typically responds within 1 business day.
 
 ---
-Vee Power Electricals Private Limited
-Coimbatore, Tamil Nadu, India | support@veepower.in
+{{ company_name|default:"Vee Power Electricals" }}
+{{ company_city_state|default:"Coimbatore, Tamil Nadu, India" }} | {{ company_support_email|default:"support@veepowerelectricals.com" }}

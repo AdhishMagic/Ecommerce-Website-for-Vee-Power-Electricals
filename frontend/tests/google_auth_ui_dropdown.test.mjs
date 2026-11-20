@@ -21,24 +21,31 @@ describe("Issue 5: Google Sign-In UI Flickering, Dropdown Clipping & Account Sel
   describe("1. GoogleSignInButton Flicker Prevention & Stability", () => {
     const buttonSrc = fs.readFileSync(buttonPath, "utf-8");
 
-    test("Initializes fallback state synchronously to eliminate localhost frame-0 flicker", () => {
+    test("Reserves neutral skeleton container while GIS initializes to eliminate button text flicker", () => {
       assert.match(
         buttonSrc,
-        /const\s+\[gisRenderFallback,\s*setGisRenderFallback\]\s*=\s*useState\(\(\)\s*=>\s*isLocalhost\);/,
-        "Must use lazy initializer useState(() => isLocalhost) to avoid 2-phase render flashes"
+        /data-testid="google-button-skeleton"/,
+        "Must render dedicated skeleton container while GIS initializes"
+      );
+      const skeletonMatch = buttonSrc.match(/data-testid="google-button-skeleton"[\s\S]*?<\/div>\s*<\/div>/);
+      assert.ok(skeletonMatch, "Skeleton container must be present in source");
+      assert.doesNotMatch(
+        skeletonMatch[0],
+        /Continue with Google/,
+        "Must NOT show generic text 'Continue with Google' inside loading skeleton"
       );
     });
 
-    test("Enforces stable button container dimensions and layout reserve", () => {
+    test("Enforces unclipped container dimensions with min-h-[44px] and overflow-visible", () => {
       assert.match(
         buttonSrc,
-        /min-h-\[44px\]\s+h-\[44px\]/,
-        "Container must have fixed min-h-[44px] h-[44px] to prevent layout jumps"
+        /min-h-\[44px\][\s\S]*?overflow-visible/,
+        "Container must have min-h-[44px] and overflow-visible to prevent clipping personalized button and dropdown"
       );
       assert.match(
         buttonSrc,
         /max-w-\[340px\]\s+h-\[44px\]/,
-        "Fallback button must reserve 44px height and max-w-[340px]"
+        "Skeleton and fallback button must match 44px height and max-w-[340px]"
       );
     });
 

@@ -81,14 +81,14 @@ class Step11ConfigurationTestCase(TestCase):
         self.store_config, _ = CompanyStoreConfiguration.objects.get_or_create(
             id=1,
             defaults={
-                'legal_company_name': 'Vee Power Electricals Private Limited',
+                'legal_company_name': 'Vee Power Electricals',
                 'brand_name': 'Vee Power Electricals',
-                'gstin': '33AABFV1234A1ZX',
+                'gstin': '33CKXPK4525R1Z9',
                 'pan': 'AABFV1234A',
                 'registered_address': 'No 28/1, MTP Road, Coimbatore - 641031',
                 'warehouse_address': 'No 28/1, MTP Road, Coimbatore - 641031',
-                'support_email': 'support@veepower.in',
-                'support_phone': '+91 98765 43210',
+                'support_email': 'support@veepowerelectricals.com',
+                'support_phone': '+91 8610359797',
                 'currency_code': 'INR',
                 'currency_symbol': '₹',
             }
@@ -183,7 +183,7 @@ class Step11ConfigurationTestCase(TestCase):
         # Public read
         res = self.client.get('/api/v1/config/store/')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(res.data['legal_company_name'], 'Vee Power Electricals Private Limited')
+        self.assertEqual(res.data['legal_company_name'], 'Vee Power Electricals')
 
         # Admin update
         self.client.force_authenticate(user=self.admin)

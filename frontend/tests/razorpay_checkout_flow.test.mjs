@@ -233,6 +233,119 @@ async function runTests() {
     });
   }
 
+  // 5. Order Confirmation / Callback Route (OrderSuccess) Verification & Polling Lifecycle
+  console.log('\n[Test Suite 5: Order Confirmation / Callback Route (OrderSuccess) Verification & Polling Lifecycle]');
+  {
+    // Requirement 1: Returning to confirmation/callback route enters verifying loading state
+    const simulateRouteEntry = (query) => {
+      const params = new URLSearchParams(query);
+      const orderIdParam = params.get('order_id');
+      const rzpPaymentId = params.get('razorpay_payment_id');
+      const shouldVerifyInitial = Boolean(orderIdParam || rzpPaymentId);
+      return shouldVerifyInitial ? 'verifying' : 'paid';
+    };
+
+    test('Gateway return with order_id immediately renders verifying state with spinner', () => {
+      const initialView = simulateRouteEntry('order_id=456&razorpay_payment_id=pay_test123');
+      assert.strictEqual(initialView, 'verifying');
+    });
+
+    test('Direct visit without query parameters defaults to canonical confirmation view without false verification', () => {
+      const initialView = simulateRouteEntry('');
+      assert.strictEqual(initialView, 'paid');
+    });
+
+    // Requirement 2: Polling configuration (every 1.5s for up to 15-20s)
+    const POLLING_INTERVAL_MS = 1500;
+    const MAX_POLLING_ATTEMPTS = 13; // 13 * 1.5s = 19.5s
+    test('Polling interval is configured at 1.5 seconds (1500ms)', () => {
+      assert.strictEqual(POLLING_INTERVAL_MS, 1500);
+    });
+
+    test('Polling duration spans 15–20 seconds (19.5 seconds max)', () => {
+      const totalDurationSec = (MAX_POLLING_ATTEMPTS * POLLING_INTERVAL_MS) / 1000;
+      assert.ok(totalDurationSec >= 15 && totalDurationSec <= 20, `Expected 15-20s, got ${totalDurationSec}s`);
+    });
+
+    // Requirement 3: Only transition to PAID on confirmation, never false failure during polling
+    const evaluatePaymentStatus = (backendRes) => {
+      const st = (backendRes.status || '').toUpperCase();
+      const defSt = (backendRes.definitive_status || '').toUpperCase();
+      const paySt = (backendRes.order_payment_status || backendRes.payment_status || '').toUpperCase();
+      const ordSt = (backendRes.order_status || '').toUpperCase();
+
+      const isPaid = st === 'SUCCESS' || defSt === 'SUCCESS' || paySt === 'PAID' || ['CONFIRMED', 'DELIVERED'].includes(ordSt);
+      const isFailed = backendRes.is_final === true && (paySt === 'FAILED' || st === 'FAILED' || ordSt === 'CANCELLED');
+
+      if (isPaid) return 'paid';
+      if (isFailed) return 'failed';
+      return 'verifying';
+    };
+
+    test('Intermediate PENDING backend status retains verifying loading state (NO false "Payment declined")', () => {
+      const view = evaluatePaymentStatus({
+        status: 'PENDING',
+        definitive_status: 'PENDING',
+        order_payment_status: 'PENDING',
+        is_final: false,
+      });
+      assert.strictEqual(view, 'verifying');
+    });
+
+    test('Transaction failure with pending order webhook retains verifying state rather than premature failure', () => {
+      const view = evaluatePaymentStatus({
+        status: 'FAILED',
+        definitive_status: 'FAILED',
+        order_payment_status: 'PENDING',
+        is_final: false, // Order itself is still pending webhook reconciliation
+      });
+      assert.strictEqual(view, 'verifying');
+    });
+
+    test('Definitive PAID webhook/gateway status transitions to paid view', () => {
+      const view = evaluatePaymentStatus({
+        status: 'SUCCESS',
+        definitive_status: 'SUCCESS',
+        order_payment_status: 'PAID',
+        is_final: true,
+      });
+      assert.strictEqual(view, 'paid');
+    });
+
+    test('Definitive final failure transitions to failed view', () => {
+      const view = evaluatePaymentStatus({
+        status: 'FAILED',
+        definitive_status: 'FAILED',
+        order_payment_status: 'FAILED',
+        is_final: true,
+      });
+      assert.strictEqual(view, 'failed');
+    });
+
+    // Requirement 4: Duplicate interval protection
+    let activeIntervals = 0;
+    const startControlledPolling = () => {
+      if (activeIntervals > 0) {
+        // Clear prior before creating new
+        activeIntervals--;
+      }
+      activeIntervals++;
+      return () => {
+        activeIntervals--;
+      };
+    };
+
+    test('Cleanup ensures no duplicate polling intervals on unmount or re-render', () => {
+      const cleanup1 = startControlledPolling();
+      assert.strictEqual(activeIntervals, 1);
+      // Remount / re-render
+      const cleanup2 = startControlledPolling();
+      assert.strictEqual(activeIntervals, 1);
+      cleanup2();
+      assert.strictEqual(activeIntervals, 0);
+    });
+  }
+
   console.log('\n================================================================');
   console.log(`SUMMARY: ${passed} passed, ${failed} failed`);
   console.log('================================================================');

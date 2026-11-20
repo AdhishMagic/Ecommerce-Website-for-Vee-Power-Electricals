@@ -234,6 +234,18 @@ FRONTEND_URL = os.getenv('FRONTEND_URL', os.getenv('FRONTEND_BASE_URL', 'http://
 FRONTEND_BASE_URL = FRONTEND_URL
 BACKEND_BASE_URL = os.getenv('BACKEND_BASE_URL', 'http://localhost:8000').rstrip('/')
 
+# Central Company & Business Profile Configuration
+COMPANY_NAME = os.getenv('COMPANY_NAME', 'Vee Power Electricals')
+COMPANY_LEGAL_NAME = os.getenv('COMPANY_LEGAL_NAME', 'Vee Power Electricals')
+COMPANY_GSTIN = os.getenv('COMPANY_GSTIN', '33CKXPK4525R1Z9')
+COMPANY_PHONE = os.getenv('COMPANY_PHONE', '+91 8610359797')
+COMPANY_SUPPORT_EMAIL = os.getenv('COMPANY_SUPPORT_EMAIL', 'support@veepowerelectricals.com')
+COMPANY_ADDRESS = os.getenv(
+    'COMPANY_ADDRESS',
+    'No 28/1, 2nd floor, MTP Road, Muthu nagar, NSN palayam, Coimbatore - 641031'
+)
+COMPANY_CITY_STATE = os.getenv('COMPANY_CITY_STATE', 'Coimbatore, Tamil Nadu, India')
+
 # Brevo Transactional Email Configuration
 BREVO_API_KEY = os.getenv('BREVO_API_KEY', '')
 BREVO_SENDER_EMAIL = os.getenv('BREVO_SENDER_EMAIL', 'veepower.cbe@gmail.com')

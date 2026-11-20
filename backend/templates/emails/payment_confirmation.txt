@@ -13,5 +13,5 @@ Payment Details:
 A statutory GST tax invoice has been generated for your purchase and is accessible in your account.
 
 ---
-Vee Power Electricals Private Limited
-Coimbatore, Tamil Nadu, India | support@veepower.in
+{{ company_name|default:"Vee Power Electricals" }}
+{{ company_city_state|default:"Coimbatore, Tamil Nadu, India" }} | {{ company_support_email|default:"support@veepowerelectricals.com" }}

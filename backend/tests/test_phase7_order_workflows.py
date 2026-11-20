@@ -270,7 +270,7 @@ class Phase7OrderWorkflowsTestCase(TestCase):
             contact_person='Mr. Sharma',
             email='electro@example.com',
             phone='+919876543210',
-            gstin='33AAAAA0000A1Z5',
+            gstin='33CKXPK4525R1Z9',
             credit_limit=Decimal('50000.00'),
             is_active=True,
         )

@@ -40,7 +40,7 @@ export default function Breadcrumbs({ items, className = '' }: BreadcrumbsProps)
               ) : (
                 <Link
                   to={targetUrl}
-                  className="inline-flex items-center hover:text-[#1769AA] transition-colors"
+                  className="inline-flex items-center hover:text-[#1769AA] hover:underline transition-colors cursor-pointer"
                 >
                   {index === 0 && <Home className="w-3.5 h-3.5 mr-1" aria-hidden="true" />}
                   {item.label}

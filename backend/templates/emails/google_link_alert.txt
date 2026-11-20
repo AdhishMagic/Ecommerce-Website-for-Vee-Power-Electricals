@@ -7,9 +7,9 @@ Your Google Account ({{ google_email|default:customer_email }}) was successfully
 You can now use Google Sign-In to securely access your account.
 
 SECURITY NOTICE:
-If you did not authorize this action, please contact our support team immediately at support@veepower.in to protect your account.
+If you did not authorize this action, please contact our support team immediately at {{ company_support_email|default:"support@veepowerelectricals.com" }} to protect your account.
 
 ---
-Vee Power Electricals Private Limited
-Coimbatore, Tamil Nadu, India
-Support: support@veepower.in | Phone: +91 98765 43210
+{{ company_name|default:"Vee Power Electricals" }}
+{{ company_city_state|default:"Coimbatore, Tamil Nadu, India" }}
+Support: {{ company_support_email|default:"support@veepowerelectricals.com" }} | Phone: {{ company_phone|default:"+91 8610359797" }}

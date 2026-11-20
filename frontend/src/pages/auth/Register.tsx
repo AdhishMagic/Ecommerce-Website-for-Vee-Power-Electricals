@@ -262,11 +262,13 @@ export default function Register() {
           </div>
         )}
 
-        <GoogleSignInButton
-          onCredential={handleGoogleCredential}
-          disabled={isLoading || authStatus !== "idle"}
-          selectAccount={isSelectAccount}
-        />
+        <div className="w-full flex justify-center overflow-visible">
+          <GoogleSignInButton
+            onCredential={handleGoogleCredential}
+            disabled={isLoading || authStatus !== "idle"}
+            selectAccount={isSelectAccount}
+          />
+        </div>
 
         <p className="text-center text-xs sm:text-sm text-muted mt-4">
           Already have an account?{" "}

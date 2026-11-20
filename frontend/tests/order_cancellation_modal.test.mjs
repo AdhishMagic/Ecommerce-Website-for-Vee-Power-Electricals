@@ -13,12 +13,11 @@ const modalPath = path.resolve(__dirname, "../src/components/customer/OrderCance
 assert.ok(fs.existsSync(modalPath), "OrderCancellationModal.tsx must exist");
 const modalContent = fs.readFileSync(modalPath, "utf-8");
 
-assert.ok(modalContent.includes("Cancel Your Order?"), "Modal must contain title 'Cancel Your Order?'");
 assert.ok(
-  modalContent.includes("Are you sure you want to cancel this order? This action may not be reversible."),
-  "Modal must contain description 'Are you sure you want to cancel this order? This action may not be reversible.'"
+  modalContent.includes("Are you sure you want to cancel this order?"),
+  "Modal must contain asking title 'Are you sure you want to cancel this order?'"
 );
-assert.ok(modalContent.includes("Confirm Cancellation"), "Modal must have 'Confirm Cancellation' button");
+assert.ok(modalContent.includes("Yes, Cancel Order"), "Modal must have 'Yes, Cancel Order' button");
 assert.ok(modalContent.includes("Keep Order"), "Modal must have 'Keep Order' button");
 
 // Check the 6 required reason options
@@ -42,9 +41,11 @@ assert.ok(modalContent.includes('e.key === "Escape"'), "Modal must close on Esca
 assert.ok(modalContent.includes("handleBackdropClick"), "Modal must close on outer backdrop click");
 assert.ok(modalContent.includes("e.stopPropagation()"), "Modal must prevent clicks inside modal from closing");
 
-// Check submission states and loading spinner
-assert.ok(modalContent.includes("Cancelling Order..."), "Modal must show cancelling loading indicator");
+// Check submission states, loading spinner, and double-submit prevention
+assert.ok(modalContent.includes("Cancelling..."), "Modal must show 'Cancelling...' loading indicator");
 assert.ok(modalContent.includes("isSubmitting"), "Modal must track isSubmitting state to prevent duplicate submissions");
+assert.ok(modalContent.includes("role=\"dialog\""), "Modal must have role='dialog'");
+assert.ok(modalContent.includes("aria-modal=\"true\""), "Modal must have aria-modal='true'");
 
 // 2. Verify Account.tsx integration
 const accountPath = path.resolve(__dirname, "../src/pages/customer/Account.tsx");

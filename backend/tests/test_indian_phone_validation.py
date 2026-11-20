@@ -19,6 +19,7 @@ from apps.users.serializers import UserRegistrationSerializer, UserProfileUpdate
 from apps.users.serializers_customer import CustomerCreateSerializer, CustomerUpdateSerializer
 from apps.core.serializers import ContactInquiryPublicSerializer
 from apps.finance.serializers import ClientSerializer
+from apps.orders.serializers import OrderDetailSerializer, OrderCreateSerializer, CheckoutInputSerializer
 from apps.orders.services.checkout_service import CheckoutService
 from apps.products.models import Product, Category, Brand
 
@@ -309,3 +310,32 @@ class CheckoutAddressValidationTests(TestCase):
         )
         self.assertIsNotNone(order)
         self.assertEqual(order.customer_phone, "+919876543210")
+
+
+class OrderSerializerPhoneValidationTests(TestCase):
+    """
+    Test Order serializers phone validation against non-numeric and invalid values like 'Abcd'.
+    """
+
+    def test_order_create_serializer_rejects_invalid_phone(self):
+        invalid_phones = ["Abcd", "12345", "0000000000", "5123456789", "ABCD123456"]
+        for bad in invalid_phones:
+            with self.subTest(bad=bad):
+                serializer = OrderCreateSerializer(data={"customer_phone": bad})
+                self.assertFalse(serializer.is_valid())
+                self.assertIn("customer_phone", serializer.errors)
+                self.assertIn(INDIAN_PHONE_ERROR_MESSAGE, str(serializer.errors["customer_phone"]))
+
+    def test_order_create_serializer_accepts_valid_phone(self):
+        valid_phones = ["9876543210", "8765432109", "7654321098", "6123456789", "+919876543210"]
+        for good in valid_phones:
+            with self.subTest(good=good):
+                serializer = OrderCreateSerializer(data={"customer_phone": good})
+                serializer.is_valid()
+                self.assertNotIn("customer_phone", serializer.errors)
+
+    def test_checkout_input_serializer_rejects_invalid_phone(self):
+        serializer = CheckoutInputSerializer(data={"customer_phone": "Abcd"})
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("customer_phone", serializer.errors)
+        self.assertIn(INDIAN_PHONE_ERROR_MESSAGE, str(serializer.errors["customer_phone"]))

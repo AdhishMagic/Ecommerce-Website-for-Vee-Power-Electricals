@@ -41,11 +41,11 @@
           <tr>
             <td style="background-color: #F8FAFC; padding: 24px 32px; border-top: 1px solid #E2E8F0; text-align: center;">
               <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: 600; color: #475569;">
-                Vee Power Electricals Private Limited
+                {{ company_name|default:"Vee Power Electricals" }}
               </p>
               <p style="margin: 0 0 8px 0; font-size: 12px; color: #64748B; line-height: 1.5;">
-                Coimbatore, Tamil Nadu, India | GSTIN: 33AAAAA0000A1Z5<br>
-                Support: <a href="mailto:support@veepower.in" style="color: #1769AA; text-decoration: none;">support@veepower.in</a> | Phone: +91 98765 43210
+                {{ company_city_state|default:"Coimbatore, Tamil Nadu, India" }} | GSTIN: {{ company_gstin|default:"33CKXPK4525R1Z9" }}<br>
+                Support: <a href="mailto:{{ company_support_email|default:'support@veepowerelectricals.com' }}" style="color: #1769AA; text-decoration: none;">{{ company_support_email|default:'support@veepowerelectricals.com' }}</a> | Phone: {{ company_phone|default:"+91 8610359797" }}
               </p>
               <p style="margin: 0; font-size: 11px; color: #94A3B8;">
                 This is an automated operational notification. Please do not reply directly to this email.

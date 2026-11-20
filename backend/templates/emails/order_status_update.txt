@@ -10,5 +10,5 @@ Your order (#{{ order_number }}) status has changed to: {{ status_display }}
 View your order: {{ frontend_url }}/account/orders
 
 ---
-Vee Power Electricals Private Limited
-Coimbatore, Tamil Nadu, India | support@veepower.in
+{{ company_name|default:"Vee Power Electricals" }}
+{{ company_city_state|default:"Coimbatore, Tamil Nadu, India" }} | {{ company_support_email|default:"support@veepowerelectricals.com" }}

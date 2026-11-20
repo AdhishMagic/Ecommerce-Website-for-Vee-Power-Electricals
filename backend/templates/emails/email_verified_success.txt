@@ -7,6 +7,6 @@ Your email address {{ customer_email }} has been successfully verified. Your acc
 Visit our store: {{ frontend_url }}/shop
 
 ---
-Vee Power Electricals Private Limited
-Coimbatore, Tamil Nadu, India
-Support: support@veepower.in | Phone: +91 98765 43210
+{{ company_name|default:"Vee Power Electricals" }}
+{{ company_city_state|default:"Coimbatore, Tamil Nadu, India" }}
+Support: {{ company_support_email|default:"support@veepowerelectricals.com" }} | Phone: {{ company_phone|default:"+91 8610359797" }}

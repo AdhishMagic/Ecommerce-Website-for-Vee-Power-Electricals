@@ -73,8 +73,8 @@ class Phase7APIIntegrationTestCase(TestCase):
         # Configurations
         CompanyStoreConfiguration.objects.create(
             legal_company_name='Vee Power Electricals',
-            support_email='support@veepower.in',
-            support_phone='+919876543210',
+            support_email='support@veepowerelectricals.com',
+            support_phone='+918610359797',
         )
         TaxConfiguration.objects.create(
             business_state='Tamil Nadu',

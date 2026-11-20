@@ -247,9 +247,15 @@ def generate_oauth_state() -> str:
     return secrets.token_urlsafe(32)
 
 
-def build_google_auth_url(state: str, code_challenge: str | None = None) -> str:
+def build_google_auth_url(
+    state: str,
+    code_challenge: str | None = None,
+    prompt: str | None = None,
+) -> str:
     """
     Construct the Google OAuth 2.0 authorization URL.
+    Only includes `prompt` (e.g. 'select_account') when explicitly requested,
+    allowing direct sign-in with active Google session credentials by default.
     """
     client_id = getattr(settings, 'GOOGLE_CLIENT_ID', '') or ''
     if not client_id:
@@ -266,8 +272,9 @@ def build_google_auth_url(state: str, code_challenge: str | None = None) -> str:
         'scope': scopes,
         'state': state,
         'access_type': 'online',
-        'prompt': 'select_account',
     }
+    if prompt:
+        params['prompt'] = prompt
     if code_challenge:
         params['code_challenge'] = code_challenge
         params['code_challenge_method'] = 'S256'

@@ -19,8 +19,8 @@ export interface PaymentVerificationViewProps {
   onCancel?: () => void;
 }
 
-const MAX_POLLING_ATTEMPTS = 8; // 8 attempts * 1 second = 8 seconds max
-const POLLING_INTERVAL_MS = 1000;
+const MAX_POLLING_ATTEMPTS = 13; // 13 attempts * 1.5 seconds = 19.5 seconds max (up to 15-20s)
+const POLLING_INTERVAL_MS = 1500; // Query verification endpoint every 1.5 seconds
 
 export const PaymentVerificationView: React.FC<PaymentVerificationViewProps> = ({
   orderId,
@@ -253,7 +253,7 @@ export const PaymentVerificationView: React.FC<PaymentVerificationViewProps> = (
 
             <p className="text-xs text-[#667085] mb-6">
               {statusMessage}
-              {pollCount > 0 && ` (Checking: ${pollCount}s / 8s)`}
+              {pollCount > 0 && ` (Checking: ${Math.round(pollCount * 1.5)}s / 20s)`}
             </p>
 
             {/* Order Details Preview Box */}

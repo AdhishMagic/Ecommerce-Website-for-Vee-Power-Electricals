@@ -10,7 +10,12 @@ import { CustomerAddress, DeliveryConfiguration, PaymentIntentResponse } from ".
 import { resolveProductImage, handleProductImageError } from "../../utils/productImageResolver";
 import { loadRazorpayScript, isRazorpayLoaded } from "../../utils/razorpay";
 import PaymentVerificationView from "../../components/customer/PaymentVerificationView";
-import { isValidIndianPhone, INDIAN_PHONE_ERROR_MESSAGE, sanitizePhoneInput } from "../../utils/phoneValidation";
+import {
+  isValidIndianPhone,
+  INDIAN_PHONE_ERROR_MESSAGE,
+  sanitizePhoneInput,
+  formatPhoneForInput,
+} from "../../utils/phoneValidation";
 
 const steps = ["Address", "Review", "Payment", "Confirm"];
 
@@ -69,10 +74,19 @@ export default function Checkout() {
       setNewAddress(prev => ({
         ...prev,
         name: prev.name || user.name || '',
-        phone: prev.phone || user.phone || '',
+        phone: prev.phone || formatPhoneForInput(user.phone || ''),
       }));
     }
   }, [user]);
+
+  const handleCheckoutPhoneBlur = () => {
+    const cleanPhone = newAddress.phone.trim();
+    if (!cleanPhone || !isValidIndianPhone(cleanPhone)) {
+      setPhoneError(INDIAN_PHONE_ERROR_MESSAGE);
+    } else {
+      setPhoneError("");
+    }
+  };
 
   // Single Item Checkout Logic
   const singleItemState = location.state as { singleItem: string, quantity: number } | null;
@@ -404,11 +418,12 @@ export default function Checkout() {
 
         const rzp = new rzpConstructor(options);
         rzp.on('payment.failed', (failRes: any) => {
-          const reason = failRes?.error?.description || failRes?.error?.reason || "Payment was declined by your bank or gateway.";
-          console.warn("Razorpay payment.failed event received:", reason);
+          // Never display payment failed immediately upon GPay/UPI app switch!
+          // Poll backend to confirm definitive status via verification state
+          console.warn("Razorpay payment.failed event received. Verifying authoritative backend status...", failRes);
           setIsSubmittingOrder(false);
-          setPaymentErrorMessage(reason);
-          setPaymentLifecycle('failed');
+          setVerifyingOrderId(Number(targetOrder.id));
+          setPaymentLifecycle('verifying');
         });
         rzp.open();
       } else {
@@ -635,19 +650,20 @@ export default function Checkout() {
                             <input
                               type="tel"
                               inputMode="numeric"
-                              maxLength={16}
+                              maxLength={10}
                               value={newAddress.phone}
                               onChange={e => {
                                 const sanitized = sanitizePhoneInput(e.target.value);
                                 setNewAddress(a => ({...a, phone: sanitized}));
                                 if (phoneError) setPhoneError("");
                               }}
+                              onBlur={handleCheckoutPhoneBlur}
                               className={`w-full border rounded-lg px-3 py-2.5 text-sm outline-none transition-colors ${
                                 phoneError ? "border-red-500 focus:border-red-500 bg-red-50/20" : "border-[#D9E1E8] focus:border-[#1769AA]"
                               }`}
-                              placeholder="+91 98765 43210"
+                              placeholder="9876543210"
                             />
-                            {phoneError && <p className="text-xs text-red-600 mt-1">{phoneError}</p>}
+                            {phoneError && <p className="text-xs text-red-600 mt-1 font-medium">{phoneError}</p>}
                           </div>
                         </div>
                         <div>

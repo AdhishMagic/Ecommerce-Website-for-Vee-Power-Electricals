@@ -21,6 +21,9 @@ class CustomerAddressSerializer(serializers.ModelSerializer):
     def validate_phone(self, value):
         return validate_indian_phone(value)
 
+    def validate_customer_phone(self, value):
+        return validate_indian_phone(value)
+
     def validate_pincode(self, value):
         cleaned = value.strip()
         if not re.match(r'^[1-9][0-9]{5}$', cleaned):

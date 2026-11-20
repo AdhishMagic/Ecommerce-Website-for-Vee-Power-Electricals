@@ -45,6 +45,54 @@ class CommunicationService:
         return getattr(settings, 'FRONTEND_BASE_URL', getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')).rstrip('/')
 
     @classmethod
+    def get_company_context(cls) -> Dict[str, str]:
+        """
+        Retrieve authoritative company details for transactional email rendering.
+        Prefers database-configured CompanyStoreConfiguration if present,
+        otherwise falls back to central Django settings and environment variables.
+        """
+        company_name = getattr(settings, 'COMPANY_NAME', 'Vee Power Electricals')
+        company_legal_name = getattr(settings, 'COMPANY_LEGAL_NAME', 'Vee Power Electricals')
+        company_gstin = getattr(settings, 'COMPANY_GSTIN', '33CKXPK4525R1Z9')
+        company_phone = getattr(settings, 'COMPANY_PHONE', '+91 8610359797')
+        company_support_email = getattr(settings, 'COMPANY_SUPPORT_EMAIL', 'support@veepowerelectricals.com')
+        company_address = getattr(
+            settings,
+            'COMPANY_ADDRESS',
+            'No 28/1, 2nd floor, MTP Road, Muthu nagar, NSN palayam, Coimbatore - 641031'
+        )
+        company_city_state = getattr(settings, 'COMPANY_CITY_STATE', 'Coimbatore, Tamil Nadu, India')
+
+        try:
+            from apps.commercial_config.models import CompanyStoreConfiguration
+            config = CompanyStoreConfiguration.objects.first()
+            if config:
+                if config.brand_name:
+                    company_name = config.brand_name
+                if config.legal_company_name:
+                    company_legal_name = config.legal_company_name
+                if config.gstin:
+                    company_gstin = config.gstin
+                if config.support_phone:
+                    company_phone = config.support_phone
+                if config.support_email:
+                    company_support_email = config.support_email
+                if config.registered_address:
+                    company_address = config.registered_address
+        except Exception:
+            pass
+
+        return {
+            'company_name': company_name,
+            'company_legal_name': company_legal_name,
+            'company_gstin': company_gstin,
+            'company_phone': company_phone,
+            'company_support_email': company_support_email,
+            'company_address': company_address,
+            'company_city_state': company_city_state,
+        }
+
+    @classmethod
     def validate_recipient_email(cls, email: Optional[str]) -> Optional[str]:
         """
         Validate and sanitize recipient email.
@@ -221,9 +269,11 @@ class CommunicationService:
             )
             return existing_log
 
-        # 5. Ensure frontend_url is available in template context
+        # 5. Ensure frontend_url and central company context are available in template context
         merged_context = dict(context)
         merged_context.setdefault('frontend_url', cls.get_frontend_url())
+        for key, val in cls.get_company_context().items():
+            merged_context.setdefault(key, val)
 
         # Render templates safely
         try:

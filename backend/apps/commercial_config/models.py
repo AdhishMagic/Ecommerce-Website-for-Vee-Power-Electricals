@@ -306,7 +306,7 @@ class CompanyStoreConfiguration(models.Model):
     """
     legal_company_name = models.CharField(max_length=200, default='Vee Power Electricals')
     brand_name = models.CharField(max_length=150, default='Vee Power Electricals')
-    gstin = models.CharField(max_length=15, default='33AABFV1234A1ZX')
+    gstin = models.CharField(max_length=15, default='33CKXPK4525R1Z9')
     pan = models.CharField(max_length=10, default='AABFV1234A')
     registered_address = models.TextField(
         default='No 28/1, 2nd floor, MTP Road, Muthu nagar, NSN palayam, Coimbatore - 641031'
@@ -314,8 +314,8 @@ class CompanyStoreConfiguration(models.Model):
     warehouse_address = models.TextField(
         default='No 28/1, 2nd floor, MTP Road, Muthu nagar, NSN palayam, Coimbatore - 641031'
     )
-    support_email = models.EmailField(max_length=255, default='support@veepower.in')
-    support_phone = models.CharField(max_length=20, default='+91 98765 43210')
+    support_email = models.EmailField(max_length=255, default='support@veepowerelectricals.com')
+    support_phone = models.CharField(max_length=20, default='+91 8610359797')
     bank_name = models.CharField(max_length=150, default='State Bank of India')
     bank_account_number = models.CharField(max_length=50, default='38492019482')
     bank_ifsc = models.CharField(max_length=20, default='SBIN0001234')

@@ -106,7 +106,7 @@ class Step10FinanceDomainTests(TestCase):
             client_code='CLI-TN-001',
             company_name='Vee Heavy Industries Ltd',
             contact_person='Senthil Nathan',
-            gstin='33AAAAA0000A1Z5',
+            gstin='33CKXPK4525R1Z9',
             email='accounts@veeheavy.com',
             phone='+919876543210',
             credit_limit=Decimal('50000.00'),

@@ -227,7 +227,12 @@ class GoogleOAuthInitView(APIView):
                 request.session['google_oauth_frontend_url'] = frontend_url
             request.session.modified = True
 
-        auth_url = build_google_auth_url(state=state, code_challenge=code_challenge)
+        prompt = (request.GET.get('prompt') or '').strip()
+        auth_url = build_google_auth_url(
+            state=state,
+            code_challenge=code_challenge,
+            prompt=prompt or None,
+        )
 
         # Allow SPA / API callers to receive auth_url via JSON
         if request.GET.get('format') == 'json' or 'application/json' in request.headers.get('Accept', ''):

@@ -8,8 +8,8 @@ Account Overview:
 
 Browse our catalog: {{ frontend_url }}/shop
 
-If you have any questions or need custom quotation assistance, contact us at support@veepower.in.
+If you have any questions or need custom quotation assistance, contact us at {{ company_support_email|default:"support@veepowerelectricals.com" }}.
 
 ---
-Vee Power Electricals Private Limited
-Coimbatore, Tamil Nadu, India | GSTIN: 33AAAAA0000A1Z5
+{{ company_name|default:"Vee Power Electricals" }}
+{{ company_city_state|default:"Coimbatore, Tamil Nadu, India" }} | GSTIN: {{ company_gstin|default:"33CKXPK4525R1Z9" }}

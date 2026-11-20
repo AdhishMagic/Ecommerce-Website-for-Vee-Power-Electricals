@@ -13,7 +13,12 @@ import CustomerSidebar, { CustomerTabId } from "../../components/customer/Custom
 import OrderCard from "../../components/customer/OrderCard";
 import OrderDetailView from "../../components/customer/OrderDetailView";
 import OrderCancellationModal from "../../components/customer/OrderCancellationModal";
-import { isValidIndianPhone, INDIAN_PHONE_ERROR_MESSAGE, sanitizePhoneInput } from "../../utils/phoneValidation";
+import {
+  isValidIndianPhone,
+  INDIAN_PHONE_ERROR_MESSAGE,
+  sanitizePhoneInput,
+  formatPhoneForInput,
+} from "../../utils/phoneValidation";
 
 type OrderFilterType = "all" | "in_progress" | "delivered" | "cancelled_returns";
 
@@ -50,6 +55,7 @@ export default function Account() {
   const [isAddressFormOpen, setIsAddressFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [addressError, setAddressError] = useState("");
+  const [addressPhoneError, setAddressPhoneError] = useState("");
   const [addressForm, setAddressForm] = useState({
     recipient_name: "",
     phone: "",
@@ -67,6 +73,7 @@ export default function Account() {
   const [profileFirstName, setProfileFirstName] = useState("");
   const [profileLastName, setProfileLastName] = useState("");
   const [profilePhone, setProfilePhone] = useState("");
+  const [profilePhoneError, setProfilePhoneError] = useState("");
   const [profileSuccess, setProfileSuccess] = useState(false);
   const [profileError, setProfileError] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
@@ -86,7 +93,7 @@ export default function Account() {
       const parts = cleanName ? cleanName.split(/\s+/) : [];
       setProfileFirstName(user.first_name || parts[0] || "");
       setProfileLastName(cleanLastName || (parts.length > 1 ? parts.slice(1).join(" ") : ""));
-      setProfilePhone(user.phone || "");
+      setProfilePhone(formatPhoneForInput(user.phone || ""));
     }
   }, [user]);
 
@@ -196,9 +203,10 @@ export default function Account() {
   const openAddAddress = () => {
     setEditingId(null);
     setAddressError("");
+    setAddressPhoneError("");
     setAddressForm({
       recipient_name: user?.name || "",
-      phone: user?.phone || "",
+      phone: formatPhoneForInput(user?.phone || ""),
       address_line1: "",
       address_line2: "",
       landmark: "",
@@ -214,9 +222,10 @@ export default function Account() {
   const openEditAddress = (addr: CustomerAddress) => {
     setEditingId(addr.id);
     setAddressError("");
+    setAddressPhoneError("");
     setAddressForm({
       recipient_name: addr.recipient_name,
-      phone: addr.phone,
+      phone: formatPhoneForInput(addr.phone),
       address_line1: addr.address_line1,
       address_line2: addr.address_line2 || "",
       landmark: addr.landmark || "",
@@ -227,6 +236,15 @@ export default function Account() {
       is_default: addr.is_default,
     });
     setIsAddressFormOpen(true);
+  };
+
+  const handleAddressPhoneBlur = () => {
+    const cleanPhone = addressForm.phone.trim();
+    if (!cleanPhone || !isValidIndianPhone(cleanPhone)) {
+      setAddressPhoneError(INDIAN_PHONE_ERROR_MESSAGE);
+    } else {
+      setAddressPhoneError("");
+    }
   };
 
   const handleDeleteAddress = async (id: number) => {
@@ -243,8 +261,11 @@ export default function Account() {
   const saveAddress = async (e: React.FormEvent) => {
     e.preventDefault();
     setAddressError("");
+    setAddressPhoneError("");
 
-    if (!isValidIndianPhone(addressForm.phone)) {
+    const cleanPhone = addressForm.phone.trim();
+    if (!cleanPhone || !isValidIndianPhone(cleanPhone)) {
+      setAddressPhoneError(INDIAN_PHONE_ERROR_MESSAGE);
       setAddressError(INDIAN_PHONE_ERROR_MESSAGE);
       return;
     }
@@ -341,14 +362,14 @@ export default function Account() {
       });
 
       // Update selectedOrder if open
-      if (selectedOrder && selectedOrder.id === orderToCancel.id) {
+      if (selectedOrder && (selectedOrder.id === orderToCancel.id || String(selectedOrder.id) === String(orderToCancel.id))) {
         setSelectedOrder(updated);
       }
 
       // Update orders list immediately in place
       setOrders((prevOrders) =>
         prevOrders.map((o) =>
-          o.id === orderToCancel.id
+          o.id === orderToCancel.id || String(o.id) === String(orderToCancel.id)
             ? {
                 ...o,
                 status: updated.status,
@@ -400,13 +421,25 @@ export default function Account() {
     }
   };
 
+  const handleProfilePhoneBlur = () => {
+    const cleanPhone = profilePhone.trim();
+    if (cleanPhone && !isValidIndianPhone(cleanPhone)) {
+      setProfilePhoneError(INDIAN_PHONE_ERROR_MESSAGE);
+    } else {
+      setProfilePhoneError("");
+    }
+  };
+
   // Profile Save Action
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileError("");
+    setProfilePhoneError("");
     setProfileSuccess(false);
 
-    if (profilePhone.trim() && !isValidIndianPhone(profilePhone.trim())) {
+    const cleanPhone = profilePhone.trim();
+    if (cleanPhone && !isValidIndianPhone(cleanPhone)) {
+      setProfilePhoneError(INDIAN_PHONE_ERROR_MESSAGE);
       setProfileError(INDIAN_PHONE_ERROR_MESSAGE);
       return;
     }
@@ -433,7 +466,10 @@ export default function Account() {
           className="flex items-center gap-2 text-xs font-medium text-[#667085] mb-5 sm:mb-6 flex-wrap min-w-0"
           aria-label="Breadcrumb"
         >
-          <Link to="/" className="hover:text-[#1769AA] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#1769AA] rounded">
+          <Link
+            to="/"
+            className="hover:text-[#1769AA] hover:underline transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#1769AA] rounded cursor-pointer"
+          >
             Home
           </Link>
           <span>/</span>
@@ -442,7 +478,7 @@ export default function Account() {
               <Link
                 to="/account/orders"
                 onClick={() => setSelectedOrder(null)}
-                className="hover:text-[#1769AA] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#1769AA] rounded cursor-pointer"
+                className="hover:text-[#1769AA] hover:underline transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#1769AA] rounded cursor-pointer"
               >
                 My Orders
               </Link>
@@ -456,7 +492,7 @@ export default function Account() {
               <Link
                 to="/account/orders"
                 onClick={() => setSelectedOrder(null)}
-                className="hover:text-[#1769AA] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#1769AA] rounded cursor-pointer"
+                className="hover:text-[#1769AA] hover:underline transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#1769AA] rounded cursor-pointer"
               >
                 My Orders
               </Link>
@@ -822,17 +858,26 @@ export default function Account() {
                               <input
                                 type="tel"
                                 inputMode="numeric"
-                                maxLength={16}
+                                maxLength={10}
                                 required
                                 value={addressForm.phone}
                                 onChange={(e) => {
                                   const sanitized = sanitizePhoneInput(e.target.value);
                                   setAddressForm({ ...addressForm, phone: sanitized });
+                                  if (addressPhoneError) setAddressPhoneError("");
                                   if (addressError) setAddressError("");
                                 }}
-                                placeholder="+91 98765 43210"
-                                className="w-full px-3.5 py-2.5 bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl text-xs sm:text-sm focus:bg-white focus:border-[#1769AA] outline-none"
+                                onBlur={handleAddressPhoneBlur}
+                                placeholder="9876543210"
+                                className={`w-full px-3.5 py-2.5 bg-[#F6F8FA] border rounded-xl text-xs sm:text-sm focus:bg-white outline-none transition-colors ${
+                                  addressPhoneError
+                                    ? "border-red-500 focus:border-red-500 bg-red-50/20"
+                                    : "border-[#D9E1E8] focus:border-[#1769AA]"
+                                }`}
                               />
+                              {addressPhoneError && (
+                                <p className="text-xs text-red-600 mt-1 font-medium">{addressPhoneError}</p>
+                              )}
                             </div>
                           </div>
                           <div>
@@ -1101,16 +1146,25 @@ export default function Account() {
                             <input
                               type="tel"
                               inputMode="numeric"
-                              maxLength={16}
+                              maxLength={10}
                               value={profilePhone}
                               onChange={(e) => {
                                 const sanitized = sanitizePhoneInput(e.target.value);
                                 setProfilePhone(sanitized);
+                                if (profilePhoneError) setProfilePhoneError("");
                                 if (profileError) setProfileError("");
                               }}
-                              className="w-full bg-[#F6F8FA] border border-[#D9E1E8] rounded-xl px-4 py-2.5 text-xs sm:text-sm outline-none focus:bg-white focus:border-[#1769AA] focus:ring-2 focus:ring-[#1769AA]/15 transition-all"
-                              placeholder="+91 98765 43210"
+                              onBlur={handleProfilePhoneBlur}
+                              className={`w-full bg-[#F6F8FA] border rounded-xl px-4 py-2.5 text-xs sm:text-sm outline-none focus:bg-white transition-all ${
+                                profilePhoneError
+                                  ? "border-red-500 focus:border-red-500 bg-red-50/20"
+                                  : "border-[#D9E1E8] focus:border-[#1769AA] focus:ring-2 focus:ring-[#1769AA]/15"
+                              }`}
+                              placeholder="9876543210"
                             />
+                            {profilePhoneError && (
+                              <p className="text-xs text-red-600 mt-1 font-medium">{profilePhoneError}</p>
+                            )}
                           </div>
                         </div>
                         <div className="mt-8 pt-5 border-t border-[#F1F5F9] flex justify-end">

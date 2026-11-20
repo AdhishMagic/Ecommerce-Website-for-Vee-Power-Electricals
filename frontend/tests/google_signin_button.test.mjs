@@ -49,9 +49,8 @@ test('GoogleSignInButton handles disabled state properly', () => {
   assert(buttonSource.includes('pointer-events-none') || buttonSource.includes('opacity-50'), 'Must disable interaction visually and functionally');
 });
 
-test('GoogleSignInButton handles Google Cloud origin detection (localhost fallback)', () => {
-  assert(buttonSource.includes('isLocalhost'), 'Must detect localhost origin');
-  assert(buttonSource.includes('setGisRenderFallback(true)'), 'Must immediately fallback to OAuth redirect on localhost');
+test('GoogleSignInButton handles fallback to OAuth redirect when GIS fails or times out', () => {
+  assert(buttonSource.includes('setGisRenderFallback(true)'), 'Must fallback to OAuth redirect on script failure or timeout');
 });
 
 test('GoogleSignInButton includes fallback to OAuth Redirect when GIS is blocked or fails', () => {

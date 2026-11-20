@@ -530,6 +530,7 @@ export interface PaymentTransaction {
   error_message?: string;
   order_status?: string;
   order_payment_status?: string;
+  payment_status?: string;
   payment_method: string;
   created_at: string;
 }

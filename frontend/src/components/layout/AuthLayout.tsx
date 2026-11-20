@@ -44,7 +44,7 @@ export default function AuthLayout({ headline, headlineAccent, description, chil
         </div>
 
         <div className="bg-white px-8 py-8 sm:px-10 sm:py-9 lg:px-11 lg:py-10 flex flex-col justify-center overflow-y-auto">
-          <div className="mx-auto w-full max-w-[350px]">
+          <div className="mx-auto w-full max-w-[350px] overflow-visible">
             <div className="md:hidden mb-5">
               <Link to="/" className="inline-block">
                 <VeeElectricalsLogo variant="full" size="md" theme="color" id="auth-mobile-logo" />

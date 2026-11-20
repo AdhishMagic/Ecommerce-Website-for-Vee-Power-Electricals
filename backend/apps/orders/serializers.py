@@ -1,5 +1,6 @@
 from decimal import Decimal
 from rest_framework import serializers
+from apps.common.validators import validate_indian_phone
 from .models import Order, OrderItem, OrderStatusHistory, OrderStatus, PaymentStatus
 
 
@@ -62,6 +63,12 @@ class OrderListSerializer(serializers.ModelSerializer):
             'items_count', 'created_at'
         ]
         read_only_fields = fields
+
+    def validate_customer_phone(self, value):
+        return validate_indian_phone(value)
+
+    def validate_phone(self, value):
+        return validate_indian_phone(value)
 
     def get_items_count(self, obj) -> int:
         if hasattr(obj, 'annotated_items_count'):
@@ -126,6 +133,12 @@ class OrderDetailSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
+    def validate_customer_phone(self, value):
+        return validate_indian_phone(value)
+
+    def validate_phone(self, value):
+        return validate_indian_phone(value)
+
     def get_cancellation_reason(self, obj) -> str:
         if obj.status != OrderStatus.CANCELLED:
             return None
@@ -176,6 +189,37 @@ class CheckoutInputSerializer(serializers.Serializer):
     payment_method = serializers.CharField(required=False, default='UPI')
     coupon_code = serializers.CharField(required=False, allow_blank=True, default='')
     notes = serializers.CharField(required=False, allow_blank=True, default='')
+    customer_phone = serializers.CharField(required=False, allow_blank=True, default='')
+    phone = serializers.CharField(required=False, allow_blank=True, default='')
+
+    def validate_customer_phone(self, value):
+        if not value:
+            return ""
+        return validate_indian_phone(value)
+
+    def validate_phone(self, value):
+        if not value:
+            return ""
+        return validate_indian_phone(value)
+
+
+class OrderCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Order
+        fields = [
+            'id', 'user', 'customer_name', 'customer_email', 'customer_phone',
+            'shipping_address', 'billing_address', 'subtotal', 'total_amount',
+            'status', 'payment_status', 'payment_method',
+        ]
+
+    def validate_customer_phone(self, value):
+        return validate_indian_phone(value)
+
+    def validate_phone(self, value):
+        return validate_indian_phone(value)
+
+
+OrderSerializer = OrderDetailSerializer
 
 
 class OrderStatusUpdateSerializer(serializers.Serializer):

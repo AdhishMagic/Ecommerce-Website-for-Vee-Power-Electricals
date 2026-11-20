@@ -386,7 +386,7 @@ class Command(BaseCommand):
                 'contact_person': "Bala Adhish",
                 'email': RECIPIENT_2,
                 'phone': "+919876543211",
-                'gstin': "33AAAAA0000A1Z5",
+                'gstin': "33CKXPK4525R1Z9",
                 'credit_limit': Decimal('500000.00'),
             }
         )

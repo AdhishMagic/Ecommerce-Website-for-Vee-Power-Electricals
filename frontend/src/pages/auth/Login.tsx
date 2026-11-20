@@ -290,11 +290,13 @@ export default function Login() {
           </div>
         )}
 
-        <GoogleSignInButton
-          onCredential={handleGoogleCredential}
-          disabled={isLoading || authStatus !== "idle"}
-          selectAccount={isSelectAccount}
-        />
+        <div className="w-full flex justify-center overflow-visible">
+          <GoogleSignInButton
+            onCredential={handleGoogleCredential}
+            disabled={isLoading || authStatus !== "idle"}
+            selectAccount={isSelectAccount}
+          />
+        </div>
 
         <div className="mt-4.5 text-center text-xs sm:text-sm text-muted">
           Don't have an account?{" "}

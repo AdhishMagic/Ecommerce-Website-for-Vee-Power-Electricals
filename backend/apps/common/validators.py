@@ -4,7 +4,7 @@ from rest_framework import serializers
 
 
 INDIAN_MOBILE_REGEX = r'^[6-9][0-9]{9}$'
-INDIAN_PHONE_ERROR_MESSAGE = "Enter a valid 10-digit Indian mobile number starting with 6, 7, 8 or 9."
+INDIAN_PHONE_ERROR_MESSAGE = "Enter a valid 10-digit mobile number starting with 6–9"
 
 
 def normalize_indian_phone(value: Optional[str], required: bool = True) -> str:

@@ -37,6 +37,6 @@
 {% endif %}
 
 <p style="margin: 20px 0 0 0; font-size: 12px; color: #94A3B8; line-height: 1.5;">
-  If you did not create an account on Vee Power Electricals, please disregard this email or contact support at support@veepower.in.
+  If you did not create an account on Vee Power Electricals, please disregard this email or contact support at <a href="mailto:{{ company_support_email|default:'support@veepowerelectricals.com' }}" style="color: #64748B;">{{ company_support_email|default:'support@veepowerelectricals.com' }}</a>.
 </p>
 {% endblock %}

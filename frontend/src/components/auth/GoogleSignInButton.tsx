@@ -131,10 +131,10 @@ export default function GoogleSignInButton({
     typeof window !== "undefined" &&
     window.location.hostname === "localhost";
 
-  // Prevent initial flicker by matching expected fallback state synchronously
-  const [gisRenderFallback, setGisRenderFallback] = useState(() => isLocalhost);
+  // Reserve a neutral skeleton state while GIS initializes to eliminate button text flicker
+  const [gisRenderFallback, setGisRenderFallback] = useState(false);
   const [gisError, setGisError] = useState(false);
-  const [gisLoading, setGisLoading] = useState(() => !isLocalhost && isConfigured && !Boolean(window.google?.accounts?.id));
+  const [gisLoading, setGisLoading] = useState(() => isConfigured);
   const renderedRef = useRef(false);
 
   const getBackendOAuthUrl = useCallback(() => {
@@ -158,14 +158,6 @@ export default function GoogleSignInButton({
       return;
     }
 
-    if (isLocalhost) {
-      // Localhost is not in Google Cloud Console JavaScript origins (127.0.0.1 is registered).
-      // Immediately activate the branded OAuth redirect fallback button to avoid console errors or delays.
-      setGisRenderFallback(true);
-      setGisLoading(false);
-      return;
-    }
-
     let isMounted = true;
 
     loadGoogleIdentityServices()
@@ -182,6 +174,7 @@ export default function GoogleSignInButton({
         }
 
         try {
+          // Only disable auto-selection when explicitly prompted to switch/choose accounts
           if (selectAccount && window.google.accounts.id.disableAutoSelect) {
             window.google.accounts.id.disableAutoSelect();
           }
@@ -205,8 +198,8 @@ export default function GoogleSignInButton({
             size: "large",
             text: "continue_with",
             shape: "rectangular",
-            logo_alignment: "center",
-            width: 320,
+            logo_alignment: "left",
+            width: 340,
           });
 
           renderedRef.current = true;
@@ -230,7 +223,7 @@ export default function GoogleSignInButton({
                 setGisRenderFallback(true);
               }
             }
-          }, 1000);
+          }, 1500);
         } catch (initErr) {
           console.error("GIS render error:", initErr);
           if (isMounted) {
@@ -251,7 +244,7 @@ export default function GoogleSignInButton({
     return () => {
       isMounted = false;
     };
-  }, [isConfigured, isLocalhost, selectAccount]);
+  }, [isConfigured, selectAccount]);
 
   // Case 1: Missing Client ID configuration error
   if (!isConfigured) {
@@ -289,10 +282,10 @@ export default function GoogleSignInButton({
     );
   }
 
-  // Case 2: Localhost origin or GIS script failure or iframe render failure fallback
-  if (isLocalhost || gisError || gisRenderFallback) {
+  // Case 2: GIS script failure or iframe render failure fallback
+  if (gisError || gisRenderFallback) {
     return (
-      <div className={`w-full flex justify-center ${disabled ? "pointer-events-none opacity-50" : ""}`} data-testid="google-signin-fallback">
+      <div className={`w-full flex justify-center overflow-visible ${disabled ? "pointer-events-none opacity-50" : ""}`} data-testid="google-signin-fallback">
         <button
           type="button"
           onClick={handleOAuthRedirect}
@@ -313,26 +306,34 @@ export default function GoogleSignInButton({
     );
   }
 
-  // Case 3: Configured and rendering GIS iframe button with stable dimensions
+  // Case 3: Configured and rendering GIS iframe button with stable dimensions & overflow-visible dropdown
   return (
-    <div className={`w-full flex flex-col items-center justify-center relative min-h-[44px] h-[44px] ${disabled ? "pointer-events-none opacity-50 cursor-not-allowed" : ""}`}>
-      {/* Stable zero-delay Google Sign-In placeholder while iframe mounts */}
+    <div
+      className={`w-full flex flex-col items-center justify-center relative min-h-[44px] overflow-visible ${
+        disabled ? "pointer-events-none opacity-50 cursor-not-allowed" : ""
+      }`}
+    >
+      {/* Neutral skeleton placeholder matching Google button dimensions while GIS initializes to prevent text flicker */}
       {gisLoading && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-          <div className="w-full max-w-[340px] h-[44px] rounded-xl border border-[#D9E1E8] bg-white flex items-center justify-center gap-3 shadow-2xs">
+        <div
+          className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 overflow-visible"
+          data-testid="google-button-skeleton"
+          aria-hidden="true"
+        >
+          <div className="w-full max-w-[340px] h-[44px] rounded-xl border border-[#D9E1E8] bg-slate-50/70 flex items-center justify-center gap-3 shadow-2xs">
             <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" />
               <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z" />
               <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z" />
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z" />
             </svg>
-            <span className="text-sm font-medium text-[#3C4043] font-sans">Continue with Google</span>
+            <div className="h-3.5 w-32 rounded-md bg-slate-200/80 animate-pulse" />
           </div>
         </div>
       )}
       <div
         ref={containerRef}
-        className="flex w-full justify-center min-h-[44px] h-[44px] items-center relative z-10"
+        className="flex w-full justify-center min-h-[44px] items-center relative z-10 overflow-visible"
         data-testid="google-signin-button"
         aria-label="Continue with Google"
       />
