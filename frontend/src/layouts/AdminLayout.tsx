@@ -400,30 +400,6 @@ export default function AdminLayout() {
           </div>
 
           <div className="flex items-center gap-2.5 sm:gap-4 md:gap-6">
-            {/* Customer Redirect Buttons */}
-            <div className="flex items-center gap-2">
-              <Link
-                to="/account"
-                id="admin-to-customer-dashboard"
-                className="inline-flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 text-xs sm:text-sm font-semibold text-[#0B3A63] bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 border border-amber-300 rounded-lg shadow-xs transition-all hover:shadow-sm hover:scale-[1.02] active:scale-[0.98] group"
-                title="Redirect to Customer Dashboard (/account)"
-              >
-                <UserCheck className="w-4 h-4 text-[#D97706] group-hover:text-[#B45309] transition-colors" />
-                <span className="whitespace-nowrap">Customer Dashboard</span>
-                <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0B3A63] transition-colors" />
-              </Link>
-
-              <Link
-                to="/"
-                id="admin-to-storefront"
-                className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-slate-600 hover:text-[#0B3A63] bg-slate-100 hover:bg-slate-200/80 border border-slate-200 rounded-lg transition-colors group"
-                title="View Customer Storefront (/)"
-              >
-                <Store className="w-4 h-4 text-slate-500 group-hover:text-[#0B3A63] transition-colors" />
-                <span className="whitespace-nowrap">View Store</span>
-              </Link>
-            </div>
-
             {/* Current Time */}
             <div className="hidden xl:flex items-center text-sm text-slate-500 font-medium">
               {currentTime.toLocaleString("en-US", {
