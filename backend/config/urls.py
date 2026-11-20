@@ -1,12 +1,14 @@
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.static import serve
 
 from apps.common.views_health import health_check
 from apps.common.views_seo import sitemap_xml, robots_txt, indexnow_key_verify, seo_render, google_shopping_feed
 from apps.users.views import GoogleOAuthCallbackView, GoogleOAuthInitView
 from apps.finance.views_payment import StandardCreateOrderView, StandardVerifyPaymentView, PaymentConfigView
+from apps.products.views import ProductViewSet
 
 urlpatterns = [
     # SEO & Search Engine Endpoints
@@ -32,6 +34,12 @@ urlpatterns = [
     path('auth/google/login/', GoogleOAuthInitView.as_view(), name='root-auth-google-login'),
     path('auth/google/callback/', GoogleOAuthCallbackView.as_view(), name='root-auth-google-callback'),
     path('auth/google/callback', GoogleOAuthCallbackView.as_view(), name='root-auth-google-callback-noslash'),
+    # Admin Products Bulk Import & Template Endpoints
+    path('api/admin/products/bulk-import/', ProductViewSet.as_view({'post': 'bulk_import'}), name='admin-products-bulk-import'),
+    path('api/admin/products/bulk-import', ProductViewSet.as_view({'post': 'bulk_import'}), name='admin-products-bulk-import-noslash'),
+    path('api/admin/products/bulk-import/template/', ProductViewSet.as_view({'get': 'bulk_import_template'}), name='admin-products-bulk-import-template'),
+    path('api/admin/products/bulk-import/template', ProductViewSet.as_view({'get': 'bulk_import_template'}), name='admin-products-bulk-import-template-noslash'),
+
     path('api/v1/auth/', include('apps.users.urls')),
     path('api/v1/catalog/', include('apps.products.urls')),
     path('api/v1/inventory/', include('apps.inventory.urls')),
@@ -47,5 +55,7 @@ urlpatterns = [
     path('api/v1/settings/', include('apps.admin_settings.urls')),
 ]
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Serve user-uploaded media assets reliably across development and containerized production reverse proxy
+urlpatterns += [
+    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
+]

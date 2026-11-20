@@ -590,15 +590,52 @@ class ProductViewSet(viewsets.ModelViewSet):
         response['Cache-Control'] = 'public, max-age=86400, s-maxage=86400'
         return response
 
-    @action(detail=False, methods=['post'], url_path='bulk-import', permission_classes=[IsAdminUser])
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='bulk-import/template',
+        permission_classes=[IsAdminUser]
+    )
+    def bulk_import_template(self, request):
+        """
+        Download pre-formatted Excel template (.xlsx) with guidelines and sample electrical items.
+        """
+        from django.http import HttpResponse
+        from .services_bulk_import import BulkProductImportService
+
+        buffer = BulkProductImportService.generate_template_workbook()
+        response = HttpResponse(
+            buffer.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename="vee_power_products_template.xlsx"'
+        return response
+
+    @action(
+        detail=False,
+        methods=['post'],
+        url_path='bulk-import',
+        permission_classes=[IsAdminUser],
+        parser_classes=[MultiPartParser, FormParser, JSONParser]
+    )
     def bulk_import(self, request):
         """
         High performance bulk import for product rows with atomic transaction,
-        row-level validation, and detailed reporting.
+        row-level validation, and detailed reporting. Accepts multipart/form-data with
+        excel_file (.xlsx, .xls, .csv) and optional companion images_zip archive,
+        or legacy JSON array.
         """
+        excel_file = request.FILES.get('excel_file') or request.FILES.get('file')
+        images_zip = request.FILES.get('images_zip') or request.FILES.get('zip_file')
+
+        if excel_file:
+            from .services_bulk_import import BulkProductImportService
+            result = BulkProductImportService.process_bulk_import(excel_file, images_zip)
+            return Response(result, status=status.HTTP_200_OK if result.get('success') else status.HTTP_400_BAD_REQUEST)
+
         rows = request.data if isinstance(request.data, list) else request.data.get('products', [])
         if not rows:
-            return Response({"detail": "No product records provided for import."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "No Excel file (.xlsx, .csv) or product records provided for import."}, status=status.HTTP_400_BAD_REQUEST)
 
         created_count = 0
         updated_count = 0
@@ -609,7 +646,7 @@ class ProductViewSet(viewsets.ModelViewSet):
                 sku = (row.get('sku') or '').strip()
                 name = (row.get('name') or '').strip()
                 if not sku or not name:
-                    errors.append({"row": idx, "sku": sku or "N/A", "error": "Both SKU and name are required."})
+                    errors.append({"row": idx, "sku": sku or "N/A", "error": "Both SKU and name are required.", "reason": "Both SKU and name are required."})
                     continue
 
                 existing_product = Product.objects.filter(sku=sku).first()
@@ -619,7 +656,7 @@ class ProductViewSet(viewsets.ModelViewSet):
                     serializer = ProductAdminCreateUpdateSerializer(data=row)
 
                 if not serializer.is_valid():
-                    errors.append({"row": idx, "sku": sku, "error": str(serializer.errors)})
+                    errors.append({"row": idx, "sku": sku, "error": str(serializer.errors), "reason": str(serializer.errors)})
                     continue
 
                 serializer.save()
@@ -628,10 +665,16 @@ class ProductViewSet(viewsets.ModelViewSet):
                 else:
                     created_count += 1
 
+        invalidate_catalog_cache()
+        invalidate_brands_cache()
+
         return Response({
             "success": True,
             "created": created_count,
             "updated": updated_count,
+            "created_count": created_count,
+            "updated_count": updated_count,
+            "error_count": len(errors),
             "errors": errors,
             "total_processed": len(rows),
         }, status=status.HTTP_200_OK if not errors else status.HTTP_207_MULTI_STATUS)

@@ -105,10 +105,11 @@ export const catalogApi = {
     });
   },
 
-  async uploadProductImage(file: File): Promise<{ image_url: string; url: string }> {
+  async uploadProductImage(file: File): Promise<{ image_url: string; url: string; filename?: string }> {
     const formData = new FormData();
     formData.append('file', file);
-    return apiClient<{ image_url: string; url: string }>('/catalog/products/upload-image/', {
+    formData.append('image', file);
+    return apiClient<{ image_url: string; url: string; filename?: string }>('/catalog/products/upload-image/', {
       method: 'POST',
       body: formData,
     });
@@ -116,6 +117,67 @@ export const catalogApi = {
 
   async getDefaultImages(): Promise<Array<{ key: string; name: string; image_url: string }>> {
     return apiClient<Array<{ key: string; name: string; image_url: string }>>('/catalog/products/default-images/');
+  },
+
+  async downloadBulkImportTemplate(): Promise<Blob> {
+    const token = typeof window !== 'undefined' ? (localStorage.getItem('vp_access_token') || localStorage.getItem('token')) : null;
+    const res = await fetch('/api/v1/catalog/products/bulk-import/template/', {
+      method: 'GET',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to download template (HTTP ${res.status})`);
+    }
+    const blob = await res.blob();
+    // Trigger direct browser download
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.setAttribute('download', 'vee_power_products_template.xlsx');
+    document.body.appendChild(link);
+    link.click();
+    link.parentNode?.removeChild(link);
+    window.URL.revokeObjectURL(blobUrl);
+    return blob;
+  },
+
+  async bulkImportProductsMultipart(
+    excelFile: File,
+    imagesZip?: File | null
+  ): Promise<{
+    success: boolean;
+    total_processed: number;
+    created_count: number;
+    updated_count: number;
+    error_count: number;
+    created: number;
+    updated: number;
+    errors: Array<{ row: number; sku: string; reason: string; error?: string }>;
+    detail?: string;
+  }> {
+    const formData = new FormData();
+    formData.append('excel_file', excelFile);
+    formData.append('file', excelFile);
+    if (imagesZip) {
+      formData.append('images_zip', imagesZip);
+      formData.append('zip_file', imagesZip);
+    }
+    return apiClient<{
+      success: boolean;
+      total_processed: number;
+      created_count: number;
+      updated_count: number;
+      error_count: number;
+      created: number;
+      updated: number;
+      errors: Array<{ row: number; sku: string; reason: string; error?: string }>;
+      detail?: string;
+    }>('/catalog/products/bulk-import/', {
+      method: 'POST',
+      body: formData,
+    });
   },
 
   async bulkImportProducts(products: any[]): Promise<{

@@ -364,6 +364,12 @@ export async function apiClient<T>(
   // Merge custom headers
   Object.assign(reqHeaders, headers);
 
+  // If body is FormData, NEVER set Content-Type header so browser/fetch automatically
+  // sets 'multipart/form-data; boundary=----WebKitFormBoundary...'
+  if (isFormData) {
+    delete reqHeaders['Content-Type'];
+  }
+
   // Setup abort controller for timeout
   const controller = new AbortController();
   const timeoutId = timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : null;

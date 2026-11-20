@@ -3,11 +3,13 @@ import { Link } from "react-router-dom";
 import { Search, Plus, Upload, Eye, Edit, Trash2, Image as ImageIcon } from "lucide-react";
 import { useShop, Product } from "../../context/ShopContext";
 import { resolveProductImage, handleProductImageError } from "../../utils/productImageResolver";
+import ProductBulkImportModal from "../../components/admin/ProductBulkImportModal";
 
 export default function AdminProducts() {
-  const { products, deleteProduct } = useShop();
+  const { products, deleteProduct, refreshProducts } = useShop();
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const filteredProducts = products.filter(p => {
     const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) || 
@@ -32,7 +34,11 @@ export default function AdminProducts() {
           <p className="text-sm text-slate-500 mt-1">{filteredProducts.length} total products</p>
         </div>
         <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-[#0A2540] text-sm font-semibold rounded-lg hover:bg-slate-50 transition-colors shadow-sm">
+          <button 
+            type="button"
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-[#0A2540] text-sm font-semibold rounded-lg hover:bg-slate-50 transition-colors shadow-sm cursor-pointer"
+          >
             <Upload className="w-4 h-4" />
             Import
           </button>
@@ -151,6 +157,12 @@ export default function AdminProducts() {
           </table>
         </div>
       </div>
+      {/* 5. Bulk Product Import Modal */}
+      <ProductBulkImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onSuccess={refreshProducts}
+      />
     </div>
   );
 }
