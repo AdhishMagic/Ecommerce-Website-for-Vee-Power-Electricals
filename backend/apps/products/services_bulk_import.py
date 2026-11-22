@@ -359,10 +359,10 @@ class BulkProductImportService:
 
         namelist = zf.namelist()
 
-        # Modern Microsoft 365 Rich Value Media (xl/richData/)
+        # Modern Microsoft 365 Rich Value Media (xl/richData/ & XLRICHVALUE in metadata.xml)
         if 'xl/metadata.xml' in namelist and 'xl/richData/rdrichvalue.xml' in namelist:
             try:
-                # Map rId -> ZIP target path (e.g. 'rId1' -> 'xl/media/image1.png')
+                # 1. Map rId -> ZIP target path (e.g. 'rId1' -> 'xl/media/image1.jpeg')
                 rel_to_target: Dict[str, str] = {}
                 rels_path = 'xl/richData/_rels/richValueRel.xml.rels'
                 if rels_path in namelist:
@@ -376,62 +376,98 @@ class BulkProductImportService:
                                 clean_path = 'xl/' + clean_path.lstrip('/')
                             rel_to_target[r_id] = clean_path
 
-                # Map rel index -> rId
-                idx_to_rid: List[str] = []
+                # 2. Parse richValueRel.xml: build 0-based list of r:id values
+                rich_value_rels: List[str] = []
                 rvrel_path = 'xl/richData/richValueRel.xml'
                 if rvrel_path in namelist:
                     root = ET.fromstring(zf.read(rvrel_path))
-                    for el in root:
-                        r_id = None
-                        for k, v in el.attrib.items():
-                            if k.endswith('id') or k == 'r:id':
-                                r_id = v
-                                break
-                        if r_id:
-                            idx_to_rid.append(r_id)
+                    for el in root.iter():
+                        if el.tag.endswith('rel'):
+                            r_id = None
+                            for k, v in el.attrib.items():
+                                if k == 'r:id' or k.endswith('}id') or k == 'id':
+                                    r_id = v
+                                    break
+                            if r_id:
+                                rich_value_rels.append(r_id)
 
-                # Map rv index -> rel index
-                rv_to_rel_idx: List[int] = []
+                # 3. Parse rdrichvalue.xml: build 0-based list of rel_idx values (from first <v> integer)
+                rdrichvalues: List[int] = []
                 rv_path = 'xl/richData/rdrichvalue.xml'
                 if rv_path in namelist:
                     root = ET.fromstring(zf.read(rv_path))
-                    for rv in root:
-                        v_elem = None
-                        for child in rv:
-                            if child.tag.endswith('v'):
-                                v_elem = child
-                                break
-                        if v_elem is not None and v_elem.text:
-                            try:
-                                rv_to_rel_idx.append(int(v_elem.text))
-                            except ValueError:
-                                rv_to_rel_idx.append(-1)
-                        else:
-                            rv_to_rel_idx.append(-1)
+                    for el in root.iter():
+                        if el.tag.endswith('rv'):
+                            v_val = None
+                            for child in el:
+                                if child.tag.endswith('v') and child.text is not None:
+                                    try:
+                                        v_val = int(child.text.strip())
+                                        break
+                                    except ValueError:
+                                        pass
+                            rdrichvalues.append(v_val if v_val is not None else -1)
 
-                # Map vm index (1-based) -> rv index
-                vm_to_rv_idx: Dict[int, int] = {}
+                # 4. Parse xl/metadata.xml:
+                #    a) futureMetadata name="XLRICHVALUE" -> list of <xlrd:rvb i="..."/>
+                #    b) valueMetadata -> list of <rc v="..."/>
+                future_metadata: List[int] = []
+                value_metadata: List[int] = []
                 meta_path = 'xl/metadata.xml'
                 if meta_path in namelist:
                     root = ET.fromstring(zf.read(meta_path))
-                    vm_counter = 1
-                    for bk in root.iter():
-                        if bk.tag.endswith('bk'):
-                            rc_elem = None
-                            for child in bk:
-                                if child.tag.endswith('rc'):
-                                    rc_elem = child
-                                    break
-                            if rc_elem is not None:
-                                v_val = rc_elem.attrib.get('v')
-                                if v_val is not None:
-                                    try:
-                                        vm_to_rv_idx[vm_counter] = int(v_val)
-                                    except ValueError:
-                                        pass
-                            vm_counter += 1
 
-                # Map cell coordinate from sheet XMLs
+                    # futureMetadata XLRICHVALUE
+                    fm_elem = None
+                    for child in root:
+                        if child.tag.endswith('futureMetadata') and child.attrib.get('name', '').upper() == 'XLRICHVALUE':
+                            fm_elem = child
+                            break
+                    if fm_elem is None:
+                        for el in root.iter():
+                            if el.tag.endswith('futureMetadata') and el.attrib.get('name', '').upper() == 'XLRICHVALUE':
+                                fm_elem = el
+                                break
+
+                    if fm_elem is not None:
+                        for bk in fm_elem:
+                            if bk.tag.endswith('bk'):
+                                rvb_idx = None
+                                for sub in bk.iter():
+                                    if sub.tag.endswith('rvb') and 'i' in sub.attrib:
+                                        try:
+                                            rvb_idx = int(sub.attrib['i'])
+                                            break
+                                        except ValueError:
+                                            pass
+                                future_metadata.append(rvb_idx if rvb_idx is not None else -1)
+
+                    # valueMetadata
+                    vm_elem = None
+                    for child in root:
+                        if child.tag.endswith('valueMetadata'):
+                            vm_elem = child
+                            break
+                    if vm_elem is None:
+                        for el in root.iter():
+                            if el.tag.endswith('valueMetadata'):
+                                vm_elem = el
+                                break
+
+                    if vm_elem is not None:
+                        for bk in vm_elem:
+                            if bk.tag.endswith('bk'):
+                                rc_val = None
+                                for sub in bk.iter():
+                                    if sub.tag.endswith('rc') and 'v' in sub.attrib:
+                                        try:
+                                            rc_val = int(sub.attrib['v'])
+                                            break
+                                        except ValueError:
+                                            pass
+                                value_metadata.append(rc_val if rc_val is not None else -1)
+
+                # 5. Parse worksheets for EVERY <c r="..." vm="..."> cell
                 sheet_files = [f for f in namelist if f.startswith('xl/worksheets/sheet') and f.endswith('.xml')]
                 for sf in sheet_files:
                     root = ET.fromstring(zf.read(sf))
@@ -441,13 +477,19 @@ class BulkProductImportService:
                             vm_val = c.attrib.get('vm')
                             if cell_coord and vm_val:
                                 try:
-                                    vm_idx = int(vm_val)
-                                    if vm_idx in vm_to_rv_idx:
-                                        rv_idx = vm_to_rv_idx[vm_idx]
-                                        if 0 <= rv_idx < len(rv_to_rel_idx):
-                                            rel_idx = rv_to_rel_idx[rv_idx]
-                                            if 0 <= rel_idx < len(idx_to_rid):
-                                                r_id = idx_to_rid[rel_idx]
+                                    vm_1based = int(vm_val)
+                                    vm_idx = vm_1based - 1
+                                    if 0 <= vm_idx < len(value_metadata):
+                                        v_ptr = value_metadata[vm_idx]
+                                        if future_metadata and 0 <= v_ptr < len(future_metadata):
+                                            rv_idx = future_metadata[v_ptr]
+                                        else:
+                                            rv_idx = v_ptr
+
+                                        if 0 <= rv_idx < len(rdrichvalues):
+                                            rel_idx = rdrichvalues[rv_idx]
+                                            if 0 <= rel_idx < len(rich_value_rels):
+                                                r_id = rich_value_rels[rel_idx]
                                                 if r_id in rel_to_target:
                                                     target_path = rel_to_target[r_id]
                                                     if target_path in namelist:

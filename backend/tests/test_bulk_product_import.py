@@ -492,15 +492,15 @@ class BulkProductImportTests(TestCase):
 
     def test_10_place_in_cell_value_error_image_import(self):
         """
-        Verify that 'Place in Cell' images where openpyxl reads '#VALUE!' in cell L2
-        are extracted directly from the ZIP package rich data and successfully assigned
-        to product.primary_image without errors.
+        Verify that 'Place in Cell' images where openpyxl reads '#VALUE!' in cell L
+        are extracted directly from the ZIP package XLRICHVALUE chain, including when
+        multiple rows share the same vm index (e.g. vm='1' on Row 2 and Row 4).
         """
-        # Create base openpyxl workbook with row 2 containing #VALUE! in Image_Source (col 12)
+        # Create base openpyxl workbook with 3 rows containing #VALUE! in Image_Source (col 12)
         base_xlsx = self._build_excel_file([
             [
                 "IN-CELL-MCB-16A",
-                "Schneider Acti9 In-Cell Image MCB",
+                "Schneider Acti9 In-Cell Image MCB 16A",
                 "mcb & protection",  # test case-insensitive match
                 "schneider",         # test case-insensitive match
                 350.00,
@@ -508,53 +508,117 @@ class BulkProductImportTests(TestCase):
                 20,
                 18,
                 "Piece",
-                "Test in-cell MCB description",
+                "Test in-cell MCB 16A",
                 "Poles: 1P",
-                "#VALUE!",           # Excel 'Place in Cell' cell value
+                "#VALUE!",           # Excel 'Place in Cell' cell value (vm=1)
+                "",
+                "TRUE",
+            ],
+            [
+                "IN-CELL-MCB-32A",
+                "Schneider Acti9 In-Cell Image MCB 32A",
+                "MCB & Protection",
+                "Schneider",
+                550.00,
+                490.00,
+                15,
+                18,
+                "Piece",
+                "Test in-cell MCB 32A",
+                "Poles: 2P",
+                "#VALUE!",           # Excel 'Place in Cell' cell value (vm=2)
+                "",
+                "TRUE",
+            ],
+            [
+                "IN-CELL-MCB-63A",
+                "Schneider Acti9 In-Cell Image MCB 63A",
+                "MCB & Protection",
+                "Schneider",
+                850.00,
+                780.00,
+                10,
+                18,
+                "Piece",
+                "Test in-cell MCB 63A",
+                "Poles: 3P",
+                "#VALUE!",           # Excel 'Place in Cell' cell value (shares vm=1!)
                 "",
                 "TRUE",
             ]
         ])
 
-        # Inject M365 Rich Value Media into the openpyxl ZIP
-        raw_img = self._create_dummy_image_bytes('JPEG', (50, 50), color=(255, 100, 0))
+        # Inject modern M365 XLRICHVALUE Media into the openpyxl ZIP
+        raw_img1 = self._create_dummy_image_bytes('JPEG', (50, 50), color=(255, 100, 0))
+        raw_img2 = self._create_dummy_image_bytes('PNG', (60, 60), color=(0, 150, 255))
         in_mem_zip = io.BytesIO()
 
         with zipfile.ZipFile(io.BytesIO(base_xlsx), 'r') as zin, zipfile.ZipFile(in_mem_zip, 'w', zipfile.ZIP_DEFLATED) as zout:
             for item in zin.infolist():
                 if item.filename == 'xl/worksheets/sheet1.xml':
                     sheet_xml = zin.read(item.filename).decode('utf-8')
-                    # Add vm="1" attribute to cell L2
+                    # Add vm="1" to cell L2, vm="2" to cell L3, vm="1" to cell L4 (sharing vm=1)
                     sheet_xml = sheet_xml.replace('<c r="L2"', '<c r="L2" vm="1"')
+                    sheet_xml = sheet_xml.replace('<c r="L3"', '<c r="L3" vm="2"')
+                    sheet_xml = sheet_xml.replace('<c r="L4"', '<c r="L4" vm="1"')
                     zout.writestr(item, sheet_xml.encode('utf-8'))
                 else:
                     zout.writestr(item, zin.read(item.filename))
 
-            # Add metadata.xml
+            # Add metadata.xml with XLRICHVALUE futureMetadata and valueMetadata
             zout.writestr('xl/metadata.xml', '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<metadata xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-    <valueMetadata count="1">
-        <bk><rc v="0"/></bk>
+<metadata xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+          xmlns:xlrd="http://schemas.microsoft.com/office/spreadsheetml/2017/richdata">
+    <metadataTypes count="1">
+        <metadataType name="XLRICHVALUE" minVersion="120000" copy="1" side="1" delete="1" reload="1"/>
+    </metadataTypes>
+    <futureMetadata name="XLRICHVALUE" count="2">
+        <bk>
+            <extLst>
+                <ext uri="{00000000-0000-0000-0000-000000000000}">
+                    <xlrd:rvb i="0"/>
+                </ext>
+            </extLst>
+        </bk>
+        <bk>
+            <extLst>
+                <ext uri="{00000000-0000-0000-0000-000000000000}">
+                    <xlrd:rvb i="1"/>
+                </ext>
+            </extLst>
+        </bk>
+    </futureMetadata>
+    <valueMetadata count="2">
+        <bk>
+            <rc t="1" v="0"/>
+        </bk>
+        <bk>
+            <rc t="1" v="1"/>
+        </bk>
     </valueMetadata>
 </metadata>''')
             # Add rdrichvalue.xml
             zout.writestr('xl/richData/rdrichvalue.xml', '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <rvData xmlns="http://schemas.microsoft.com/office/spreadsheetml/2017/richdata">
     <rv s="0"><v>0</v></rv>
+    <rv s="0"><v>1</v></rv>
 </rvData>''')
             # Add richValueRel.xml
             zout.writestr('xl/richData/richValueRel.xml', '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <richValueRels xmlns="http://schemas.microsoft.com/office/spreadsheetml/2022/richvaluerel"
                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
     <rel r:id="rId1"/>
+    <rel r:id="rId2"/>
 </richValueRels>''')
             # Add richValueRel.xml.rels
             zout.writestr('xl/richData/_rels/richValueRel.xml.rels', '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
     <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image1.jpeg"/>
+    <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image2.png"/>
 </Relationships>''')
-            # Add the actual image file
-            zout.writestr('xl/media/image1.jpeg', raw_img)
+            # Add media files
+            zout.writestr('xl/media/image1.jpeg', raw_img1)
+            zout.writestr('xl/media/image2.png', raw_img2)
 
         in_cell_excel_bytes = in_mem_zip.getvalue()
 
@@ -571,17 +635,25 @@ class BulkProductImportTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         data = res.json()
         self.assertTrue(data['success'])
-        self.assertEqual(data['created_count'], 1)
+        self.assertEqual(data['created_count'], 3)
         self.assertEqual(data['error_count'], 0)
-        self.assertGreaterEqual(data.get('images_extracted', 0), 1)
+        self.assertEqual(data.get('images_extracted', 0), 3)
 
-        # Check DB product
-        prod = Product.objects.filter(sku="IN-CELL-MCB-16A").first()
-        self.assertIsNotNone(prod)
-        self.assertTrue(prod.primary_image.startswith('/media/products/'))
+        # Check DB products
+        prod1 = Product.objects.filter(sku="IN-CELL-MCB-16A").first()
+        prod2 = Product.objects.filter(sku="IN-CELL-MCB-32A").first()
+        prod3 = Product.objects.filter(sku="IN-CELL-MCB-63A").first()
+        self.assertIsNotNone(prod1)
+        self.assertIsNotNone(prod2)
+        self.assertIsNotNone(prod3)
+
+        self.assertTrue(prod1.primary_image.startswith('/media/products/'))
+        self.assertTrue(prod2.primary_image.startswith('/media/products/'))
+        self.assertTrue(prod3.primary_image.startswith('/media/products/'))
+
         # Ensure category and brand reused existing without duplicate
-        self.assertEqual(prod.category.id, self.category.id)
-        self.assertEqual(prod.brand.id, self.brand.id)
+        self.assertEqual(prod1.category.id, self.category.id)
+        self.assertEqual(prod1.brand.id, self.brand.id)
         self.assertEqual(Category.objects.count(), 1)
         self.assertEqual(Brand.objects.count(), 1)
 
