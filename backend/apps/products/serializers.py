@@ -141,7 +141,7 @@ class ProductListSerializer(serializers.ModelSerializer):
             'id', 'name', 'slug', 'sku', 'category', 'subcategory', 'brand',
             'mrp', 'price', 'in_stock', 'primary_image', 'featured', 'active',
             'meta_title', 'meta_description', 'canonical_url', 'is_indexable',
-            'created_at'
+            'created_at', 'updated_at'
         ]
 
     def get_category(self, obj):
@@ -158,6 +158,11 @@ class ProductListSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
+        # Fallback for primary_image if empty
+        if not data.get('primary_image'):
+            first_img = instance.images.filter(is_primary=True).first() or instance.images.first()
+            if first_img:
+                data['primary_image'] = first_img.image_url
         # Expose actual physical stock quantity only to authenticated admin/staff users
         request = self.context.get('request')
         if request and request.user and request.user.is_authenticated and (request.user.is_staff or getattr(request.user, 'role', '') == 'admin'):

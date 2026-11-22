@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
-import { productService } from "../services/productService";
+import { productService, clearProductServiceCache } from "../services/productService";
 import { catalogApi } from "../api/catalog";
 import { inventoryApi } from "../api/inventory";
 
@@ -85,7 +85,11 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   const refreshProducts = useCallback(async () => {
     try {
       setLoading(true);
-      const items = await productService.getProducts(undefined, { forceRefresh: true });
+      clearProductServiceCache();
+      const items = await productService.getProducts(
+        { page_size: 200, ordering: '-updated_at', include_all: true },
+        { forceRefresh: true }
+      );
       setProducts(items.map(p => ({
         ...p,
         image: p.images?.[0] || p.image || '',

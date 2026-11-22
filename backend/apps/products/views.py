@@ -341,13 +341,17 @@ class ProductViewSet(viewsets.ModelViewSet):
             and self.request.user.is_authenticated
             and (self.request.user.is_staff or getattr(self.request.user, 'role', '') == 'admin')
         )
+        include_all = (
+            self.request.query_params.get('include_all', '').lower() in ('true', '1', 't')
+            or self.request.query_params.get('all', '').lower() in ('true', '1', 't')
+        )
 
-        # Public users see strictly active merchandise
-        if not is_admin_user:
+        # Public users see strictly active merchandise unless admin or explicit include_all
+        if not is_admin_user and not include_all:
             qs = qs.filter(active=True)
         else:
             active_param = self.request.query_params.get('active')
-            if active_param is not None:
+            if active_param is not None and active_param.strip() != '':
                 qs = qs.filter(active=active_param.lower() in ('true', '1', 't'))
 
         # Filtering: Category
@@ -431,19 +435,19 @@ class ProductViewSet(viewsets.ModelViewSet):
         # Ordering
         ordering = self.request.query_params.get('ordering')
         valid_orderings = {
-            'price': ('price', '-id'),
-            '-price': ('-price', '-id'),
-            'name': ('name', '-id'),
-            '-name': ('-name', '-id'),
+            'price': ('price', '-updated_at', '-id'),
+            '-price': ('-price', '-updated_at', '-id'),
+            'name': ('name', '-updated_at', '-id'),
+            '-name': ('-name', '-updated_at', '-id'),
             'created_at': ('created_at', '-id'),
-            '-created_at': ('-created_at', '-id'),
+            '-created_at': ('-created_at', '-updated_at', '-id'),
             'updated_at': ('updated_at', '-id'),
-            '-updated_at': ('-updated_at', '-id'),
+            '-updated_at': ('-updated_at', '-created_at', '-id'),
         }
         if ordering in valid_orderings:
             qs = qs.order_by(*valid_orderings[ordering])
         else:
-            qs = qs.order_by('-created_at', '-id')
+            qs = qs.order_by('-updated_at', '-created_at', '-id')
 
         return qs
 

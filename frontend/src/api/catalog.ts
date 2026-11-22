@@ -17,6 +17,7 @@ export interface ProductFilterParams {
   max_price?: number | string;
   featured?: boolean;
   active?: boolean;
+  include_all?: boolean;
   q?: string;
   search?: string;
   ordering?: string;

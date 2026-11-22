@@ -1,15 +1,20 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Search, Plus, Upload, Eye, Edit, Trash2, Image as ImageIcon } from "lucide-react";
-import { useShop, Product } from "../../context/ShopContext";
+import { Search, Plus, Upload, Eye, Edit, Trash2, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
+import { useShop } from "../../context/ShopContext";
 import { resolveProductImage, handleProductImageError } from "../../utils/productImageResolver";
 import ProductBulkImportModal from "../../components/admin/ProductBulkImportModal";
 
 export default function AdminProducts() {
-  const { products, deleteProduct, refreshProducts } = useShop();
+  const { products, loading, deleteProduct, refreshProducts } = useShop();
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [showImportModal, setShowImportModal] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 15;
 
   const filteredProducts = products.filter(p => {
     const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) || 
@@ -18,6 +23,31 @@ export default function AdminProducts() {
     const matchCategory = categoryFilter === "All" || p.category === categoryFilter;
     return matchSearch && matchCategory;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedProducts = filteredProducts.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshProducts();
+      setCurrentPage(1);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleImportSuccess = () => {
+    refreshProducts();
+    setCurrentPage(1);
+  };
+
+  const handleCloseImportModal = () => {
+    setShowImportModal(false);
+    refreshProducts();
+    setCurrentPage(1);
+  };
 
   const handleDelete = (id: string) => {
     if (window.confirm("Are you sure you want to delete this product?")) {
@@ -34,17 +64,27 @@ export default function AdminProducts() {
           <p className="text-sm text-slate-500 mt-1">{filteredProducts.length} total products</p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleManualRefresh}
+            disabled={isRefreshing || loading}
+            title="Refresh product list"
+            className="flex items-center gap-2 px-3 py-2 border border-slate-200 bg-white text-[#0A2540] text-sm font-semibold rounded-lg hover:bg-slate-50 transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing || loading ? 'animate-spin text-blue-600' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
           <button 
             type="button"
             onClick={() => setShowImportModal(true)}
-            className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-[#0A2540] text-sm font-semibold rounded-lg hover:bg-slate-50 transition-colors shadow-sm cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-[#0A2540] text-sm font-semibold rounded-lg hover:bg-slate-50 transition-colors shadow-xs cursor-pointer"
           >
             <Upload className="w-4 h-4" />
             Import
           </button>
           <Link 
             to="/admin/products/add" 
-            className="flex items-center gap-2 px-4 py-2 bg-[#F2A900] text-[#0A2540] text-sm font-bold rounded-lg hover:bg-[#e09b00] transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 bg-[#F2A900] text-[#0A2540] text-sm font-bold rounded-lg hover:bg-[#e09b00] transition-colors shadow-xs"
           >
             <Plus className="w-4 h-4" />
             Add Product
@@ -53,21 +93,27 @@ export default function AdminProducts() {
       </div>
 
       {/* 3. Search & Filter Toolbar */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col sm:flex-row gap-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input 
             type="text" 
             placeholder="Search by name, SKU, or brand..." 
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg outline-none focus:border-[#0A2540] text-sm"
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg outline-hidden focus:border-[#0A2540] text-sm"
           />
         </div>
         <select 
           value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          className="border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-sm text-[#0A2540] font-medium outline-none focus:border-[#0A2540] sm:w-48"
+          onChange={(e) => {
+            setCategoryFilter(e.target.value);
+            setCurrentPage(1);
+          }}
+          className="border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-sm text-[#0A2540] font-medium outline-hidden focus:border-[#0A2540] sm:w-48"
         >
           <option value="All">All Categories</option>
           <option value="Fans">Fans</option>
@@ -79,7 +125,7 @@ export default function AdminProducts() {
       </div>
 
       {/* 4. Products Data Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[1000px]">
             <thead>
@@ -94,11 +140,11 @@ export default function AdminProducts() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredProducts.map(product => (
+              {paginatedProducts.map(product => (
                 <tr key={product.id} className="hover:bg-slate-50 transition-colors group">
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center flex-shrink-0 p-0.5 overflow-hidden">
+                      <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0 p-0.5 overflow-hidden">
                         <img
                           src={resolveProductImage(product)}
                           alt={product.name}
@@ -149,19 +195,54 @@ export default function AdminProducts() {
               {filteredProducts.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-5 py-12 text-center text-slate-500">
-                    No products found matching your filters.
+                    {loading ? "Loading products..." : "No products found matching your filters."}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        {filteredProducts.length > pageSize && (
+          <div className="px-5 py-3.5 border-t border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p className="text-xs text-slate-500">
+              Showing <span className="font-semibold text-slate-700">{(safePage - 1) * pageSize + 1}</span> to{" "}
+              <span className="font-semibold text-slate-700">{Math.min(safePage * pageSize, filteredProducts.length)}</span> of{" "}
+              <span className="font-semibold text-slate-700">{filteredProducts.length}</span> products
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={safePage <= 1}
+                className="flex items-center gap-1 px-3 py-1.5 border border-slate-200 bg-white text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>Previous</span>
+              </button>
+              <span className="text-xs font-medium text-slate-600 px-2">
+                Page {safePage} of {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={safePage >= totalPages}
+                className="flex items-center gap-1 px-3 py-1.5 border border-slate-200 bg-white text-xs font-semibold rounded-lg text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <span>Next</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
       {/* 5. Bulk Product Import Modal */}
       <ProductBulkImportModal
         isOpen={showImportModal}
-        onClose={() => setShowImportModal(false)}
-        onSuccess={refreshProducts}
+        onClose={handleCloseImportModal}
+        onSuccess={handleImportSuccess}
       />
     </div>
   );

@@ -57,6 +57,7 @@ services:
       RAZORPAY_PAYMENT_HANDLE: ${RAZORPAY_PAYMENT_HANDLE:-https://razorpay.me/@veepowerelectricals}
     volumes:
       - ./backend:/app
+      - media_data:/app/media
     ports:
       - "8000:8000"
     healthcheck:
@@ -88,6 +89,7 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
+      - media_data:/app/media:ro
     ports:
       - "${FRONTEND_PORT:-5173}:5173"
     depends_on:
@@ -96,3 +98,4 @@ services:
 
 volumes:
   mysql_data:
+  media_data:

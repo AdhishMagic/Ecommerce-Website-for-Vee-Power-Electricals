@@ -11,6 +11,8 @@ services:
       SEED_DEMO_DATA: "False"
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-veepowerelectricals.com,www.veepowerelectricals.com,localhost,127.0.0.1,backend,*}
       EMAIL_TEST_MODE: ${EMAIL_TEST_MODE:-False}
+    volumes:
+      - media_data:/app/media
 
   frontend:
     command: ["nginx", "-g", "daemon off;"]
@@ -24,9 +26,13 @@ services:
       - backend
     volumes:
       - ./frontend/dist:/usr/share/nginx/html:ro
+      - media_data:/app/media:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:80/"]
       interval: 15s
       timeout: 5s
       retries: 3
       start_period: 10s
+
+volumes:
+  media_data:

@@ -368,7 +368,10 @@ export default function ProductBulkImportModal({
               </button>
               <button
                 type="button"
-                onClick={onClose}
+                onClick={() => {
+                  onSuccess();
+                  onClose();
+                }}
                 className="px-6 py-2 bg-[#0A2540] hover:bg-[#153e66] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
               >
                 Close &amp; View Products

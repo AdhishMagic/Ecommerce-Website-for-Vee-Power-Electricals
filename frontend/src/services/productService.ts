@@ -189,6 +189,8 @@ export const productService = {
       min_price?: number;
       max_price?: number;
       featured?: boolean;
+      active?: boolean;
+      include_all?: boolean;
       ordering?: string;
       page?: number;
       page_size?: number;
@@ -202,6 +204,8 @@ export const productService = {
       min_price: params?.min_price,
       max_price: params?.max_price,
       featured: params?.featured,
+      active: params?.active,
+      include_all: params?.include_all,
       ordering: params?.ordering,
       page: params?.page,
       page_size: params?.page_size,
