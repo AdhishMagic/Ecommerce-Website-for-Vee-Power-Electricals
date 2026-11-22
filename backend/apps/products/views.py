@@ -2,7 +2,9 @@ from decimal import Decimal, InvalidOperation
 from django.core.cache import cache
 from django.db import models, transaction
 from django.db.models import Q
+from django.http import HttpResponse
 from rest_framework import viewsets, status
+from rest_framework.views import APIView
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound
 from rest_framework.permissions import AllowAny
@@ -290,6 +292,25 @@ class BrandViewSet(viewsets.ModelViewSet):
                 {"detail": "Brand cannot be deleted because it is referenced by existing records. It has been deactivated instead.", "deactivated": True},
                 status=status.HTTP_200_OK
             )
+
+
+class BulkImportTemplateView(APIView):
+    """
+    Download pre-formatted Excel template (.xlsx) with guidelines, dropdown DataValidation,
+    and clean sample electrical rows.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from .services_bulk_import import BulkProductImportService
+
+        buffer = BulkProductImportService.generate_template_workbook()
+        response = HttpResponse(
+            buffer.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename="VeePower_Products_Template.xlsx"'
+        return response
 
 
 class ProductViewSet(viewsets.ModelViewSet):

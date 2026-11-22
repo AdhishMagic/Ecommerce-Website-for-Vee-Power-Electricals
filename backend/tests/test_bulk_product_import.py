@@ -454,3 +454,134 @@ class BulkProductImportTests(TestCase):
         self.assertIsNotNone(product)
         self.assertTrue(product.primary_image.startswith('/media/products/'))
         self.assertTrue(ProductImage.objects.filter(product=product, is_primary=True).exists())
+
+    def test_09_template_dropdown_lists_and_validation(self):
+        """
+        Verify that generate_template_workbook creates the hidden _Lists sheet with
+        live Category and Brand dropdown data validation and leaves Image_Source blank in sample data.
+        """
+        buffer = BulkProductImportService.generate_template_workbook()
+        wb = openpyxl.load_workbook(buffer, data_only=False)
+
+        self.assertIn("_Lists", wb.sheetnames)
+        ws_lists = wb["_Lists"]
+        self.assertEqual(ws_lists.sheet_state, 'hidden')
+
+        # Check column A categories and column B brands
+        cat_vals = [ws_lists.cell(row=r, column=1).value for r in range(1, 10) if ws_lists.cell(row=r, column=1).value]
+        brand_vals = [ws_lists.cell(row=r, column=2).value for r in range(1, 10) if ws_lists.cell(row=r, column=2).value]
+        self.assertIn("Categories", cat_vals)
+        self.assertIn("Brands", brand_vals)
+        self.assertIn("MCB & Protection", cat_vals)
+        self.assertIn("Schneider", brand_vals)
+
+        # Check sample data in Products_Import has empty Image_Source and Gallery_Images
+        ws_import = wb["Products_Import"]
+        for r in range(2, 5):
+            img_val = ws_import.cell(row=r, column=12).value
+            gallery_val = ws_import.cell(row=r, column=13).value
+            self.assertIn(img_val, ("", None), f"Row {r} Image_Source must be empty string or None")
+            self.assertIn(gallery_val, ("", None), f"Row {r} Gallery_Images must be empty string or None")
+
+        # Check Data Validation rules exist
+        dvs = ws_import.data_validations.dataValidation
+        self.assertGreaterEqual(len(dvs), 2)
+        formulas = [dv.formula1 for dv in dvs]
+        self.assertTrue(any("_Lists!$A$2:" in f for f in formulas))
+        self.assertTrue(any("_Lists!$B$2:" in f for f in formulas))
+
+    def test_10_place_in_cell_value_error_image_import(self):
+        """
+        Verify that 'Place in Cell' images where openpyxl reads '#VALUE!' in cell L2
+        are extracted directly from the ZIP package rich data and successfully assigned
+        to product.primary_image without errors.
+        """
+        # Create base openpyxl workbook with row 2 containing #VALUE! in Image_Source (col 12)
+        base_xlsx = self._build_excel_file([
+            [
+                "IN-CELL-MCB-16A",
+                "Schneider Acti9 In-Cell Image MCB",
+                "mcb & protection",  # test case-insensitive match
+                "schneider",         # test case-insensitive match
+                350.00,
+                310.00,
+                20,
+                18,
+                "Piece",
+                "Test in-cell MCB description",
+                "Poles: 1P",
+                "#VALUE!",           # Excel 'Place in Cell' cell value
+                "",
+                "TRUE",
+            ]
+        ])
+
+        # Inject M365 Rich Value Media into the openpyxl ZIP
+        raw_img = self._create_dummy_image_bytes('JPEG', (50, 50), color=(255, 100, 0))
+        in_mem_zip = io.BytesIO()
+
+        with zipfile.ZipFile(io.BytesIO(base_xlsx), 'r') as zin, zipfile.ZipFile(in_mem_zip, 'w', zipfile.ZIP_DEFLATED) as zout:
+            for item in zin.infolist():
+                if item.filename == 'xl/worksheets/sheet1.xml':
+                    sheet_xml = zin.read(item.filename).decode('utf-8')
+                    # Add vm="1" attribute to cell L2
+                    sheet_xml = sheet_xml.replace('<c r="L2"', '<c r="L2" vm="1"')
+                    zout.writestr(item, sheet_xml.encode('utf-8'))
+                else:
+                    zout.writestr(item, zin.read(item.filename))
+
+            # Add metadata.xml
+            zout.writestr('xl/metadata.xml', '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<metadata xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+    <valueMetadata count="1">
+        <bk><rc v="0"/></bk>
+    </valueMetadata>
+</metadata>''')
+            # Add rdrichvalue.xml
+            zout.writestr('xl/richData/rdrichvalue.xml', '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<rvData xmlns="http://schemas.microsoft.com/office/spreadsheetml/2017/richdata">
+    <rv s="0"><v>0</v></rv>
+</rvData>''')
+            # Add richValueRel.xml
+            zout.writestr('xl/richData/richValueRel.xml', '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<richValueRels xmlns="http://schemas.microsoft.com/office/spreadsheetml/2022/richvaluerel"
+               xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+    <rel r:id="rId1"/>
+</richValueRels>''')
+            # Add richValueRel.xml.rels
+            zout.writestr('xl/richData/_rels/richValueRel.xml.rels', '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+    <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image1.jpeg"/>
+</Relationships>''')
+            # Add the actual image file
+            zout.writestr('xl/media/image1.jpeg', raw_img)
+
+        in_cell_excel_bytes = in_mem_zip.getvalue()
+
+        # Import via endpoint
+        self.client.force_authenticate(user=self.admin)
+        res = self.client.post(
+            '/api/v1/catalog/products/bulk-import/',
+            data={
+                'excel_file': SimpleUploadedFile('incell_products.xlsx', in_cell_excel_bytes, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+            },
+            format='multipart'
+        )
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        data = res.json()
+        self.assertTrue(data['success'])
+        self.assertEqual(data['created_count'], 1)
+        self.assertEqual(data['error_count'], 0)
+        self.assertGreaterEqual(data.get('images_extracted', 0), 1)
+
+        # Check DB product
+        prod = Product.objects.filter(sku="IN-CELL-MCB-16A").first()
+        self.assertIsNotNone(prod)
+        self.assertTrue(prod.primary_image.startswith('/media/products/'))
+        # Ensure category and brand reused existing without duplicate
+        self.assertEqual(prod.category.id, self.category.id)
+        self.assertEqual(prod.brand.id, self.brand.id)
+        self.assertEqual(Category.objects.count(), 1)
+        self.assertEqual(Brand.objects.count(), 1)
+
