@@ -103,27 +103,38 @@ class BulkProductImportTests(TestCase):
 
     def test_02_template_endpoint_permissions(self):
         """
-        Verify template download requires admin authentication and returns correct content headers.
+        Verify template download allows public/authenticated access (AllowAny)
+        so template downloads never fail with 401, while bulk import upload requires admin authentication.
         """
-        # Unauthenticated request
-        res = self.client.get('/api/v1/catalog/products/bulk-import/template/')
-        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
-
-        # Customer role request
-        self.client.force_authenticate(user=self.customer)
-        res = self.client.get('/api/v1/catalog/products/bulk-import/template/')
-        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
-
-        # Admin user request
-        self.client.force_authenticate(user=self.admin)
+        # Unauthenticated request for template download - must succeed with 200 OK
         res = self.client.get('/api/v1/catalog/products/bulk-import/template/')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         self.assertIn('VeePower_Products_Template.xlsx', res['Content-Disposition'])
 
+        # Customer role request for template download - must also succeed with 200 OK
+        self.client.force_authenticate(user=self.customer)
+        res = self.client.get('/api/v1/catalog/products/bulk-import/template/')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        # Admin user request for template download
+        self.client.force_authenticate(user=self.admin)
+        res = self.client.get('/api/v1/catalog/products/bulk-import/template/')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn('VeePower_Products_Template.xlsx', res['Content-Disposition'])
+
         # Verify alias route works identically
         res_alias = self.client.get('/api/admin/products/bulk-import/template/')
         self.assertEqual(res_alias.status_code, status.HTTP_200_OK)
+
+        # Verify bulk import upload endpoint strictly requires IsAdminUser
+        self.client.force_authenticate(user=None)
+        res_unauth = self.client.post('/api/v1/catalog/products/bulk-import/', data={})
+        self.assertEqual(res_unauth.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        self.client.force_authenticate(user=self.customer)
+        res_cust = self.client.post('/api/v1/catalog/products/bulk-import/', data={})
+        self.assertEqual(res_cust.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_03_bulk_import_with_zip_images_and_upsert(self):
         """

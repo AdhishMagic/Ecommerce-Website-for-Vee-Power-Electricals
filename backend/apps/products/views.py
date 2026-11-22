@@ -300,7 +300,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'default_images']:
+        if self.action in ['list', 'retrieve', 'default_images', 'bulk_import_template']:
             return [AllowAny()]
         return [IsAdminUser()]
 
@@ -594,7 +594,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         detail=False,
         methods=['get'],
         url_path='bulk-import/template',
-        permission_classes=[IsAdminUser]
+        permission_classes=[AllowAny]
     )
     def bulk_import_template(self, request):
         """
