@@ -3,12 +3,12 @@ import {
   Upload,
   Download,
   FileSpreadsheet,
-  Archive,
   AlertCircle,
   CheckCircle2,
   X,
   Loader2,
   FileText,
+  Sparkles,
 } from "lucide-react";
 import { catalogApi } from "../../api/catalog";
 
@@ -29,6 +29,7 @@ interface ImportSummary {
   total_processed: number;
   created_count: number;
   updated_count: number;
+  images_extracted_count?: number;
   error_count: number;
   errors: RowError[];
 }
@@ -39,14 +40,12 @@ export default function ProductBulkImportModal({
   onSuccess,
 }: ProductBulkImportModalProps) {
   const [excelFile, setExcelFile] = useState<File | null>(null);
-  const [zipFile, setZipFile] = useState<File | null>(null);
   const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [summary, setSummary] = useState<ImportSummary | null>(null);
 
   const excelInputRef = useRef<HTMLInputElement>(null);
-  const zipInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
@@ -75,17 +74,6 @@ export default function ProductBulkImportModal({
     setExcelFile(file);
   };
 
-  const handleZipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.name.toLowerCase().endsWith(".zip")) {
-      setUploadError("Invalid archive format. Please upload a .zip archive containing images.");
-      return;
-    }
-    setUploadError("");
-    setZipFile(file);
-  };
-
   const handleImportSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!excelFile) {
@@ -98,11 +86,12 @@ export default function ProductBulkImportModal({
     setSummary(null);
 
     try {
-      const res = await catalogApi.bulkImportProductsMultipart(excelFile, zipFile);
+      const res = await catalogApi.bulkImportProductsMultipart(excelFile);
       setSummary({
         total_processed: res.total_processed || 0,
         created_count: res.created_count !== undefined ? res.created_count : res.created || 0,
         updated_count: res.updated_count !== undefined ? res.updated_count : res.updated || 0,
+        images_extracted_count: res.images_extracted_count ?? res.images_extracted ?? 0,
         error_count: res.error_count !== undefined ? res.error_count : (res.errors ? res.errors.length : 0),
         errors: res.errors || [],
       });
@@ -135,11 +124,9 @@ export default function ProductBulkImportModal({
 
   const resetForm = () => {
     setExcelFile(null);
-    setZipFile(null);
     setSummary(null);
     setUploadError("");
     if (excelInputRef.current) excelInputRef.current.value = "";
-    if (zipInputRef.current) zipInputRef.current.value = "";
   };
 
   return (
@@ -161,7 +148,7 @@ export default function ProductBulkImportModal({
                 Bulk Import Products via Excel
               </h3>
               <p className="text-xs text-slate-500">
-                Create new products, update existing items by SKU, and link images.
+                Create new products, update existing items by SKU, and extract embedded pictures or image URLs.
               </p>
             </div>
           </div>
@@ -224,7 +211,7 @@ export default function ProductBulkImportModal({
               <Loader2 className="w-10 h-10 text-[#0A2540] animate-spin" />
               <h4 className="font-bold text-[#0A2540] text-sm">Processing Bulk Import...</h4>
               <p className="text-xs text-slate-500 max-w-sm">
-                Parsing Excel rows, validating SKU records, creating categories, and extracting images. Please do not close this window.
+                Parsing Excel rows, validating SKU records, creating categories, and extracting embedded images. Please do not close this window.
               </p>
             </div>
           )}
@@ -232,7 +219,7 @@ export default function ProductBulkImportModal({
           {/* Post-Import Summary Results */}
           {!isUploading && summary && (
             <div className="space-y-4">
-              <div className="grid grid-cols-4 gap-3 text-center">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
                   <span className="text-[10px] font-bold text-slate-500 uppercase block">Total Rows</span>
                   <span className="text-lg font-bold text-slate-800">{summary.total_processed}</span>
@@ -244,6 +231,10 @@ export default function ProductBulkImportModal({
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
                   <span className="text-[10px] font-bold text-blue-700 uppercase block">Updated</span>
                   <span className="text-lg font-bold text-blue-800">{summary.updated_count}</span>
+                </div>
+                <div className="bg-purple-50 border border-purple-200 rounded-xl p-3">
+                  <span className="text-[10px] font-bold text-purple-700 uppercase block">Images Extracted</span>
+                  <span className="text-lg font-bold text-purple-800">{summary.images_extracted_count ?? 0}</span>
                 </div>
                 <div className={`rounded-xl p-3 border ${summary.error_count > 0 ? "bg-red-50 border-red-200 text-red-800" : "bg-slate-50 border-slate-200 text-slate-600"}`}>
                   <span className="text-[10px] font-bold uppercase block">Errors</span>
@@ -296,11 +287,17 @@ export default function ProductBulkImportModal({
           {/* Upload Form Inputs (when not in loading or summary state) */}
           {!isUploading && !summary && (
             <form onSubmit={handleImportSubmit} className="space-y-4">
-              {/* File Dropzone 1: Excel File */}
+              {/* File Dropzone: Single Excel File */}
               <div>
-                <label className="text-xs font-bold text-slate-700 mb-1.5 block">
-                  Excel Spreadsheet File (.xlsx, .xls, .csv) <span className="text-red-500">*</span>
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-slate-700">
+                    Excel Spreadsheet File (.xlsx, .xls, .csv) <span className="text-red-500">*</span>
+                  </label>
+                  <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-amber-500" />
+                    Embedded images auto-extracted
+                  </span>
+                </div>
                 <input
                   type="file"
                   accept=".xlsx,.xls,.csv"
@@ -311,62 +308,30 @@ export default function ProductBulkImportModal({
                 />
                 <div
                   onClick={() => excelInputRef.current?.click()}
-                  className={`border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-colors ${
+                  className={`border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
                     excelFile ? "border-emerald-400 bg-emerald-50/30" : "border-slate-300 hover:border-[#0A2540] hover:bg-slate-50"
                   }`}
                 >
-                  <FileSpreadsheet className={`w-8 h-8 mb-2 ${excelFile ? "text-emerald-600" : "text-slate-400"}`} />
+                  <FileSpreadsheet className={`w-9 h-9 mb-2.5 ${excelFile ? "text-emerald-600" : "text-slate-400"}`} />
                   {excelFile ? (
                     <div>
                       <span className="text-xs font-bold text-slate-800 block truncate max-w-sm">{excelFile.name}</span>
                       <span className="text-[11px] text-slate-500">
-                        {(excelFile.size / 1024).toFixed(1)} KB • Click to change file
+                        {(excelFile.size / 1024).toFixed(1)} KB • Click to choose a different spreadsheet
                       </span>
                     </div>
                   ) : (
                     <div>
                       <span className="text-xs font-bold text-[#0A2540] block">Choose Excel file or drag &amp; drop</span>
-                      <span className="text-[11px] text-slate-400">Supports .xlsx, .xls, and .csv formats</span>
+                      <span className="text-[11px] text-slate-400 mt-0.5 block">Supports .xlsx, .xls, and .csv formats</span>
                     </div>
                   )}
                 </div>
-              </div>
-
-              {/* File Dropzone 2: Companion Images ZIP Archive */}
-              <div>
-                <label className="text-xs font-bold text-slate-700 mb-1.5 block">
-                  Companion Product Images Archive (.zip) <span className="text-slate-400 font-normal">(Optional)</span>
-                </label>
-                <input
-                  type="file"
-                  accept=".zip"
-                  ref={zipInputRef}
-                  onChange={handleZipChange}
-                  className="hidden"
-                  id="zip-file-input"
-                />
-                <div
-                  onClick={() => zipInputRef.current?.click()}
-                  className={`border-2 border-dashed rounded-2xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-colors ${
-                    zipFile ? "border-blue-400 bg-blue-50/30" : "border-slate-300 hover:border-[#0A2540] hover:bg-slate-50"
-                  }`}
-                >
-                  <Archive className={`w-7 h-7 mb-1.5 ${zipFile ? "text-blue-600" : "text-slate-400"}`} />
-                  {zipFile ? (
-                    <div>
-                      <span className="text-xs font-bold text-slate-800 block truncate max-w-sm">{zipFile.name}</span>
-                      <span className="text-[11px] text-slate-500">
-                        {(zipFile.size / (1024 * 1024)).toFixed(2)} MB • Click to change archive
-                      </span>
-                    </div>
-                  ) : (
-                    <div>
-                      <span className="text-xs font-bold text-slate-700 block">Attach images ZIP archive</span>
-                      <span className="text-[11px] text-slate-400">
-                        Contains image files matching filenames in Image_Source* and Gallery_Images
-                      </span>
-                    </div>
-                  )}
+                <div className="mt-2.5 bg-slate-50 border border-slate-200/80 rounded-xl p-3 flex items-start gap-2.5 text-[11px] text-slate-600 leading-relaxed">
+                  <Sparkles className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold text-slate-800">Direct Image Paste:</span> You can paste or insert product photos directly into each row's <span className="font-mono text-slate-700 bg-slate-200/70 px-1 py-0.5 rounded">Image_Source*</span> column in Excel! Our system extracts and attaches them automatically. Remote <span className="font-mono text-slate-700 bg-slate-200/70 px-1 py-0.5 rounded">https://</span> URLs are also supported.
+                  </div>
                 </div>
               </div>
 
@@ -375,7 +340,7 @@ export default function ProductBulkImportModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2.5 border border-slate-300 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors"
+                  className="px-4 py-2.5 border border-slate-300 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>

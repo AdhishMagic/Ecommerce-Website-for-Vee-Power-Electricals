@@ -47,7 +47,7 @@ class BulkProductImportService:
         ('Unit', 14, 'Unit of measure (e.g., Piece, Meter, Coil, Box, Set)'),
         ('Description', 40, 'Detailed product description and features'),
         ('Specifications', 40, 'Key-value specs separated by pipe (e.g., Poles: 1P | Current: 16A)'),
-        ('Image_Source*', 28, 'Primary image: filename in companion ZIP or full https:// URL'),
+        ('Image_Source*', 28, 'Paste embedded image into cell OR provide https:// URL'),
         ('Gallery_Images', 32, 'Additional gallery images separated by comma or pipe'),
         ('Is_Active', 12, 'TRUE or FALSE (default TRUE)'),
     ]
@@ -197,7 +197,7 @@ class BulkProductImportService:
             ("Unit", "NO", "Text", "Unit of measurement (e.g. Piece, Meter, Coil, Box, Set)."),
             ("Description", "NO", "Text", "Full marketing/technical description of the product."),
             ("Specifications", "NO", "Key: Value pairs", "Technical specs separated by pipe '|' (e.g. Poles: 1P | Current: 16A)."),
-            ("Image_Source*", "YES (for new)", "Filename or URL", "Primary image. Either exact filename in companion ZIP or full http(s) URL."),
+            ("Image_Source*", "YES (for new)", "Embedded or URL", "Primary image. Either paste image directly into cell or provide full http(s) URL."),
             ("Gallery_Images", "NO", "Filenames or URLs", "Additional images separated by comma or pipe (e.g. img1.jpg, img2.jpg)."),
             ("Is_Active", "NO", "Boolean", "TRUE to publish in store, FALSE to keep as draft (defaults to TRUE)."),
         ]
@@ -220,33 +220,77 @@ class BulkProductImportService:
         return buffer
 
     @classmethod
+    def get_image_row(cls, image) -> Optional[int]:
+        """
+        Extract 1-based row number for an embedded openpyxl image.
+        openpyxl's anchor._from.row is 0-based, so + 1 converts to 1-based data row.
+        """
+        anchor = getattr(image, 'anchor', None)
+        if not anchor:
+            return None
+        # OneCellAnchor / TwoCellAnchor
+        if hasattr(anchor, '_from') and hasattr(anchor._from, 'row'):
+            try:
+                return int(anchor._from.row) + 1
+            except (ValueError, TypeError):
+                pass
+        if hasattr(anchor, 'row'):
+            try:
+                return int(anchor.row)
+            except (ValueError, TypeError):
+                pass
+        # Coordinate string or string representation fallback (e.g. 'L2')
+        anchor_str = str(anchor)
+        m_coord = re.search(r'([A-Za-z]+)(\d+)', anchor_str)
+        if m_coord:
+            return int(m_coord.group(2))
+        m_row = re.search(r'row[=:\s]+(\d+)', anchor_str, re.IGNORECASE)
+        if m_row:
+            row_val = int(m_row.group(1))
+            return row_val + 1 if 'from' in anchor_str.lower() else row_val
+        return None
+
+    @classmethod
     def save_image_bytes(cls, image_bytes: bytes, original_filename: str = "") -> str:
         """
-        Verify image bytes using Pillow and write to settings.MEDIA_ROOT/products/<uuid>.<ext>.
+        Validate image bytes using Pillow, convert non-standard formats (e.g., BMP, TIFF) to PNG,
+        and write to settings.MEDIA_ROOT/products/<uuid>.<ext>.
         Returns relative media URL (e.g. /media/products/<uuid>.<ext>).
         """
+        if not image_bytes:
+            raise ValidationError(f"Image data for '{original_filename}' is empty.")
+
         if len(image_bytes) > cls.MAX_IMAGE_SIZE_BYTES:
             raise ValidationError(f"Image '{original_filename}' ({len(image_bytes) / 1024 / 1024:.2f}MB) exceeds the maximum allowed limit of 5MB.")
 
         bio = io.BytesIO(image_bytes)
         try:
             img = Image.open(bio)
-            img.verify()
             img_format = (img.format or '').upper()
+            if img_format in cls.ALLOWED_IMAGE_EXTENSIONS:
+                img.verify()
+                ext = cls.ALLOWED_IMAGE_EXTENSIONS[img_format]
+                final_bytes = image_bytes
+            else:
+                # Convert to PNG for maximum web compatibility
+                converted_bio = io.BytesIO()
+                if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+                    img = img.convert('RGBA')
+                else:
+                    img = img.convert('RGB')
+                img.save(converted_bio, format='PNG')
+                final_bytes = converted_bio.getvalue()
+                ext = 'png'
         except Exception as e:
             raise ValidationError(f"Invalid or corrupted image '{original_filename}': {str(e)}")
 
-        if img_format not in cls.ALLOWED_IMAGE_EXTENSIONS:
-            raise ValidationError(f"Unsupported image format '{img_format}' for '{original_filename}'. Allowed formats: JPEG, PNG, WebP.")
-
-        ext = cls.ALLOWED_IMAGE_EXTENSIONS[img_format]
         saved_filename = f"{uuid.uuid4().hex}.{ext}"
         media_dir = Path(settings.MEDIA_ROOT) / 'products'
         media_dir.mkdir(parents=True, exist_ok=True)
         file_path = media_dir / saved_filename
 
         with open(file_path, 'wb') as destination:
-            destination.write(image_bytes)
+            destination.write(final_bytes)
 
         return f"{settings.MEDIA_URL}products/{saved_filename}"
 
@@ -396,6 +440,7 @@ class BulkProductImportService:
 
         # Step 2: Read Excel/CSV rows
         raw_rows: List[Dict[str, Any]] = []
+        embedded_images_by_row: Dict[int, List[Any]] = {}
         is_csv = getattr(excel_file, 'name', '').lower().endswith('.csv')
 
         try:
@@ -408,10 +453,10 @@ class BulkProductImportService:
                 header_row = next(reader, None)
                 if header_row:
                     headers = [cls.normalize_header(h) for h in header_row]
-                    for row in reader:
+                    for csv_idx, row in enumerate(reader, start=2):
                         if not any(row):
                             continue
-                        row_dict = {}
+                        row_dict = {'__row_num__': csv_idx}
                         for idx, val in enumerate(row):
                             if idx < len(headers) and headers[idx]:
                                 row_dict[headers[idx]] = val
@@ -421,15 +466,23 @@ class BulkProductImportService:
                 # Prefer 'Products_Import' sheet if present, else active sheet
                 ws = wb['Products_Import'] if 'Products_Import' in wb.sheetnames else wb.active
 
+                # Extract embedded images and map by 1-based row index
+                for img in getattr(ws, '_images', []):
+                    r_num = cls.get_image_row(img)
+                    if r_num:
+                        embedded_images_by_row.setdefault(r_num, []).append(img)
+
                 header_row = [cell.value for cell in ws[1]]
                 headers = [cls.normalize_header(h) for h in header_row if h is not None]
 
-                for row in ws.iter_rows(min_row=2, values_only=True):
+                for row_cells in ws.iter_rows(min_row=2):
+                    row_idx_actual = row_cells[0].row
+                    row_values = [cell.value for cell in row_cells]
                     # Check if entire row is empty
-                    if not any(val is not None and str(val).strip() != '' for val in row):
+                    if not any(val is not None and str(val).strip() != '' for val in row_values):
                         continue
-                    row_dict = {}
-                    for idx, val in enumerate(row):
+                    row_dict = {'__row_num__': row_idx_actual}
+                    for idx, val in enumerate(row_values):
                         if idx < len(headers) and headers[idx]:
                             row_dict[headers[idx]] = val
                     raw_rows.append(row_dict)
@@ -468,10 +521,12 @@ class BulkProductImportService:
         total_processed = 0
         created_count = 0
         updated_count = 0
+        images_extracted_count = 0
         errors: List[Dict[str, Any]] = []
 
         try:
-            for row_idx, row in enumerate(raw_rows, start=2):
+            for fallback_idx, row in enumerate(raw_rows, start=2):
+                row_idx = row.get('__row_num__', fallback_idx)
                 total_processed += 1
                 sku_val = str(row.get('sku') or '').strip().upper()
                 name_val = str(row.get('product_name') or row.get('name') or '').strip()
@@ -594,17 +649,44 @@ class BulkProductImportService:
                         product._skip_indexnow = True  # Batch indexnow later
                         product.save()
 
-                        # Image Handling: Image_Source*
-                        image_source_raw = str(row.get('image_source') or row.get('primary_image') or '').strip()
+                        # Image Handling: Priority 1: Embedded image directly in Excel on this row
                         primary_img_url = None
+                        extra_gallery_urls: List[str] = []
 
-                        if image_source_raw:
-                            primary_img_url = cls.resolve_image_source(image_source_raw, zip_ref, zip_files_index)
+                        embedded_imgs = embedded_images_by_row.get(row_idx, [])
+                        for emb_idx, emb_img in enumerate(embedded_imgs):
+                            try:
+                                img_data_fn = getattr(emb_img, '_data', None)
+                                if callable(img_data_fn):
+                                    raw_img_data = img_data_fn()
+                                elif isinstance(img_data_fn, (bytes, bytearray)):
+                                    raw_img_data = bytes(img_data_fn)
+                                else:
+                                    continue
+
+                                saved_url = cls.save_image_bytes(
+                                    raw_img_data,
+                                    original_filename=f"{sku_val or 'prod'}_row{row_idx}_{emb_idx}.png"
+                                )
+                                if emb_idx == 0:
+                                    primary_img_url = saved_url
+                                    images_extracted_count += 1
+                                else:
+                                    extra_gallery_urls.append(saved_url)
+                            except Exception as emb_err:
+                                raise ValidationError(f"Failed to process embedded image on row {row_idx}: {str(emb_err)}")
+
+                        # Priority 2: If no embedded image on row, check Image_Source / URL / ZIP
+                        if not primary_img_url:
+                            image_source_raw = str(row.get('image_source') or row.get('primary_image') or row.get('image_url') or '').strip()
+                            if image_source_raw:
+                                primary_img_url = cls.resolve_image_source(image_source_raw, zip_ref, zip_files_index)
+                                if primary_img_url and (image_source_raw.startswith('http://') or image_source_raw.startswith('https://')):
+                                    images_extracted_count += 1
 
                         if primary_img_url:
                             # Update product primary image
                             ProductImage.objects.filter(product=product).update(is_primary=False)
-                            # Create or update primary image record
                             ProductImage.objects.create(
                                 product=product,
                                 image_url=primary_img_url,
@@ -614,21 +696,25 @@ class BulkProductImportService:
                             product.primary_image = primary_img_url
                             product.save(update_fields=['primary_image'])
                         elif not is_update and not product.primary_image:
-                            raise ValidationError("Image_Source is required for new products.")
+                            raise ValidationError("Image_Source (embedded image or image URL) is required for new products.")
 
-                        # Gallery Images Handling
+                        # Gallery Images Handling: Any extra embedded images + gallery_images column
+                        all_gallery_urls = list(extra_gallery_urls)
                         gallery_raw = str(row.get('gallery_images') or '').strip()
                         if gallery_raw:
                             gallery_items = [g.strip() for g in re.split(r'[,|]+', gallery_raw) if g.strip()]
-                            for g_idx, g_item in enumerate(gallery_items, start=1):
+                            for g_item in gallery_items:
                                 g_url = cls.resolve_image_source(g_item, zip_ref, zip_files_index)
                                 if g_url:
-                                    ProductImage.objects.create(
-                                        product=product,
-                                        image_url=g_url,
-                                        is_primary=False,
-                                        sort_order=g_idx
-                                    )
+                                    all_gallery_urls.append(g_url)
+
+                        for g_idx, g_url in enumerate(all_gallery_urls, start=1):
+                            ProductImage.objects.create(
+                                product=product,
+                                image_url=g_url,
+                                is_primary=False,
+                                sort_order=g_idx
+                            )
 
                         # Specifications Handling
                         specs_raw = str(row.get('specifications') or '').strip()
@@ -688,6 +774,8 @@ class BulkProductImportService:
             "total_processed": total_processed,
             "created_count": created_count,
             "updated_count": updated_count,
+            "images_extracted": images_extracted_count,
+            "images_extracted_count": images_extracted_count,
             "error_count": len(errors),
             "created": created_count,
             "updated": updated_count,

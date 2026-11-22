@@ -313,6 +313,7 @@ export interface RequestOptions extends Omit<RequestInit, 'body'> {
   skipAuth?: boolean;
   timeoutMs?: number;
   _isRetry?: boolean;
+  responseType?: 'json' | 'blob' | 'text';
 }
 
 export async function apiClient<T>(
@@ -341,7 +342,7 @@ export async function apiClient<T>(
   }
 
   const reqHeaders: Record<string, string> = {
-    Accept: 'application/json',
+    Accept: options.responseType === 'blob' ? '*/*' : 'application/json',
   };
 
   const isFormData = body instanceof FormData;
@@ -443,6 +444,13 @@ export async function apiClient<T>(
   // Check if response is 204 No Content
   if (response.status === 204) {
     return {} as T;
+  }
+
+  // Handle blob response
+  if (options.responseType === 'blob') {
+    if (response.ok) {
+      return (await response.blob()) as unknown as T;
+    }
   }
 
   // Parse JSON response

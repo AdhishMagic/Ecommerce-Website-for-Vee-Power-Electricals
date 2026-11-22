@@ -119,7 +119,7 @@ class BulkProductImportTests(TestCase):
         res = self.client.get('/api/v1/catalog/products/bulk-import/template/')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        self.assertIn('vee_power_products_template.xlsx', res['Content-Disposition'])
+        self.assertIn('VeePower_Products_Template.xlsx', res['Content-Disposition'])
 
         # Verify alias route works identically
         res_alias = self.client.get('/api/admin/products/bulk-import/template/')
@@ -381,3 +381,65 @@ class BulkProductImportTests(TestCase):
         self.assertIn("SKU-BAD-GST", err_skus)
         self.assertIn("SKU-BAD-PRICE", err_skus)
         self.assertIn("SKU-MISSING-IMG", err_skus)
+
+    def test_08_bulk_import_with_embedded_excel_images(self):
+        """
+        Verify that images embedded directly inside the .xlsx spreadsheet are extracted
+        and assigned to the corresponding product.
+        """
+        from openpyxl.drawing.image import Image as OpenpyxlImage
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Products_Import"
+        headers = [col[0] for col in BulkProductImportService.TEMPLATE_COLUMNS]
+        ws.append(headers)
+
+        # Row 2 data: leave Image_Source empty because image is embedded in row 2
+        row_data = [
+            "EMBED-MCB-32A",
+            "Havells 32A Double Pole MCB",
+            "MCB & Protection",
+            "Havells",
+            650.00,
+            580.00,
+            25,
+            18,
+            "Piece",
+            "Havells Double Pole 32A MCB with high breaking capacity",
+            "Poles: 2P | Current: 32A",
+            "",
+            "",
+            "TRUE",
+        ]
+        ws.append(row_data)
+
+        # Embed an image at cell L2 (row 2, column 12)
+        img_bytes = self._create_dummy_image_bytes('PNG', (80, 80), color=(0, 200, 100))
+        img_bio = io.BytesIO(img_bytes)
+        xl_img = OpenpyxlImage(img_bio)
+        ws.add_image(xl_img, 'L2')
+
+        excel_bio = io.BytesIO()
+        wb.save(excel_bio)
+        excel_bytes = excel_bio.getvalue()
+
+        self.client.force_authenticate(user=self.admin)
+        res = self.client.post(
+            '/api/v1/catalog/products/bulk-import/',
+            data={
+                'excel_file': SimpleUploadedFile('products_embedded.xlsx', excel_bytes, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+            },
+            format='multipart'
+        )
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        data = res.json()
+        self.assertTrue(data['success'])
+        self.assertEqual(data['created_count'], 1)
+        self.assertGreaterEqual(data.get('images_extracted', 0), 1)
+
+        product = Product.objects.filter(sku="EMBED-MCB-32A").first()
+        self.assertIsNotNone(product)
+        self.assertTrue(product.primary_image.startswith('/media/products/'))
+        self.assertTrue(ProductImage.objects.filter(product=product, is_primary=True).exists())

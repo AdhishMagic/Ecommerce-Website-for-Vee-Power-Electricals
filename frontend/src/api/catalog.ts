@@ -120,26 +120,21 @@ export const catalogApi = {
   },
 
   async downloadBulkImportTemplate(): Promise<Blob> {
-    const token = typeof window !== 'undefined' ? (localStorage.getItem('vp_access_token') || localStorage.getItem('token')) : null;
-    const res = await fetch('/api/v1/catalog/products/bulk-import/template/', {
+    const blob = await apiClient<Blob>('/catalog/products/bulk-import/template/', {
       method: 'GET',
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      responseType: 'blob',
     });
-    if (!res.ok) {
-      throw new Error(`Failed to download template (HTTP ${res.status})`);
-    }
-    const blob = await res.blob();
     // Trigger direct browser download
-    const blobUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = blobUrl;
-    link.setAttribute('download', 'vee_power_products_template.xlsx');
-    document.body.appendChild(link);
-    link.click();
-    link.parentNode?.removeChild(link);
-    window.URL.revokeObjectURL(blobUrl);
+    if (typeof window !== 'undefined') {
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.setAttribute('download', 'VeePower_Products_Template.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    }
     return blob;
   },
 
@@ -151,6 +146,8 @@ export const catalogApi = {
     total_processed: number;
     created_count: number;
     updated_count: number;
+    images_extracted_count?: number;
+    images_extracted?: number;
     error_count: number;
     created: number;
     updated: number;
@@ -169,6 +166,8 @@ export const catalogApi = {
       total_processed: number;
       created_count: number;
       updated_count: number;
+      images_extracted_count?: number;
+      images_extracted?: number;
       error_count: number;
       created: number;
       updated: number;

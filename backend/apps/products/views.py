@@ -608,7 +608,7 @@ class ProductViewSet(viewsets.ModelViewSet):
             buffer.getvalue(),
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
-        response['Content-Disposition'] = 'attachment; filename="vee_power_products_template.xlsx"'
+        response['Content-Disposition'] = 'attachment; filename="VeePower_Products_Template.xlsx"'
         return response
 
     @action(
