@@ -16,6 +16,8 @@ import {
   Users,
   Upload,
   Settings,
+  User,
+  ExternalLink,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { ShopProvider } from "../context/ShopContext";
@@ -340,10 +342,23 @@ export default function AdminLayout() {
 
 
         {/* Footer Actions */}
-        <div className="p-4 border-t border-slate-200 shrink-0">
+        <div className="p-3.5 border-t border-slate-200 shrink-0 space-y-2">
+          <Link
+            to="/account"
+            id="admin-sidebar-to-customer-dashboard"
+            className="w-full flex items-center justify-between px-3.5 py-2.5 text-xs font-bold text-[#0B3A63] bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl transition-all duration-150 group"
+            title="Navigate to Customer Dashboard"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <User className="w-4 h-4 text-[#D97706] shrink-0 group-hover:scale-110 transition-transform" />
+              <span className="truncate">Customer Dashboard</span>
+            </div>
+            <ExternalLink className="w-3.5 h-3.5 text-[#D97706]/70 group-hover:text-[#D97706] shrink-0" />
+          </Link>
+
           <button
             onClick={logout}
-            className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
           >
             <LogOut className="w-5 h-5" />
             <span className="font-medium">Logout</span>
@@ -386,31 +401,48 @@ export default function AdminLayout() {
             {/* Refresh */}
             <button
               onClick={handleRefresh}
-              className="p-2 text-slate-400 hover:text-[#0B3A63] hover:bg-slate-100 rounded-full transition-colors flex items-center gap-2"
+              className="p-2 text-slate-400 hover:text-[#0B3A63] hover:bg-slate-100 rounded-full transition-colors flex items-center gap-2 cursor-pointer"
               title="Refresh Page"
             >
               <RefreshCw className="w-4 h-4" />
               <span className="sr-only">Refresh</span>
             </button>
 
+            {/* One-Click Button to Customer Dashboard */}
+            <Link
+              to="/account"
+              id="admin-header-to-customer-dashboard"
+              className="flex items-center gap-2 px-3 sm:px-3.5 py-1.5 text-xs font-bold text-[#0B3A63] bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl transition-all duration-150 shadow-2xs group cursor-pointer"
+              title="Navigate to Customer Dashboard"
+            >
+              <User className="w-4 h-4 text-[#D97706] group-hover:scale-110 transition-transform shrink-0" />
+              <span className="hidden sm:inline">Customer Dashboard</span>
+              <span className="sm:hidden">Store</span>
+              <ExternalLink className="w-3.5 h-3.5 text-[#D97706]/70 group-hover:text-[#D97706] shrink-0" />
+            </Link>
+
             <div className="h-8 w-px bg-slate-200 hidden sm:block" />
 
             {/* User */}
-            <div className="flex items-center gap-3">
+            <Link
+              to="/account"
+              className="flex items-center gap-3 group hover:opacity-95 transition-opacity"
+              title="View Customer Profile / Dashboard"
+            >
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-semibold text-[#0B3A63]">
+                <p className="text-sm font-semibold text-[#0B3A63] group-hover:text-[#1769AA] transition-colors">
                   {COMPANY_NAME} Admin
                 </p>
 
                 <p className="text-xs text-slate-500">Administrator</p>
               </div>
 
-              <div className="w-9 h-9 bg-[#0B3A63] text-white rounded-full flex items-center justify-center font-bold shadow-sm border-2 border-[#F2A900]">
+              <div className="w-9 h-9 bg-[#0B3A63] text-white rounded-full flex items-center justify-center font-bold shadow-sm border-2 border-[#F2A900] group-hover:ring-2 group-hover:ring-[#1769AA]/30 transition-all">
                 {user?.name
                   ? user.name.charAt(0).toUpperCase()
                   : "A"}
               </div>
-            </div>
+            </Link>
           </div>
         </header>
 
