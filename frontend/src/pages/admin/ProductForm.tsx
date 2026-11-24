@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { Upload } from "lucide-react";
 import { useShop } from "../../context/ShopContext";
 import { catalogApi } from "../../api/catalog";
 import {
@@ -43,6 +44,8 @@ export default function ProductForm() {
   const [imageSuccessMsg, setImageSuccessMsg] = useState("");
   const [imageErrorMsg, setImageErrorMsg] = useState("");
   const [showLibraryModal, setShowLibraryModal] = useState(false);
+  const [isDraggingImage, setIsDraggingImage] = useState(false);
+  const imageDragCounterRef = useRef(0);
   const [libraryImages, setLibraryImages] = useState<Array<{ key: string; name: string; image_url: string }>>([
     { key: "fans", name: "Fans", image_url: "/media/defaults/fans.webp" },
     { key: "wires-cables", name: "Wires & Cables", image_url: "/media/defaults/wires-cables.webp" },
@@ -423,18 +426,33 @@ export default function ProductForm() {
   };
 
   // =========================================================================
-  // IMAGE UPLOAD & LOCAL PREVIEW HANDLERS (Issue 2)
+  // IMAGE UPLOAD & LOCAL PREVIEW HANDLERS (Issue 2 & Drag-and-Drop)
   // =========================================================================
 
-  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  // Window-level dragover/drop preventDefault to prevent browser opening dropped files
+  useEffect(() => {
+    const preventDefaults = (e: DragEvent) => {
+      if (e.dataTransfer?.types?.includes("Files")) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener("dragover", preventDefaults);
+    window.addEventListener("drop", preventDefaults);
+    return () => {
+      window.removeEventListener("dragover", preventDefaults);
+      window.removeEventListener("drop", preventDefaults);
+    };
+  }, []);
+
+  const processImageFile = async (file: File) => {
     if (!file) return;
 
     setImageErrorMsg("");
     setImageSuccessMsg("");
     clearFieldError("image");
 
-    // 1. Extension & MIME validation
+    // 1. Extension & MIME validation (works on Windows where file.type can be empty)
     const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
     const lowerName = file.name.toLowerCase();
     const hasValidExt = allowedExtensions.some(ext => lowerName.endsWith(ext));
@@ -475,6 +493,50 @@ export default function ProductForm() {
     } finally {
       setIsUploadingImage(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processImageFile(file);
+  };
+
+  const handleImageDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    imageDragCounterRef.current += 1;
+    if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
+      setIsDraggingImage(true);
+    }
+  };
+
+  const handleImageDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = "copy";
+    }
+    if (!isDraggingImage) setIsDraggingImage(true);
+  };
+
+  const handleImageDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    imageDragCounterRef.current -= 1;
+    if (imageDragCounterRef.current <= 0) {
+      imageDragCounterRef.current = 0;
+      setIsDraggingImage(false);
+    }
+  };
+
+  const handleImageDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    imageDragCounterRef.current = 0;
+    setIsDraggingImage(false);
+    const droppedFile = e.dataTransfer?.files?.[0];
+    if (droppedFile) {
+      processImageFile(droppedFile);
     }
   };
 
@@ -1136,7 +1198,17 @@ export default function ProductForm() {
                 {/* Image Preview & Controls Grid */}
                 <div className="grid md:grid-cols-2 gap-6 items-start">
                   {/* Left: Active Image Preview Card */}
-                  <div className="border border-slate-200 rounded-2xl p-5 bg-slate-50/70 flex flex-col items-center">
+                  <div
+                    onDragEnter={handleImageDragEnter}
+                    onDragOver={handleImageDragOver}
+                    onDragLeave={handleImageDragLeave}
+                    onDrop={handleImageDrop}
+                    className={`border rounded-2xl p-5 flex flex-col items-center transition-all ${
+                      isDraggingImage
+                        ? "border-blue-500 bg-blue-50/50 ring-2 ring-blue-500/20"
+                        : "border-slate-200 bg-slate-50/70"
+                    }`}
+                  >
                     <div className="relative w-full max-w-[260px] aspect-square rounded-2xl overflow-hidden bg-white border border-slate-200 shadow-sm flex items-center justify-center p-3 mb-3">
                       {isUploadingImage ? (
                         <div className="flex flex-col items-center justify-center text-slate-500 gap-2.5">
@@ -1148,12 +1220,12 @@ export default function ProductForm() {
                           key={activePreviewUrl}
                           src={activePreviewUrl}
                           alt={formData.name || "Product Preview"}
-                          className="w-full h-full object-contain"
+                          className="w-full h-full object-contain pointer-events-none"
                           loading="eager"
                           onError={(e) => handleProductImageError(e, selectedCategoryObj || formData.category)}
                         />
                       ) : (
-                        <div className="flex flex-col items-center justify-center text-slate-400 p-4 text-center">
+                        <div className="flex flex-col items-center justify-center text-slate-400 p-4 text-center pointer-events-none">
                           <span className="text-3xl mb-1.5">⚡</span>
                           <span className="text-xs font-medium text-slate-500">No image assigned yet</span>
                         </div>
@@ -1175,7 +1247,7 @@ export default function ProductForm() {
                       )}
                     </div>
 
-                    <div className="text-center w-full px-2">
+                    <div className="text-center w-full px-2 pointer-events-none">
                       <p className="text-xs font-bold text-slate-800 truncate mb-0.5">
                         {formData.name || "Product Image Preview"}
                       </p>
@@ -1190,7 +1262,7 @@ export default function ProductForm() {
                     <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 shadow-xs">
                       <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Choose Image Source</h3>
 
-                      {/* Action 1: Upload Custom File */}
+                      {/* Action 1: Upload Custom File Dropzone */}
                       <div>
                         <input
                           type="file"
@@ -1200,20 +1272,47 @@ export default function ProductForm() {
                           className="hidden"
                           id="product-image-file-input"
                         />
-                        <button
-                          type="button"
+                        <div
                           onClick={() => fileInputRef.current?.click()}
-                          disabled={isUploadingImage}
-                          className="w-full flex items-center justify-center gap-2 bg-[#0A2540] hover:bg-[#153e66] text-white text-xs font-bold py-3 px-4 rounded-xl shadow-xs hover:shadow transition-all cursor-pointer disabled:opacity-50"
+                          onDragEnter={handleImageDragEnter}
+                          onDragOver={handleImageDragOver}
+                          onDragLeave={handleImageDragLeave}
+                          onDrop={handleImageDrop}
+                          className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
+                            isDraggingImage
+                              ? "border-blue-500 bg-blue-50/70 ring-4 ring-blue-500/20 shadow-md scale-[1.01]"
+                              : isCustomImage
+                              ? "border-emerald-300 bg-emerald-50/30 hover:border-emerald-500"
+                              : "border-slate-300 hover:border-[#0A2540] hover:bg-slate-50"
+                          }`}
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                          </svg>
-                          <span>{isCustomImage ? "Replace With New Upload" : "Upload Custom Image"}</span>
-                        </button>
-                        <p className="text-[11px] text-slate-400 mt-1.5 text-center">
-                          JPG, PNG, or WebP • Up to 20MB • Instant local preview
-                        </p>
+                          <div className="pointer-events-none flex flex-col items-center justify-center">
+                            <Upload
+                              className={`w-7 h-7 mb-1.5 transition-colors ${
+                                isDraggingImage
+                                  ? "text-blue-600 animate-bounce"
+                                  : isCustomImage
+                                  ? "text-emerald-600"
+                                  : "text-slate-400"
+                              }`}
+                            />
+                            {isDraggingImage ? (
+                              <div>
+                                <span className="text-xs font-bold text-blue-700 block">Drop image here</span>
+                                <span className="text-[10px] text-blue-500 mt-0.5 block">Release to upload & preview</span>
+                              </div>
+                            ) : (
+                              <div>
+                                <span className="text-xs font-bold text-[#0A2540] block">
+                                  {isCustomImage ? "Replace image or drag & drop" : "Choose image or drag & drop"}
+                                </span>
+                                <span className="text-[11px] text-slate-400 mt-0.5 block">
+                                  JPG, PNG, or WebP • Up to 20MB
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
 
                       <div className="relative flex py-1 items-center">

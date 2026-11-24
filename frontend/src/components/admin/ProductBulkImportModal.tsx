@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Upload,
   Download,
@@ -44,8 +44,25 @@ export default function ProductBulkImportModal({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [summary, setSummary] = useState<ImportSummary | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const excelInputRef = useRef<HTMLInputElement>(null);
+  const dragCounterRef = useRef(0);
+
+  // Window-level dragover/drop preventDefault to prevent browser opening dropped files
+  useEffect(() => {
+    if (!isOpen) return;
+    const preventDefaults = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    window.addEventListener("dragover", preventDefaults);
+    window.addEventListener("drop", preventDefaults);
+    return () => {
+      window.removeEventListener("dragover", preventDefaults);
+      window.removeEventListener("drop", preventDefaults);
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -62,16 +79,60 @@ export default function ProductBulkImportModal({
     }
   };
 
-  const handleExcelChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileSelect = (file: File) => {
     if (!file) return;
     const lower = file.name.toLowerCase();
     if (!lower.endsWith(".xlsx") && !lower.endsWith(".xls") && !lower.endsWith(".csv")) {
       setUploadError("Invalid file type. Please upload an Excel (.xlsx, .xls) or CSV (.csv) file.");
+      if (excelInputRef.current) excelInputRef.current.value = "";
       return;
     }
     setUploadError("");
     setExcelFile(file);
+  };
+
+  const handleExcelChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFileSelect(file);
+  };
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current += 1;
+    if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = "copy";
+    }
+    if (!isDragging) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setIsDragging(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setIsDragging(false);
+    const droppedFile = e.dataTransfer?.files?.[0];
+    if (droppedFile) {
+      handleFileSelect(droppedFile);
+    }
   };
 
   const handleImportSubmit = async (e: React.FormEvent) => {
@@ -308,22 +369,67 @@ export default function ProductBulkImportModal({
                 />
                 <div
                   onClick={() => excelInputRef.current?.click()}
+                  onDragEnter={handleDragEnter}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
                   className={`border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
-                    excelFile ? "border-emerald-400 bg-emerald-50/30" : "border-slate-300 hover:border-[#0A2540] hover:bg-slate-50"
+                    isDragging
+                      ? "border-blue-500 bg-blue-50/70 ring-4 ring-blue-500/20 shadow-md scale-[1.01]"
+                      : excelFile
+                      ? "border-emerald-400 bg-emerald-50/40 hover:border-emerald-500"
+                      : "border-slate-300 hover:border-[#0A2540] hover:bg-slate-50"
                   }`}
                 >
-                  <FileSpreadsheet className={`w-9 h-9 mb-2.5 ${excelFile ? "text-emerald-600" : "text-slate-400"}`} />
-                  {excelFile ? (
-                    <div>
-                      <span className="text-xs font-bold text-slate-800 block truncate max-w-sm">{excelFile.name}</span>
-                      <span className="text-[11px] text-slate-500">
-                        {(excelFile.size / 1024).toFixed(1)} KB • Click to choose a different spreadsheet
-                      </span>
-                    </div>
-                  ) : (
-                    <div>
-                      <span className="text-xs font-bold text-[#0A2540] block">Choose Excel file or drag &amp; drop</span>
-                      <span className="text-[11px] text-slate-400 mt-0.5 block">Supports .xlsx, .xls, and .csv formats</span>
+                  <div className="pointer-events-none flex flex-col items-center justify-center">
+                    <FileSpreadsheet
+                      className={`w-10 h-10 mb-2.5 transition-colors ${
+                        isDragging ? "text-blue-600 animate-bounce" : excelFile ? "text-emerald-600" : "text-slate-400"
+                      }`}
+                    />
+                    {isDragging ? (
+                      <div>
+                        <span className="text-xs font-bold text-blue-700 block">Drop your Excel file here</span>
+                        <span className="text-[11px] text-blue-500 mt-0.5 block">Release to assign spreadsheet</span>
+                      </div>
+                    ) : excelFile ? (
+                      <div>
+                        <span className="text-xs font-bold text-slate-800 block truncate max-w-sm">{excelFile.name}</span>
+                        <span className="text-[11px] text-slate-500 block mt-0.5">
+                          {(excelFile.size / 1024).toFixed(1)} KB • Ready for bulk import
+                        </span>
+                      </div>
+                    ) : (
+                      <div>
+                        <span className="text-xs font-bold text-[#0A2540] block">Choose Excel file or drag &amp; drop</span>
+                        <span className="text-[11px] text-slate-400 mt-0.5 block">Supports .xlsx, .xls, and .csv formats</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {excelFile && !isDragging && (
+                    <div className="mt-3.5 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          excelInputRef.current?.click();
+                        }}
+                        className="px-2.5 py-1 text-[11px] font-semibold text-[#0A2540] bg-white border border-slate-300 hover:bg-slate-100 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                      >
+                        Change file
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExcelFile(null);
+                          if (excelInputRef.current) excelInputRef.current.value = "";
+                        }}
+                        className="px-2.5 py-1 text-[11px] font-semibold text-red-600 bg-white border border-red-200 hover:bg-red-50 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                      >
+                        Remove file
+                      </button>
                     </div>
                   )}
                 </div>

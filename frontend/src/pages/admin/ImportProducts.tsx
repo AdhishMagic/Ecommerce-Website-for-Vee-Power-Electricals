@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { catalogApi } from "../../api/catalog";
 import { useShop } from "../../context/ShopContext";
@@ -21,11 +21,30 @@ export default function ImportProducts() {
   const [stage, setStage] = useState<"upload" | "preview" | "importing" | "done">("upload");
   const [previewRows, setPreviewRows] = useState<ParsedProductRow[]>([]);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounterRef = useRef(0);
   const [importResults, setImportResults] = useState<{ imported: number; failed: number; errors: string[] }>({
     imported: 0,
     failed: 0,
     errors: [],
   });
+
+  // Window-level dragover/drop preventDefault when on upload stage
+  useEffect(() => {
+    if (stage !== "upload") return;
+    const preventDefaults = (e: DragEvent) => {
+      if (e.dataTransfer?.types?.includes("Files")) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener("dragover", preventDefaults);
+    window.addEventListener("drop", preventDefaults);
+    return () => {
+      window.removeEventListener("dragover", preventDefaults);
+      window.removeEventListener("drop", preventDefaults);
+    };
+  }, [stage]);
 
   const parseFileContent = (text: string) => {
     setParseError(null);
@@ -91,6 +110,13 @@ export default function ImportProducts() {
   };
 
   const processFile = (f: File) => {
+    if (!f) return;
+    const lower = f.name.toLowerCase();
+    if (!lower.endsWith(".csv") && !lower.endsWith(".txt") && !lower.endsWith(".tsv")) {
+      setParseError("Invalid file type. Please upload a standard CSV (.csv) or text (.txt) file.");
+      return;
+    }
+
     setFile(f);
     setParseError(null);
 
@@ -115,8 +141,39 @@ export default function ImportProducts() {
     if (f) processFile(f);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current += 1;
+    if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = "copy";
+    }
+    if (!isDragging) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setIsDragging(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setIsDragging(false);
     const f = e.dataTransfer.files?.[0];
     if (f) processFile(f);
   };
@@ -286,18 +343,34 @@ export default function ImportProducts() {
 
           {/* Drop zone */}
           <div
-            className="border-2 border-dashed border-[#D9E1E8] rounded-xl p-14 text-center hover:border-[#1769AA] transition-colors cursor-pointer"
+            className={`border-2 border-dashed rounded-xl p-14 text-center transition-all cursor-pointer ${
+              isDragging
+                ? "border-blue-500 bg-blue-50/70 ring-4 ring-blue-500/20 shadow-md scale-[1.01]"
+                : "border-[#D9E1E8] hover:border-[#1769AA] hover:bg-slate-50/50"
+            }`}
+            onDragEnter={handleDragEnter}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            onDragOver={e => e.preventDefault()}
           >
-            <div className="text-5xl mb-4">
-              <FileSpreadsheet className="w-16 h-16 text-[#0B3A63] mx-auto" />
+            <div className="pointer-events-none flex flex-col items-center justify-center">
+              <div className="text-5xl mb-4">
+                <FileSpreadsheet
+                  className={`w-16 h-16 mx-auto transition-colors ${
+                    isDragging ? "text-blue-600 animate-bounce" : "text-[#0B3A63]"
+                  }`}
+                />
+              </div>
+              <h3 className="font-bold text-[#0B3A63] text-lg mb-2">
+                {isDragging ? "Drop your CSV file here" : "Drop your CSV / spreadsheet file here"}
+              </h3>
+              <p className="text-sm text-[#667085] mb-5">
+                {isDragging ? "Release to preview and import" : "Supports standard CSV format with comma or tab delimited values."}
+              </p>
             </div>
-            <h3 className="font-bold text-[#0B3A63] text-lg mb-2">Drop your CSV / spreadsheet file here</h3>
-            <p className="text-sm text-[#667085] mb-5">Supports standard CSV format with comma or tab delimited values.</p>
-            <label className="cursor-pointer bg-[#0B3A63] hover:bg-[#1769AA] text-white font-medium px-6 py-3 rounded-lg transition-colors inline-block">
+            <label className="cursor-pointer bg-[#0B3A63] hover:bg-[#1769AA] text-white font-medium px-6 py-3 rounded-lg transition-colors inline-block shadow-xs">
               Choose File
-              <input type="file" accept=".csv,.txt" className="hidden" onChange={handleFileChange} />
+              <input type="file" accept=".csv,.txt,.tsv" className="hidden" onChange={handleFileChange} />
             </label>
           </div>
 
