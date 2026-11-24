@@ -297,7 +297,7 @@ export default function ShippingSettings() {
                 className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[#F2A900] hover:bg-[#D4920A] text-[#0A2540] disabled:opacity-50 disabled:cursor-not-allowed text-sm font-bold rounded-xl transition-colors shadow-sm cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
-                {addingRule ? "Adding..." : "+ Add Rule"}
+                {addingRule ? "Adding..." : "Add Rule"}
               </button>
             </div>
           </div>

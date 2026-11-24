@@ -773,7 +773,7 @@ export default function CustomersPage() {
                   onClick={handleOpenCreateModal}
                   className="px-4 py-2 bg-[#F2A900] hover:bg-[#d99800] text-[#0A2540] text-xs font-bold rounded-lg transition-colors shadow-2xs"
                 >
-                  + Add First Customer
+                  Add First Customer
                 </button>
               </>
             )}
