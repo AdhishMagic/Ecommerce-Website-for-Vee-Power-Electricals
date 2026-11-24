@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Search, Calendar, FileText, Truck, Package, CheckCircle2, XCircle, RotateCcw } from "lucide-react";
 import InvoiceModal from "../../components/admin/InvoiceModal";
+import TwoStepConfirmationModal from "../../components/admin/TwoStepConfirmationModal";
 import { ordersApi } from "../../api/orders";
 import { OrderSummary, OrderDetailData, OrderStatus } from "../../types/api";
 
@@ -41,6 +42,10 @@ export default function AdminOrders() {
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  // Two-Step Cancellation Modal State
+  const [orderToCancel, setOrderToCancel] = useState<{ id: number; order_number: string; reason: string; customer_name?: string } | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+
   const loadOrders = async () => {
     try {
       setLoading(true);
@@ -63,6 +68,17 @@ export default function AdminOrders() {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     loadOrders();
+  };
+
+  const handleConfirmCancelOrder = async () => {
+    if (!orderToCancel) return;
+    setIsCancelling(true);
+    try {
+      await handleStatusTransition(orderToCancel.id, "CANCELLED", orderToCancel.reason);
+      setOrderToCancel(null);
+    } finally {
+      setIsCancelling(false);
+    }
   };
 
   const handleStatusTransition = async (orderId: number, targetStatus: OrderStatus, reason: string = "") => {
@@ -112,7 +128,9 @@ export default function AdminOrders() {
     }
   };
 
-  const getFsmActions = (status: OrderStatus, orderId: number) => {
+  const getFsmActions = (order: OrderSummary) => {
+    const status = order.status;
+    const orderId = order.id;
     switch (status) {
       case "PENDING":
         return (
@@ -120,14 +138,21 @@ export default function AdminOrders() {
             <button
               onClick={() => handleStatusTransition(orderId, "CONFIRMED", "Payment received & confirmed")}
               disabled={updatingId === orderId}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
             >
               <CheckCircle2 className="w-3.5 h-3.5" /> Confirm
             </button>
             <button
-              onClick={() => handleStatusTransition(orderId, "CANCELLED", "Cancelled by admin")}
+              onClick={() =>
+                setOrderToCancel({
+                  id: order.id,
+                  order_number: order.order_number,
+                  reason: "Cancelled by admin",
+                  customer_name: order.customer_name,
+                })
+              }
               disabled={updatingId === orderId}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
             >
               <XCircle className="w-3.5 h-3.5" /> Cancel
             </button>
@@ -139,14 +164,21 @@ export default function AdminOrders() {
             <button
               onClick={() => handleStatusTransition(orderId, "PACKED", "Order packed in warehouse")}
               disabled={updatingId === orderId}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
             >
               <Package className="w-3.5 h-3.5" /> Mark Packed
             </button>
             <button
-              onClick={() => handleStatusTransition(orderId, "CANCELLED", "Cancelled before packing")}
+              onClick={() =>
+                setOrderToCancel({
+                  id: order.id,
+                  order_number: order.order_number,
+                  reason: "Cancelled before packing",
+                  customer_name: order.customer_name,
+                })
+              }
               disabled={updatingId === orderId}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
             >
               Cancel
             </button>
@@ -344,7 +376,7 @@ export default function AdminOrders() {
                       className="px-3 py-1.5 text-xs border border-slate-300 rounded-lg outline-none focus:border-[#0B3A63] w-52 bg-white"
                     />
                   )}
-                  {getFsmActions(order.status, order.id)}
+                  {getFsmActions(order)}
                   {order.is_cod && !order.cod_balance_collected && (
                     <button
                       onClick={() => handleCollectCodBalance(order.id)}
@@ -376,8 +408,36 @@ export default function AdminOrders() {
         <InvoiceModal
           order={selectedInvoiceOrder as any}
           onClose={() => setSelectedInvoiceOrder(null)}
+          onCancelOrder={(ord) => {
+            setSelectedInvoiceOrder(null);
+            setOrderToCancel({
+              id: ord.id,
+              order_number: ord.order_number || ord.id,
+              reason: "Cancelled by admin from Order Details",
+              customer_name: ord.customer_name || ord.customer,
+            });
+          }}
         />
       )}
+
+      {/* Two-Step Confirmation Modal for Order Cancellation */}
+      <TwoStepConfirmationModal
+        isOpen={Boolean(orderToCancel)}
+        onClose={() => setOrderToCancel(null)}
+        onConfirm={handleConfirmCancelOrder}
+        actionType="cancel"
+        title="Confirm Order Cancellation"
+        itemTitle={orderToCancel ? `Order #${orderToCancel.order_number}` : ""}
+        itemSubtitle={orderToCancel?.customer_name ? `Customer: ${orderToCancel.customer_name}` : undefined}
+        step1Question={
+          orderToCancel
+            ? `Are you sure you want to cancel order #${orderToCancel.order_number}?`
+            : undefined
+        }
+        step2Warning="Final Confirmation: This action cannot be undone. Click below to permanently confirm."
+        confirmButtonText="Yes, Cancel Order"
+        isLoading={isCancelling}
+      />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import {
 import { Link } from "react-router-dom";
 import { customersApi } from "../../api/customers";
 import { CustomerDetail, OrderStatus } from "../../types/api";
+import TwoStepConfirmationModal from "./TwoStepConfirmationModal";
 
 interface CustomerViewModalProps {
   isOpen: boolean;
@@ -569,47 +570,45 @@ export default function CustomerViewModal({
                 {customer.is_active ? "Suspend / Deactivate" : "Activate Account"}
               </button>
 
-              {!showDeactivateConfirm ? (
-                <button
-                  type="button"
-                  onClick={() => setShowDeactivateConfirm(true)}
-                  disabled={actionLoading}
-                  className="px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                >
-                  Delete / Purge
-                </button>
-              ) : (
-                <div className="flex items-center gap-2 p-1.5 bg-rose-50 border border-rose-200 rounded-lg text-xs">
-                  <span className="text-rose-700 font-medium">Safe deactivation policy applies. Proceed?</span>
-                  <button
-                    type="button"
-                    onClick={handleSafeDelete}
-                    disabled={actionLoading}
-                    className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded font-bold"
-                  >
-                    Confirm
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowDeactivateConfirm(false)}
-                    className="px-2 py-1 text-slate-600 hover:text-slate-900"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={() => setShowDeactivateConfirm(true)}
+                disabled={actionLoading}
+                className="px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+              >
+                Delete Account
+              </button>
             </div>
 
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+              className="px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
             >
               Close
             </button>
           </div>
         )}
       </div>
+
+      {/* Two-Step Confirmation Modal for Customer Deletion */}
+      <TwoStepConfirmationModal
+        isOpen={showDeactivateConfirm}
+        onClose={() => setShowDeactivateConfirm(false)}
+        onConfirm={handleSafeDelete}
+        actionType="delete"
+        title="Confirm Customer Deletion"
+        itemTitle={customer ? `${customer.name} (${customer.email})` : ""}
+        itemSubtitle={customer?.phone ? `Phone: ${customer.phone}` : undefined}
+        step1Question={
+          customer
+            ? `Are you sure you want to delete customer account for ${customer.name}?`
+            : undefined
+        }
+        step2Warning="Final Confirmation: This action cannot be undone. Click below to permanently confirm."
+        confirmButtonText="Yes, Delete Permanently"
+        isLoading={actionLoading}
+      />
     </div>
   );
 }

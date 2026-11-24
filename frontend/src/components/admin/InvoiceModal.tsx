@@ -1,17 +1,20 @@
-import { X, Printer } from "lucide-react";
+import { X, Printer, XCircle } from "lucide-react";
 import { COMPANY_ADDRESS } from "../../constants/companyInfo";
 
 interface InvoiceModalProps {
   order: any;
   onClose: () => void;
+  onCancelOrder?: (order: any) => void;
 }
 
-export default function InvoiceModal({ order, onClose }: InvoiceModalProps) {
+export default function InvoiceModal({ order, onClose, onCancelOrder }: InvoiceModalProps) {
   if (!order) return null;
 
   const handlePrint = () => {
     window.print();
   };
+
+  const isCancellable = onCancelOrder && ["PENDING", "CONFIRMED"].includes(String(order.status || "").toUpperCase());
 
   const total = Number(order.total_amount ?? order.total ?? 0);
   const subtotal = Number(order.subtotal ?? (total * 100) / 118);
@@ -37,7 +40,17 @@ export default function InvoiceModal({ order, onClose }: InvoiceModalProps) {
         {/* Modal Controls - Hidden in print */}
         <div className="sticky top-0 bg-slate-50 border-b border-slate-200 p-4 flex justify-between items-center z-10 print:hidden shrink-0">
           <h2 className="font-bold text-[#0B3A63] text-lg">Invoice Preview</h2>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            {isCancellable && (
+              <button
+                type="button"
+                onClick={() => onCancelOrder?.(order)}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 rounded-lg text-sm font-semibold transition-colors cursor-pointer"
+              >
+                <XCircle className="w-4 h-4" />
+                Cancel Order
+              </button>
+            )}
             <button
               onClick={handlePrint}
               className="flex items-center gap-2 px-4 py-2 bg-[#0B3A63] text-white rounded-lg text-sm font-semibold hover:bg-[#1769AA] transition-colors"

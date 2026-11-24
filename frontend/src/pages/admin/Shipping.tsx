@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Plus, Trash2, Save, Truck, CheckCircle2, AlertCircle } from "lucide-react";
 import { configApi } from "../../api/config";
+import TwoStepConfirmationModal from "../../components/admin/TwoStepConfirmationModal";
 
 type ShippingRule = {
   id: string;
@@ -133,21 +134,29 @@ export default function ShippingSettings() {
     }
   };
 
-  const handleRemoveRule = async (id: string, stateName: string) => {
+  const [ruleToDelete, setRuleToDelete] = useState<{ id: string; state: string } | null>(null);
+  const [isDeletingRule, setIsDeletingRule] = useState(false);
+
+  const handleConfirmRemoveRule = async () => {
+    if (!ruleToDelete) return;
+    setIsDeletingRule(true);
     setStatusMessage(null);
     try {
-      await configApi.deleteShippingRule(id);
-      setRules(prev => prev.filter(r => r.id !== id));
+      await configApi.deleteShippingRule(ruleToDelete.id);
+      setRules(prev => prev.filter(r => r.id !== ruleToDelete.id));
       setStatusMessage({
         type: 'success',
-        text: `Removed shipping rule for ${stateName}`,
+        text: `Removed shipping rule for ${ruleToDelete.state}`,
       });
+      setRuleToDelete(null);
     } catch (err: any) {
       console.error("Failed to delete shipping rule:", err);
       setStatusMessage({
         type: 'error',
         text: err?.message || "Failed to delete rule from server.",
       });
+    } finally {
+      setIsDeletingRule(false);
     }
   };
 
@@ -333,7 +342,7 @@ export default function ShippingSettings() {
                         <td className="px-5 py-4 text-right">
                           <button 
                             type="button"
-                            onClick={() => handleRemoveRule(rule.id, rule.state)}
+                            onClick={() => setRuleToDelete({ id: rule.id, state: rule.state })}
                             className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors inline-flex cursor-pointer"
                             title={`Delete rule for ${rule.state}`}
                           >
@@ -349,6 +358,24 @@ export default function ShippingSettings() {
           </div>
         </div>
       </div>
+
+      {/* Two-Step Confirmation Modal for Shipping Rule Deletion */}
+      <TwoStepConfirmationModal
+        isOpen={Boolean(ruleToDelete)}
+        onClose={() => setRuleToDelete(null)}
+        onConfirm={handleConfirmRemoveRule}
+        actionType="delete"
+        title="Confirm Shipping Rule Deletion"
+        itemTitle={ruleToDelete ? `Shipping Rule for ${ruleToDelete.state}` : ""}
+        step1Question={
+          ruleToDelete
+            ? `Are you sure you want to delete the custom shipping rule for ${ruleToDelete.state}?`
+            : undefined
+        }
+        step2Warning="Final Confirmation: This action cannot be undone. Click below to permanently confirm."
+        confirmButtonText="Yes, Delete Permanently"
+        isLoading={isDeletingRule}
+      />
     </div>
   );
 }

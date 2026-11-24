@@ -19,6 +19,7 @@ import {
 import { useShop, Product } from "../../context/ShopContext";
 import { resolveProductImage, handleProductImageError } from "../../utils/productImageResolver";
 import ProductBulkImportModal from "../../components/admin/ProductBulkImportModal";
+import TwoStepConfirmationModal from "../../components/admin/TwoStepConfirmationModal";
 
 interface ToastState {
   message: string;
@@ -376,49 +377,24 @@ export default function AdminProducts() {
         )}
       </div>
 
-      {/* 5. Clean Confirmation Modal for Delete (Requirement 4) */}
-      {productToDelete && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-6">
-              <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mb-4">
-                <AlertTriangle className="w-6 h-6" />
-              </div>
-              <h3 className="text-lg font-bold text-[#0A2540]">Confirm Product Deletion</h3>
-              <p className="text-sm text-slate-600 mt-2">
-                Are you sure you want to delete <strong className="text-slate-900">"{productToDelete.name}"</strong> (SKU:{" "}
-                <span className="font-mono text-xs">{productToDelete.sku}</span>)?
-              </p>
-              <div className="mt-3.5 p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 flex items-start gap-2">
-                <span className="font-bold shrink-0">ℹ️ Note:</span>
-                <span>
-                  Foreign-Key Protection: If this product is linked to existing order items, invoices, or inventory audit logs,
-                  it will be automatically preserved and safely archived as <strong>DRAFT</strong> instead of breaking transaction records.
-                </span>
-              </div>
-            </div>
-            <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setProductToDelete(null)}
-                disabled={isDeleting}
-                className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                disabled={isDeleting}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors shadow-xs cursor-pointer disabled:opacity-50"
-              >
-                {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                <span>{isDeleting ? "Deleting..." : "Delete Product"}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 5. Two-Step Confirmation Modal for Delete */}
+      <TwoStepConfirmationModal
+        isOpen={Boolean(productToDelete)}
+        onClose={() => setProductToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        actionType="delete"
+        title="Confirm Product Deletion"
+        itemTitle={productToDelete ? productToDelete.name : ""}
+        itemSubtitle={productToDelete ? `SKU: ${productToDelete.sku}` : ""}
+        step1Question={
+          productToDelete
+            ? `Are you sure you want to delete "${productToDelete.name}" (SKU: ${productToDelete.sku})?`
+            : undefined
+        }
+        step2Warning="Final Confirmation: This action cannot be undone. Click below to permanently confirm."
+        confirmButtonText="Yes, Delete Permanently"
+        isLoading={isDeleting}
+      />
 
       {/* 6. Bulk Product Import Modal */}
       <ProductBulkImportModal

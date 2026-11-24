@@ -3,6 +3,7 @@ import { Plus, IndianRupee, Clock, Tag, X, Edit, Trash2, Loader2, AlertCircle } 
 import { financeApi, ExpensesSummary } from "../../api/finance";
 import { ExpenseItem } from "../../types/api";
 import AdminPagination from "../../components/common/AdminPagination";
+import TwoStepConfirmationModal from "../../components/admin/TwoStepConfirmationModal";
 
 type Expense = {
   id: number;
@@ -165,14 +166,20 @@ export default function ExpensesPage() {
     }
   };
 
-  const handleDeleteExpense = async (id: number) => {
-    if (confirm("Are you sure you want to delete this expense?")) {
-      try {
-        await financeApi.deleteExpense(id);
-        await refreshAll();
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Unable to delete the expense. Please try again.");
-      }
+  const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
+  const [isDeletingExpense, setIsDeletingExpense] = useState(false);
+
+  const handleConfirmDeleteExpense = async () => {
+    if (!expenseToDelete) return;
+    setIsDeletingExpense(true);
+    try {
+      await financeApi.deleteExpense(expenseToDelete.id);
+      setExpenseToDelete(null);
+      await refreshAll();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Unable to delete the expense. Please try again.");
+    } finally {
+      setIsDeletingExpense(false);
     }
   };
 
@@ -296,7 +303,7 @@ export default function ExpensesPage() {
                         <button onClick={() => handleOpenModal(expense)} className="p-1.5 text-slate-400 hover:text-[#0A2540] hover:bg-slate-100 rounded transition-colors" title="Edit">
                           <Edit className="w-4 h-4" />
                         </button>
-                        <button onClick={() => handleDeleteExpense(expense.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete">
+                        <button onClick={() => setExpenseToDelete(expense)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer" title="Delete">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -418,6 +425,24 @@ export default function ExpensesPage() {
           </div>
         </div>
       )}
+      {/* Two-Step Confirmation Modal for Expense Deletion */}
+      <TwoStepConfirmationModal
+        isOpen={Boolean(expenseToDelete)}
+        onClose={() => setExpenseToDelete(null)}
+        onConfirm={handleConfirmDeleteExpense}
+        actionType="delete"
+        title="Confirm Expense Deletion"
+        itemTitle={expenseToDelete ? `₹${Number(expenseToDelete.amount).toLocaleString('en-IN')} - ${expenseToDelete.description}` : ""}
+        itemSubtitle={expenseToDelete ? `Vendor: ${expenseToDelete.vendor} • Category: ${expenseToDelete.category}` : undefined}
+        step1Question={
+          expenseToDelete
+            ? `Are you sure you want to delete this expense of ₹${Number(expenseToDelete.amount).toLocaleString('en-IN')} (${expenseToDelete.description})?`
+            : undefined
+        }
+        step2Warning="Final Confirmation: This action cannot be undone. Click below to permanently confirm."
+        confirmButtonText="Yes, Delete Permanently"
+        isLoading={isDeletingExpense}
+      />
     </div>
   );
 }
