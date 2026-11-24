@@ -555,17 +555,6 @@ export default function Header() {
                             Admin Dashboard
                           </Link>
                           <Link
-                            to="/account"
-                            role="menuitem"
-                            onClick={() => setAccountMenuOpen(false)}
-                            className="flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-[#17212B] hover:bg-[#F6F8FA] hover:text-[#1769AA] transition-colors"
-                          >
-                            <svg className="w-4 h-4 text-[#D97706]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
-                            Customer Dashboard
-                          </Link>
-                          <Link
                             to="/admin/settings"
                             role="menuitem"
                             onClick={() => setAccountMenuOpen(false)}
