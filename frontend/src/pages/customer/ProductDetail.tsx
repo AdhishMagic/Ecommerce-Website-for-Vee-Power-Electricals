@@ -243,6 +243,26 @@ export default function ProductDetail() {
         }}
       />
 
+      {/* Draft / Storefront Preview Mode Banner */}
+      {!product.active && (
+        <div className="mb-6 bg-amber-50 border border-amber-300 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-900 shadow-xs">
+          <div className="flex items-center gap-3">
+            <span className="px-2.5 py-1 bg-amber-200 text-amber-900 rounded-md font-bold text-xs uppercase tracking-wider">
+              Draft / Preview
+            </span>
+            <p className="text-sm font-medium">
+              This product is currently in <strong>DRAFT</strong> status and is hidden from storefront customers.
+            </p>
+          </div>
+          <Link
+            to={`/admin/products/edit/${product.id}`}
+            className="text-xs font-bold text-blue-700 hover:text-blue-900 underline shrink-0"
+          >
+            Edit in Admin →
+          </Link>
+        </div>
+      )}
+
       {/* Semantic Breadcrumbs */}
       <Breadcrumbs
         items={[

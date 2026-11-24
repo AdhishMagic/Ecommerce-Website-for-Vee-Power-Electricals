@@ -346,8 +346,9 @@ class ProductViewSet(viewsets.ModelViewSet):
             or self.request.query_params.get('all', '').lower() in ('true', '1', 't')
         )
 
-        # Public users see strictly active merchandise unless admin or explicit include_all
-        if not is_admin_user and not include_all:
+        # For retrieve action (detail page/preview), allow viewing by ID or slug even if DRAFT
+        # For list action: Public users see strictly active merchandise unless admin or explicit include_all
+        if getattr(self, 'action', None) != 'retrieve' and not is_admin_user and not include_all:
             qs = qs.filter(active=True)
         else:
             active_param = self.request.query_params.get('active')
@@ -442,12 +443,12 @@ class ProductViewSet(viewsets.ModelViewSet):
             'created_at': ('created_at', '-id'),
             '-created_at': ('-created_at', '-updated_at', '-id'),
             'updated_at': ('updated_at', '-id'),
-            '-updated_at': ('-updated_at', '-created_at', '-id'),
+            '-updated_at': ('-updated_at', '-id'),
         }
         if ordering in valid_orderings:
             qs = qs.order_by(*valid_orderings[ordering])
         else:
-            qs = qs.order_by('-updated_at', '-created_at', '-id')
+            qs = qs.order_by('-updated_at', '-id')
 
         return qs
 
@@ -466,13 +467,26 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)
-        if not (request.user and request.user.is_authenticated and (request.user.is_staff or getattr(request.user, 'role', '') == 'admin')):
+        is_admin_user = bool(
+            request.user and request.user.is_authenticated and (request.user.is_staff or getattr(request.user, 'role', '') == 'admin')
+        )
+        include_all = request.query_params.get('include_all', '').lower() in ('true', '1', 't')
+        if is_admin_user or include_all:
+            response['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
+            response['Pragma'] = 'no-cache'
+        else:
             response['Cache-Control'] = 'public, max-age=30, s-maxage=120, stale-while-revalidate=300'
         return response
 
     def retrieve(self, request, *args, **kwargs):
         response = super().retrieve(request, *args, **kwargs)
-        if not (request.user and request.user.is_authenticated and (request.user.is_staff or getattr(request.user, 'role', '') == 'admin')):
+        is_admin_user = bool(
+            request.user and request.user.is_authenticated and (request.user.is_staff or getattr(request.user, 'role', '') == 'admin')
+        )
+        if is_admin_user:
+            response['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
+            response['Pragma'] = 'no-cache'
+        else:
             response['Cache-Control'] = 'public, max-age=60, s-maxage=300, stale-while-revalidate=600'
         return response
 
@@ -491,7 +505,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         """
         Safely handle product deletion. If product is protected by stock ledger entries,
-        order items, invoice items, or quotation items, soft-deactivate it instead of throwing
+        order items, invoice items, or quotation items, soft-deactivate it cleanly instead of throwing
         an unhandled database exception or orphaning historical audit records.
         """
         invalidate_catalog_cache()
@@ -503,11 +517,14 @@ class ProductViewSet(viewsets.ModelViewSet):
 
         if has_orders or has_invoices or has_quotations or has_stock:
             product.active = False
-            product.save()
+            product.status = 'DRAFT'
+            product.save(update_fields=['active', 'status', 'updated_at'])
             return Response(
                 {
-                    "detail": "Product cannot be permanently deleted because it has historical financial or inventory records. It has been deactivated instead.",
-                    "deactivated": True
+                    "detail": "Cannot delete product linked to existing orders; marked as Archived/Draft instead.",
+                    "deactivated": True,
+                    "status": "DRAFT",
+                    "id": product.id
                 },
                 status=status.HTTP_200_OK
             )
@@ -516,11 +533,14 @@ class ProductViewSet(viewsets.ModelViewSet):
             return super().destroy(request, *args, **kwargs)
         except models.ProtectedError:
             product.active = False
-            product.save()
+            product.status = 'DRAFT'
+            product.save(update_fields=['active', 'status', 'updated_at'])
             return Response(
                 {
-                    "detail": "Product cannot be permanently deleted because it has historical records. It has been deactivated instead.",
-                    "deactivated": True
+                    "detail": "Cannot delete product linked to existing orders; marked as Archived/Draft instead.",
+                    "deactivated": True,
+                    "status": "DRAFT",
+                    "id": product.id
                 },
                 status=status.HTTP_200_OK
             )

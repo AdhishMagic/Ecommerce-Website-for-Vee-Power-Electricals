@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { catalogApi } from "../../api/catalog";
-import { AlertCircle, CheckCircle2, FileSpreadsheet, Loader2 } from "lucide-react";
+import { useShop } from "../../context/ShopContext";
+import { AlertCircle, CheckCircle2, FileSpreadsheet, Loader2, ArrowRight } from "lucide-react";
 
 interface ParsedProductRow {
   name: string;
@@ -14,6 +16,7 @@ interface ParsedProductRow {
 }
 
 export default function ImportProducts() {
+  const { refreshProducts } = useShop();
   const [file, setFile] = useState<File | null>(null);
   const [stage, setStage] = useState<"upload" | "preview" | "importing" | "done">("upload");
   const [previewRows, setPreviewRows] = useState<ParsedProductRow[]>([]);
@@ -136,6 +139,8 @@ export default function ImportProducts() {
       mrp: parseFloat(row.price),
       stock: parseInt(row.stock, 10),
       active: true,
+      is_active: true,
+      status: 'ACTIVE',
     }));
 
     try {
@@ -146,6 +151,7 @@ export default function ImportProducts() {
         failed: rowErrors.length + invalidCount,
         errors: rowErrors,
       });
+      await refreshProducts();
     } catch (err: any) {
       // Fallback to sequential import if bulk endpoint encounters issue
       let successCount = 0;
@@ -163,6 +169,8 @@ export default function ImportProducts() {
             mrp: parseFloat(row.price),
             stock: parseInt(row.stock, 10),
             active: true,
+            is_active: true,
+            status: 'ACTIVE',
           });
           successCount++;
         } catch (innerErr: any) {
@@ -176,6 +184,7 @@ export default function ImportProducts() {
         failed: failCount + invalidCount,
         errors,
       });
+      await refreshProducts();
     }
 
     setStage("done");
@@ -216,12 +225,21 @@ export default function ImportProducts() {
           </div>
         )}
 
-        <button 
-          onClick={() => { setStage("upload"); setFile(null); setPreviewRows([]); }} 
-          className="mt-6 bg-[#0B3A63] text-white px-6 py-3 rounded-lg font-semibold hover:bg-[#1769AA] transition-colors"
-        >
-          Import More Products
-        </button>
+        <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <Link
+            to="/admin/products"
+            className="flex items-center gap-2 bg-[#F2A900] text-[#0A2540] px-6 py-3 rounded-lg font-bold hover:bg-[#e09b00] transition-colors shadow-xs"
+          >
+            <span>View Products List</span>
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+          <button 
+            onClick={() => { setStage("upload"); setFile(null); setPreviewRows([]); }} 
+            className="bg-[#0B3A63] text-white px-6 py-3 rounded-lg font-semibold hover:bg-[#1769AA] transition-colors"
+          >
+            Import More Products
+          </button>
+        </div>
       </div>
     );
   }

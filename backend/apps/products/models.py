@@ -180,6 +180,22 @@ class Product(TimeStampedModel):
     primary_image = models.CharField(max_length=500, blank=True, default='')
     featured = models.BooleanField(default=False)
     active = models.BooleanField(default=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[('ACTIVE', 'Active'), ('DRAFT', 'Draft')],
+        default='ACTIVE',
+        db_index=True,
+        help_text="Product visibility status: ACTIVE or DRAFT"
+    )
+
+    @property
+    def is_active(self) -> bool:
+        return self.active
+
+    @is_active.setter
+    def is_active(self, value: bool):
+        self.active = bool(value)
+        self.status = 'ACTIVE' if self.active else 'DRAFT'
 
     # SEO Metadata Fields (Phase 3 & Phase 10)
     meta_title = models.CharField(max_length=200, blank=True, default='', help_text="Custom SEO title (recommended: 50-60 characters)")
@@ -290,6 +306,23 @@ class Product(TimeStampedModel):
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None
+        # Synchronize status and active
+        if self.status:
+            self.status = str(self.status).upper().strip()
+            if self.status == 'ACTIVE':
+                self.active = True
+            elif self.status == 'DRAFT':
+                self.active = False
+            else:
+                self.status = 'ACTIVE' if self.active else 'DRAFT'
+        else:
+            self.status = 'ACTIVE' if self.active else 'DRAFT'
+
+        if self.active and self.status != 'ACTIVE':
+            self.status = 'ACTIVE'
+        elif not self.active and self.status != 'DRAFT':
+            self.status = 'DRAFT'
+
         if not self.slug:
             self.slug = self.generate_unique_slug()
         if self.sku:

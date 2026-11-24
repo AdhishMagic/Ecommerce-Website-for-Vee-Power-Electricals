@@ -943,9 +943,32 @@ class BulkProductImportService:
                         # Description
                         description_val = str(row.get('description') or '').strip()
 
-                        # Active status
-                        active_raw = str(row.get('is_active', '')).strip().lower()
-                        is_active = active_raw in ('true', '1', 'yes', 'y', 'active') if active_raw else True
+                        # Active / Status synchronization (Requirement 1)
+                        # When Is_Active is TRUE, omitted, blank, or None: set BOTH is_active=True AND status='ACTIVE'
+                        raw_active = row.get('is_active')
+                        if raw_active is None:
+                            raw_active = row.get('active')
+                        if raw_active is None:
+                            raw_active = row.get('status')
+
+                        if raw_active is None or (isinstance(raw_active, str) and not raw_active.strip()):
+                            # Omitted or blank -> defaults to TRUE / ACTIVE
+                            is_active = True
+                            status_val = 'ACTIVE'
+                        elif isinstance(raw_active, bool):
+                            is_active = raw_active
+                            status_val = 'ACTIVE' if is_active else 'DRAFT'
+                        else:
+                            active_str = str(raw_active).strip().lower()
+                            if active_str in ('true', '1', 'yes', 'y', 'active'):
+                                is_active = True
+                                status_val = 'ACTIVE'
+                            elif active_str in ('false', '0', 'no', 'n', 'draft', 'inactive'):
+                                is_active = False
+                                status_val = 'DRAFT'
+                            else:
+                                is_active = True
+                                status_val = 'ACTIVE'
 
                         # Selling price vs MRP
                         if discount_price is not None and discount_price > 0:
@@ -971,6 +994,7 @@ class BulkProductImportService:
                         if description_val:
                             product.description = description_val
                         product.active = is_active
+                        product.status = status_val
                         product._skip_indexnow = True
                         product.save()
 
@@ -1023,7 +1047,17 @@ class BulkProductImportService:
                             product.primary_image = primary_img_url
                             product.save(update_fields=['primary_image'])
                         elif not is_update and not product.primary_image:
-                            raise ValidationError("No embedded image or valid https:// URL found in this row.")
+                            from apps.products.management.commands.correct_product_images import CATEGORY_DEFAULT_MAP, GENERIC_DEFAULT
+                            cat_slug = product.category.slug if product.category else ''
+                            default_img = CATEGORY_DEFAULT_MAP.get(cat_slug, GENERIC_DEFAULT)
+                            product.primary_image = default_img
+                            product.save(update_fields=['primary_image'])
+                            ProductImage.objects.create(
+                                product=product,
+                                image_url=default_img,
+                                is_primary=True,
+                                sort_order=0
+                            )
 
                         # Gallery Images Handling
                         all_gallery_urls = list(extra_gallery_urls)

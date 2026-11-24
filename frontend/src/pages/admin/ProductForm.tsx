@@ -125,13 +125,15 @@ export default function ProductForm() {
     return () => { isMounted = false; };
   }, []);
 
-  // Initialize existing product on Edit mode (run once per product ID)
+  // Initialize existing product on Edit mode (fetch directly from API for complete data)
   useEffect(() => {
-    if (id && !hasInitializedExistingRef.current && products.length > 0) {
-      const existing = products.find(p => String(p.id) === String(id));
-      if (existing) {
+    let isMounted = true;
+    if (id && !hasInitializedExistingRef.current) {
+      catalogApi.getProductDetail(id).then((detail) => {
+        if (!isMounted || !detail) return;
         hasInitializedExistingRef.current = true;
-        const rawImg = existing.image || existing.primary_image || (existing.images && existing.images[0]) || "";
+
+        const rawImg = detail.primary_image || (detail.images && detail.images[0]?.image) || "";
         const hasCustom = Boolean(
           rawImg &&
           !rawImg.includes('/media/defaults/') &&
@@ -139,46 +141,119 @@ export default function ProductForm() {
           (rawImg.includes('/media/products/') || rawImg.startsWith('data:') || rawImg.startsWith('http'))
         );
 
+        // Map specs
+        const mappedSpecs: SpecificationItem[] = [];
+        if (detail.specifications && Array.isArray(detail.specifications)) {
+          detail.specifications.forEach((s: any) => {
+            const k = s.key || s.spec_key;
+            const v = s.value || s.spec_value;
+            if (k && v) mappedSpecs.push({ key: String(k), value: String(v) });
+          });
+        }
+
         // Detect GST Rate from specifications if present
         let existingGst = "18";
-        if (existing.specs && Array.isArray(existing.specs)) {
-          const gstSpec = existing.specs.find(s => s.key && s.key.toLowerCase().includes("gst"));
-          if (gstSpec && gstSpec.value) {
-            const digits = gstSpec.value.replace(/[^0-9]/g, "");
-            if (["0", "5", "12", "18", "28"].includes(digits)) {
-              existingGst = digits;
-            }
+        const gstSpec = mappedSpecs.find(s => s.key && s.key.toLowerCase().includes("gst"));
+        if (gstSpec && gstSpec.value) {
+          const digits = gstSpec.value.replace(/[^0-9]/g, "");
+          if (["0", "5", "12", "18", "28"].includes(digits)) {
+            existingGst = digits;
           }
         }
 
+        // Resolve category id or value
+        let catIdVal = "";
+        if (typeof detail.category === 'object' && detail.category !== null) {
+          catIdVal = String((detail.category as any).id);
+        } else if (detail.category !== undefined) {
+          catIdVal = String(detail.category);
+        }
+
+        // Resolve brand id or value
+        let brandIdVal = "";
+        if (typeof detail.brand === 'object' && detail.brand !== null) {
+          brandIdVal = String((detail.brand as any).id);
+        } else if (detail.brand !== undefined) {
+          brandIdVal = String(detail.brand);
+        }
+
+        const isProdActive = (detail as any).is_active !== undefined
+          ? Boolean((detail as any).is_active)
+          : (detail.active !== undefined ? Boolean(detail.active) : true);
+
         setFormData({
-          name: existing.name,
-          slug: existing.slug || "",
-          brand: existing.brand || "",
-          category: existing.category || "",
-          sku: existing.sku || "",
-          description: existing.description || "",
-          price: existing.price !== undefined ? existing.price.toString() : "",
-          mrp: (existing as any).mrp !== undefined ? (existing as any).mrp.toString() : (existing.price ? existing.price.toString() : ""),
+          name: detail.name || "",
+          slug: detail.slug || "",
+          brand: brandIdVal,
+          category: catIdVal,
+          sku: detail.sku || "",
+          description: detail.description || "",
+          price: detail.price !== undefined ? String(detail.price) : "",
+          mrp: (detail as any).mrp !== undefined ? String((detail as any).mrp) : (detail.price ? String(detail.price) : ""),
           gst_percent: existingGst,
-          stock: existing.stock !== undefined ? existing.stock.toString() : "",
-          lowStockThreshold: existing.lowStockThreshold?.toString() || "10",
-          active: existing.active !== undefined ? existing.active : true,
+          stock: detail.stock !== undefined ? String(detail.stock) : "",
+          lowStockThreshold: (detail as any).low_stock_threshold?.toString() || "10",
+          active: isProdActive,
           image: rawImg,
-          meta_title: existing.meta_title || (existing as any).metaTitle || "",
-          meta_description: existing.meta_description || (existing as any).metaDescription || "",
-          canonical_url: existing.canonical_url || (existing as any).canonicalUrl || "",
-          is_indexable: existing.is_indexable !== undefined ? existing.is_indexable : true,
+          meta_title: (detail as any).meta_title || "",
+          meta_description: (detail as any).meta_description || "",
+          canonical_url: (detail as any).canonical_url || "",
+          is_indexable: (detail as any).is_indexable !== undefined ? Boolean((detail as any).is_indexable) : true,
         });
 
         setIsCustomImage(hasCustom);
 
-        if (existing.specs && existing.specs.length > 0) {
-          setSpecs(existing.specs);
+        if (mappedSpecs.length > 0) {
+          setSpecs(mappedSpecs);
         }
+      }).catch((err) => {
+        console.warn("Could not fetch product detail via API, trying local state fallback:", err);
+        const existing = products.find(p => String(p.id) === String(id));
+        if (existing && isMounted) {
+          hasInitializedExistingRef.current = true;
+          const rawImg = existing.image || existing.primary_image || (existing.images && existing.images[0]) || "";
+          setFormData(prev => ({
+            ...prev,
+            name: existing.name,
+            slug: existing.slug || "",
+            brand: String(existing.brandId || existing.brand || ""),
+            category: String(existing.categoryId || existing.category || ""),
+            sku: existing.sku || "",
+            description: existing.description || "",
+            price: existing.price !== undefined ? existing.price.toString() : "",
+            mrp: existing.mrp !== undefined ? existing.mrp.toString() : (existing.price ? existing.price.toString() : ""),
+            stock: existing.stock !== undefined ? existing.stock.toString() : "",
+            active: existing.active !== undefined ? existing.active : true,
+            image: rawImg,
+          }));
+        }
+      });
+    }
+    return () => { isMounted = false; };
+  }, [id, products]);
+
+  // Sync category and brand IDs if they were strings/names
+  useEffect(() => {
+    if (formData.category && categoriesList.length > 0) {
+      const match = categoriesList.find(
+        c => String(c.id) === String(formData.category) || c.name.toLowerCase() === formData.category.toLowerCase() || c.slug === formData.category
+      );
+      if (match && String(formData.category) !== String(match.id)) {
+        setFormData(prev => ({ ...prev, category: String(match.id) }));
       }
     }
-  }, [id, products]);
+  }, [categoriesList, formData.category]);
+
+  useEffect(() => {
+    if (formData.brand && brandsList.length > 0) {
+      const match = brandsList.find(
+        b => String(b.id) === String(formData.brand) || b.name.toLowerCase() === formData.brand.toLowerCase()
+      );
+      if (match && String(formData.brand) !== String(match.id)) {
+        setFormData(prev => ({ ...prev, brand: String(match.id) }));
+      }
+    }
+  }, [brandsList, formData.brand]);
 
   // Clean field errors on change
   const clearFieldError = (fieldName: string) => {
@@ -726,7 +801,7 @@ export default function ProductForm() {
                       >
                         <option value="">Select Brand</option>
                         {brandsList.map(b => (
-                          <option key={b.id} value={b.id}>{b.name}</option>
+                          <option key={b.id} value={String(b.id)}>{b.name}</option>
                         ))}
                       </select>
                       {fieldErrors.brand && (
@@ -752,7 +827,7 @@ export default function ProductForm() {
                       >
                         <option value="">Select Category</option>
                         {categoriesList.map(c => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
+                          <option key={c.id} value={String(c.id)}>{c.name}</option>
                         ))}
                       </select>
                       {fieldErrors.category && (

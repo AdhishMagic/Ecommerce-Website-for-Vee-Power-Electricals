@@ -8,11 +8,18 @@ export interface Product {
   name: string;
   slug?: string;
   price: number;
+  mrp?: number;
   stock: number;
   active: boolean;
+  is_active?: boolean;
+  status?: string;
   category: string;
+  categoryId?: number | string;
+  categorySlug?: string;
   sku: string;
   brand: string;
+  brandId?: number | string;
+  brandSlug?: string;
   lowStockThreshold?: number;
   image?: string;
   primary_image?: string;
@@ -56,7 +63,8 @@ interface ShopContextType {
   addProduct: (product: Omit<Product, "id">) => Promise<void>;
   updateProduct: (id: string, updates: Partial<Product>) => Promise<void>;
   updateStock: (productId: string, newStock: number) => Promise<void>;
-  deleteProduct: (id: string) => Promise<void>;
+  deleteProduct: (id: string) => Promise<{ deactivated?: boolean; detail?: string } | void>;
+  toggleProductStatus: (id: string, currentActive: boolean) => Promise<{ active: boolean; status: string }>;
 
   // User Actions
   addToCart: (productId: string, quantity: number) => void;
@@ -146,19 +154,48 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     if (updates.brand !== undefined) payload.brand = updates.brand;
     if (updates.price !== undefined) {
       payload.price = updates.price;
-      payload.mrp = updates.price;
+      payload.mrp = (updates as any).mrp !== undefined ? (updates as any).mrp : updates.price;
+    } else if ((updates as any).mrp !== undefined) {
+      payload.mrp = (updates as any).mrp;
     }
     if (updates.stock !== undefined) payload.stock = updates.stock;
-    if (updates.active !== undefined) payload.active = updates.active;
+    if (updates.active !== undefined) {
+      payload.active = updates.active;
+      payload.is_active = updates.active;
+      payload.status = updates.active ? 'ACTIVE' : 'DRAFT';
+    } else if (updates.status !== undefined) {
+      const isAct = updates.status.toUpperCase() === 'ACTIVE';
+      payload.status = updates.status.toUpperCase();
+      payload.active = isAct;
+      payload.is_active = isAct;
+    }
     if (updates.description !== undefined) payload.description = updates.description;
     if (updates.lowStockThreshold !== undefined) payload.low_stock_threshold = updates.lowStockThreshold;
     if (updates.image !== undefined) payload.primary_image = updates.image;
     if (updates.specs !== undefined) payload.specifications = updates.specs;
+    if (updates.meta_title !== undefined) payload.meta_title = updates.meta_title;
+    if (updates.meta_description !== undefined) payload.meta_description = updates.meta_description;
+    if (updates.canonical_url !== undefined) payload.canonical_url = updates.canonical_url;
+    if (updates.is_indexable !== undefined) payload.is_indexable = updates.is_indexable;
 
     if (!id.includes('-') && !isNaN(Number(id))) {
       await catalogApi.updateProduct(id, payload);
     }
     await refreshProducts();
+  }, [refreshProducts]);
+
+  const toggleProductStatus = useCallback(async (id: string, currentActive: boolean) => {
+    const nextActive = !currentActive;
+    const nextStatus = nextActive ? 'ACTIVE' : 'DRAFT';
+    if (!id.includes('-') && !isNaN(Number(id))) {
+      await catalogApi.updateProduct(id, {
+        active: nextActive,
+        is_active: nextActive,
+        status: nextStatus,
+      });
+    }
+    await refreshProducts();
+    return { active: nextActive, status: nextStatus };
   }, [refreshProducts]);
 
   const updateStock = useCallback(async (productId: string, newStock: number) => {
@@ -178,17 +215,18 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   }, [products, refreshProducts]);
 
   const deleteProduct = useCallback(async (id: string) => {
+    let res: { deactivated?: boolean; detail?: string } | void = undefined;
     try {
       if (!id.includes('-') && !isNaN(Number(id))) {
-        await catalogApi.deleteProduct(id);
-        await refreshProducts();
+        res = await catalogApi.deleteProduct(id);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error deleting product via API:", err);
+      throw err;
+    } finally {
+      await refreshProducts();
     }
-
-    setProducts((prev) => prev.filter((p) => p.id !== id));
-    setCart((prev) => prev.filter((c) => c.productId !== id));
+    return res;
   }, [refreshProducts]);
 
   // ==============================
@@ -298,6 +336,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         updateProduct,
         updateStock,
         deleteProduct,
+        toggleProductStatus,
         addToCart,
         updateCartItem,
         removeFromCart,

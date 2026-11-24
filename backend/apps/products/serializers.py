@@ -134,12 +134,15 @@ class ProductListSerializer(serializers.ModelSerializer):
     subcategory = serializers.SerializerMethodField()
     brand = serializers.SerializerMethodField()
     in_stock = serializers.SerializerMethodField()
+    is_active = serializers.BooleanField(source='active', read_only=True)
+    status = serializers.CharField(read_only=True)
 
     class Meta:
         model = Product
         fields = [
             'id', 'name', 'slug', 'sku', 'category', 'subcategory', 'brand',
             'mrp', 'price', 'in_stock', 'primary_image', 'featured', 'active',
+            'is_active', 'status',
             'meta_title', 'meta_description', 'canonical_url', 'is_indexable',
             'created_at', 'updated_at'
         ]
@@ -158,6 +161,10 @@ class ProductListSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
+        # Ensure status and is_active are populated
+        data['is_active'] = instance.active
+        data['active'] = instance.active
+        data['status'] = getattr(instance, 'status', 'ACTIVE' if instance.active else 'DRAFT')
         # Fallback for primary_image if empty
         if not data.get('primary_image'):
             first_img = instance.images.filter(is_primary=True).first() or instance.images.first()
@@ -181,7 +188,9 @@ class ProductDetailSerializer(ProductListSerializer):
 
 class ProductAdminCreateUpdateSerializer(serializers.ModelSerializer):
     slug = serializers.SlugField(required=False, allow_blank=True)
-    active = serializers.BooleanField(required=False, default=True)
+    active = serializers.BooleanField(required=False)
+    is_active = serializers.BooleanField(required=False)
+    status = serializers.CharField(required=False, allow_blank=True)
     meta_title = serializers.CharField(required=False, allow_blank=True, max_length=200)
     meta_description = serializers.CharField(required=False, allow_blank=True)
     canonical_url = serializers.CharField(required=False, allow_blank=True, max_length=500)
@@ -192,16 +201,50 @@ class ProductAdminCreateUpdateSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'slug', 'sku', 'category', 'subcategory', 'brand',
             'mrp', 'price', 'stock', 'low_stock_threshold', 'description',
-            'primary_image', 'featured', 'active',
+            'primary_image', 'featured', 'active', 'is_active', 'status',
             'meta_title', 'meta_description', 'canonical_url', 'is_indexable'
         ]
         read_only_fields = ['id']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['is_active'] = instance.active
+        data['active'] = instance.active
+        data['status'] = getattr(instance, 'status', 'ACTIVE' if instance.active else 'DRAFT')
+        return data
 
     def to_internal_value(self, data):
         data = data.copy() if hasattr(data, 'copy') else dict(data)
         if not data.get('slug') and data.get('name'):
             from django.utils.text import slugify
             data['slug'] = slugify(data['name'])
+
+        # Synchronize status, is_active, and active (Requirement 1)
+        status_input = data.get('status')
+        is_active_input = data.get('is_active')
+        active_input = data.get('active')
+
+        if status_input is not None and str(status_input).strip():
+            st_clean = str(status_input).strip().upper()
+            if st_clean in ('ACTIVE', 'DRAFT'):
+                data['status'] = st_clean
+                data['active'] = (st_clean == 'ACTIVE')
+                data['is_active'] = (st_clean == 'ACTIVE')
+        elif is_active_input is not None:
+            bool_val = is_active_input in (True, 'true', 'True', 1, '1')
+            data['active'] = bool_val
+            data['is_active'] = bool_val
+            data['status'] = 'ACTIVE' if bool_val else 'DRAFT'
+        elif active_input is not None:
+            bool_val = active_input in (True, 'true', 'True', 1, '1')
+            data['active'] = bool_val
+            data['is_active'] = bool_val
+            data['status'] = 'ACTIVE' if bool_val else 'DRAFT'
+        elif not getattr(self, 'instance', None):
+            # For new products created without explicit status, default to ACTIVE/True
+            data['active'] = True
+            data['is_active'] = True
+            data['status'] = 'ACTIVE'
 
         # Default mrp to price if omitted
         if not data.get('mrp') and data.get('price'):
